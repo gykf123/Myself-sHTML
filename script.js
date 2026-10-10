@@ -17,7 +17,8 @@ const CONFIG = {
     { name: '红石自动化实验室', desc: '基于 Minecraft 红石与真实电路原理的自动化演示', tags: ['Minecraft', '待补充'], href: '#' },
     { name: '终端工具箱', desc: '一组零依赖的命令行小工具', tags: ['CLI', '待补充'], href: '#' },
     { name: '静态站点生成器', desc: '纯前端、无构建步骤的极简建站方案', tags: ['Web', '待补充'], href: '#' },
-    { name: '数据可视化', desc: '用原生 Canvas / SVG 讲故事', tags: ['Chart', '待补充'], href: '#' }
+    { name: '数据可视化', desc: '用原生 Canvas / SVG 讲故事', tags: ['Chart', '待补充'], href: '#' },
+    { name: 'FKD 服务器主页', desc: 'FKD 游戏服务器官方网站', tags: ['Minecraft', '服务器'], href: 'https://FKD.是.gay', target: '_blank' }
   ],
   // 工具箱树（由数组配置驱动渲染）
   toolTree: [
@@ -51,6 +52,7 @@ function renderProjects() {
     const a = document.createElement('a');
     a.className = 'proj-card';
     a.href = p.href;
+    if (p.target) { a.target = p.target; a.rel = 'noopener noreferrer'; }
     const tags = p.tags.map(t => `<span class="tag">${t}</span>`).join('');
     a.innerHTML = `<h4>${p.name}</h4><p>${p.desc}</p><div class="tags">${tags}</div>`;
     frag.appendChild(a);
