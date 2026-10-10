@@ -81,12 +81,11 @@ function renderTreeNode(node) {
     btn.innerHTML = `<span class="arrow">▸</span><span class="label">${node.name}</span>`;
     const ul = document.createElement('ul');
     ul.className = 'tree-children';
-    ul.hidden = true;
     node.children.forEach(c => ul.appendChild(renderTreeNode(c)));
     btn.addEventListener('click', () => {
-      const open = ul.hidden;
-      ul.hidden = !open;
-      btn.setAttribute('aria-expanded', String(open));
+      const open = ul.classList.contains('open');
+      ul.classList.toggle('open', !open);
+      btn.setAttribute('aria-expanded', String(!open));
     });
     li.appendChild(btn);
     li.appendChild(ul);
@@ -111,6 +110,13 @@ function renderToolTree() {
   box.appendChild(ul);
 }
 
+/* 切换文本并触发轻量滑入动画（标题/副标题切换时用） */
+function swapText(el, text) {
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove('swap'); void el.offsetWidth; el.classList.add('swap');
+}
+
 /* ---------- 视图切换：侧栏仅导航，主区展示对应内容 ---------- */
 function switchView(view) {
   if (!VIEW_META[view]) view = 'info';
@@ -122,8 +128,8 @@ function switchView(view) {
   });
   document.querySelectorAll('.view').forEach(s => { s.hidden = s.dataset.view !== view; });
   const meta = VIEW_META[view];
-  const t = $('#viewTitle'); if (t) t.textContent = meta.title;
-  const s = $('#viewSub');   if (s) s.textContent = meta.sub;
+  swapText($('#viewTitle'), meta.title);
+  swapText($('#viewSub'), meta.sub);
   // 桌面端：点击导航后侧栏收起为窄条；移动端靠抽屉关闭处理
   const sb = $('#sidebar');
   if (sb && window.innerWidth > 767) sb.classList.add('collapsed');
@@ -186,6 +192,8 @@ function bindEgg() {
     const pick = links[Math.floor(Math.random() * links.length)];
     const url = pick.url || '#';
     btn.disabled = true;
+    btn.classList.add('celebrate');
+    btn.addEventListener('animationend', () => btn.classList.remove('celebrate'), { once: true });
     btn.innerHTML = '<span class="egg-ico" aria-hidden="true">🎲</span><span class="egg-label">传送中…</span>';
     setTimeout(() => {
       if (url !== '#') window.open(url, '_blank', 'noopener,noreferrer');
@@ -202,8 +210,18 @@ function bindMobile() {
   const menu = $('#menuBtn');
   const overlay = $('#overlay');
   if (!sb || !menu || !overlay) return;
-  const open = () => { sb.classList.add('open-drawer'); overlay.hidden = false; menu.setAttribute('aria-expanded', 'true'); };
-  drawerClose = () => { sb.classList.remove('open-drawer'); overlay.hidden = true; menu.setAttribute('aria-expanded', 'false'); };
+  const open = () => {
+    sb.classList.add('open-drawer');
+    overlay.hidden = false;
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    menu.setAttribute('aria-expanded', 'true');
+  };
+  drawerClose = () => {
+    overlay.classList.remove('show');
+    sb.classList.remove('open-drawer');
+    menu.setAttribute('aria-expanded', 'false');
+    setTimeout(() => { overlay.hidden = true; }, 260);
+  };
   menu.addEventListener('click', open);
   overlay.addEventListener('click', drawerClose);
 }
@@ -230,6 +248,7 @@ function init() {
   let v = 'info';
   try { v = localStorage.getItem('view') || 'info'; } catch (e) {}
   switchView(v);
+  requestAnimationFrame(() => { const c = $('.content'); if (c) c.classList.add('ready'); });
   hideLoader();
 }
 if (document.readyState === 'loading') {
