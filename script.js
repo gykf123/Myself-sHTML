@@ -155,7 +155,7 @@ function bindCollapse() {
 
 /* ---------- 主题切换（Standard / Liquid Glass + localStorage） ---------- */
 function bindTheme() {
-  const saved = localStorage.getItem('theme') || 'standard';
+  const saved = localStorage.getItem('theme') || 'glass';
   applyTheme(saved);
   document.querySelectorAll('#themeBtn, #sidebarThemeBtn').forEach(btn => {
     if (!btn) return;
