@@ -63,6 +63,10 @@
 - [2026-10-10] 测试 `fesui.是.gay` 连通性：DNS 解析命中 GitHub Pages IP（185.199.108.153），`curl https://fesui.xn--0iv.gay/` 返回 HTTP 200（1.26s），确认该域名已指向 GitHub Pages 且可正常访问；用户后续确认 Pages 已开启、域名即为此域名，用于线上部署验证。
 - [2026-10-10] 侧边栏交互重构：按用户修正需求，侧栏从「accordion 折叠面板」改为「纯导航选择」——点击 `个人信息/项目导航/工具箱` 任一导航项 → 桌面端侧栏自动折叠为窄条、移动端关闭抽屉 → 主内容区切换对应视图并显示大标题（如「工具箱」）；原侧栏内的头像/身份/格言/项目卡片/工具树全部移入主区，由 JS 的 `switchView()` 驱动，localStorage 记忆当前视图。
 - [2026-10-10] 液态玻璃增强：新增 `body.theme-glass::before` 流动光斑背景动画；`.glass` 类的主区表面（info-hero/about/identity-card/github-link 等）在 glass 主题下应用 `backdrop-filter: blur(14px)` + 半透明 + 高光边框 + 柔和内阴影；不支持 `backdrop-filter` 时降级为半透明纯色；已通过本地 headless Chromium 截图验证标准与 glass 两主题、info 与 proj 两视图均正常。
+- [2026-10-10] 头像过大修复：用户上传头像为 1280×1280/200KB，在 iPad Safari 出现撑大现象；将图片裁剪缩放为 256×256/27KB，并在 `<img>` 标签加 `width="96" height="96" loading="lazy"`，CSS 加 `max-width/max-height` 兜底，防止浏览器忽略样式时图片爆开。
+- [2026-10-10] 主题切换入口补强：用户反馈 topbar 的 `◐` 按钮在 iPad Safari 不易见/不可点；在侧栏头部（`.sidebar-head`）新增 `#sidebarThemeBtn` 主题切换按钮，与 topbar `#themeBtn` 共用 `applyTheme()`，两个入口任选其一。
+- [2026-10-10] 彩蛋按钮：在「关于我」简介后加 `#eggBtn`（"来点惊喜"），点击后从 `CONFIG.eggLinks` 随机选一条链接在新标签打开；预设数组当前为空，空数组时按钮文字临时变为"预设链接待补充…"并自动恢复，后续在 `CONFIG.eggLinks` 里加 `{title,url}` 即可生效。
+- [2026-10-10] 动画增强：视图内子元素 stagger 上浮入场（`.view:not([hidden]) > *`）、项目卡片 stagger、chip hover 微缩放、彩蛋按钮脉冲 + 骰子抖动；所有动画尊重 `prefers-reduced-motion: reduce`。
 
 ## 冲突记录（REMIND vs 任务提示词）
 - 原始任务提示词要求「左侧分类栏：三个一级分类，点击分类标题展开/收起子内容」，但用户后续明确修正为「左侧边栏只是一个选择，点了工具箱后侧边栏收起、主界面上方标题工具箱、不是所有全挤在侧边栏」。按 REMIND「若 REMIND 与本提示词冲突，自行按 REMIND 执行」的原则，这里用户实时指令即最高优先级，已按新需求重构；未删除/隐藏旧结构，而是重写为导航+主区视图。
