@@ -30,6 +30,10 @@ const CONFIG = {
         ]}
       ]
     }
+  ],
+  // 彩蛋按钮预设链接（待补充；空数组时按钮会提示）
+  eggLinks: [
+    // { title: '示例站点', url: 'https://example.com' }
   ]
 };
 
@@ -151,17 +155,44 @@ function bindCollapse() {
 
 /* ---------- 主题切换（Standard / Liquid Glass + localStorage） ---------- */
 function bindTheme() {
-  const btn = $('#themeBtn');
   const saved = localStorage.getItem('theme') || 'standard';
   applyTheme(saved);
-  btn.addEventListener('click', () => {
-    const next = document.body.classList.contains('theme-glass') ? 'standard' : 'glass';
-    applyTheme(next);
-    localStorage.setItem('theme', next);
+  document.querySelectorAll('#themeBtn, #sidebarThemeBtn').forEach(btn => {
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const next = document.body.classList.contains('theme-glass') ? 'standard' : 'glass';
+      applyTheme(next);
+      localStorage.setItem('theme', next);
+    });
   });
 }
 function applyTheme(t) {
   document.body.classList.toggle('theme-glass', t === 'glass');
+}
+
+/* ---------- 彩蛋按钮：随机跳转到预设链接 ---------- */
+function bindEgg() {
+  const btn = $('#eggBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const links = CONFIG.eggLinks || [];
+    if (!links.length) {
+      btn.textContent = '预设链接待补充…';
+      setTimeout(() => {
+        btn.innerHTML = '<span class="egg-ico" aria-hidden="true">🎲</span><span class="egg-label">来点惊喜</span>';
+      }, 1200);
+      return;
+    }
+    const pick = links[Math.floor(Math.random() * links.length)];
+    const url = pick.url || '#';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="egg-ico" aria-hidden="true">🎲</span><span class="egg-label">传送中…</span>';
+    setTimeout(() => {
+      if (url !== '#') window.open(url, '_blank', 'noopener,noreferrer');
+      btn.disabled = false;
+      btn.innerHTML = '<span class="egg-ico" aria-hidden="true">🎲</span><span class="egg-label">再来一次</span>';
+    }, 500);
+  });
 }
 
 /* ---------- 移动端抽屉 + 遮罩 ---------- */
@@ -193,6 +224,7 @@ function init() {
   bindNav();
   bindCollapse();
   bindTheme();
+  bindEgg();
   bindMobile();
   // 恢复上次视图（默认个人信息）
   let v = 'info';

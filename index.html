@@ -27,7 +27,10 @@
     <aside id="sidebar" class="sidebar" aria-label="主导航">
       <div class="sidebar-head">
         <span class="brand">FeSui</span>
-        <button id="collapseBtn" class="icon-btn" aria-label="折叠/展开侧栏" aria-expanded="true" title="折叠/展开">«</button>
+        <div class="sidebar-actions">
+          <button id="sidebarThemeBtn" class="icon-btn" aria-label="切换主题（标准 / 液态玻璃）" title="切换主题">◐</button>
+          <button id="collapseBtn" class="icon-btn" aria-label="折叠/展开侧栏" aria-expanded="true" title="折叠/展开">«</button>
+        </div>
       </div>
 
       <nav class="nav" aria-label="主导航">
@@ -54,7 +57,7 @@
       <section class="view" data-view="info" aria-labelledby="viewTitle">
         <div class="info-hero glass">
           <div class="avatar-box" aria-label="头像">
-            <img src="./avatar.png" alt="头像" />
+            <img src="./avatar.png" alt="头像" width="96" height="96" loading="lazy" />
           </div>
           <div class="info-hero-text">
             <h2 class="info-name">FeSui</h2>
@@ -73,6 +76,12 @@
           <p>我在红石电路与代码逻辑的交界处游走——既会在 Minecraft 里用方块搭出真实的电路，也会在终端前用脚本把重复劳动交给机器。不执拗，也不将就：每一座方块、每一行代码，都该有它存在的道理。</p>
           <p>世界是开放的沙盒，而我乐此不疲地编辑它。</p>
         </section>
+
+        <!-- 待补充：彩蛋跳转预设链接请在 script.js 的 CONFIG.eggLinks 中配置 -->
+        <button id="eggBtn" class="egg-btn" type="button" aria-label="随机彩蛋">
+          <span class="egg-ico" aria-hidden="true">🎲</span>
+          <span class="egg-label">来点惊喜</span>
+        </button>
 
         <div class="identity-grid">
           <div class="identity-card glass">
