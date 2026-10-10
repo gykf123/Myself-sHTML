@@ -69,6 +69,7 @@
 - [2026-10-10] 动画增强：视图内子元素 stagger 上浮入场（`.view:not([hidden]) > *`）、项目卡片 stagger、chip hover 微缩放、彩蛋按钮脉冲 + 骰子抖动；所有动画尊重 `prefers-reduced-motion: reduce`。
 - [2026-10-10] 液态玻璃升级（从毛玻璃到真·液态玻璃）：参考 GitHub 开源实现 `arsalan06106/liquid-glass-html-css`，在 `index.html` 注入隐藏 SVG filter `#lg-distort`（`feTurbulence` + `feDisplacementMap`），glass 主题下 `.glass`/`.sidebar` 使用 `backdrop-filter: blur(12px) url(#lg-distort) saturate(160%)` 实现背景边缘折射扭曲；叠加 8 层 `inset box-shadow` 模拟顶部高光、边缘反射、内部阴影与投影；降级方案保留。
 - [2026-10-10] 默认主题改为液态玻璃：`<body>` 开头内联脚本在无 localStorage 时默认添加 `theme-glass` 类，`script.js` 的 `bindTheme()` 默认值同步改为 `'glass'`，避免刷新闪烁；用户仍可点 `◐` 切回标准主题。
+- [2026-10-10] 更多过渡动画：补齐工具箱树展开/收起的高度+透明度过渡、导航 active 左侧指示条平滑伸缩、身份卡片 hover 抬起与高光、头像 hover 缩放旋转、视图标题切换轻量滑入、移动端遮罩淡入淡出、彩蛋点击庆祝弹跳+骰子加速、主内容 `.content` 初始淡入；所有动画仍只用 `transform`/`opacity`/`max-height`，尊重 `prefers-reduced-motion: reduce`。
 
 ## 冲突记录（REMIND vs 任务提示词）
 - 原始任务提示词要求「左侧分类栏：三个一级分类，点击分类标题展开/收起子内容」，但用户后续明确修正为「左侧边栏只是一个选择，点了工具箱后侧边栏收起、主界面上方标题工具箱、不是所有全挤在侧边栏」。按 REMIND「若 REMIND 与本提示词冲突，自行按 REMIND 执行」的原则，这里用户实时指令即最高优先级，已按新需求重构；未删除/隐藏旧结构，而是重写为导航+主区视图。
@@ -82,11 +83,11 @@
 - 既有 REMIND.md 无「决策记录/歧义与默认值/冲突记录/TODO/重大问题」固定区块；任务要求追加该结构。→ 保留原有 0–3 节核心内容，末尾追加固定区块（追加而非覆盖）。
 
 ## TODO / 待补充锚点
-- 头像：`index.html` 头像位为占位容器，待用户补充 `<img src="./avatar.jpg">`。
+- 头像：已完成。用户上传头像已保存为 `avatar.png`，`index.html` 已引用并推送；头像裁剪为 256×256/27KB，`<img>` 加 `width/height/loading` 与 CSS 兜底防止撑大。
 - 项目导航：4 张占位卡片，统一标注「待补充」，待用户补充真实项目。
 - 工具箱：「矿石查找器」已接 `./tools/ore-finder.html`（独立页面、新标签打开），逆向来源已去除。
 - 个人格言：已写入 3 句，可改 `script.js` 的 `CONFIG.mottos`。
-- GitHub Pages 部署：仓库 `Settings → Pages` 需设源分支 = `main`、目录 = `/`(root)。【2026-10-10 实测 curl 主页与 `tools/ore-finder.html` 均 HTTP 404，确认 Pages 尚未启用】；启用后预期访问 `https://gykf123.github.io/Myself-sHTML/` 与 `.../tools/ore-finder.html`。
+- GitHub Pages 部署：已启用，自定义域名为 `fesui.是.gay`（Punycode `fesui.xn--0iv.gay`），CNAME 文件已合并自远程；预期访问 `https://fesui.是.gay/` 与 `https://fesui.是.gay/tools/ore-finder.html`。
 
 ## 重大问题
 - 无（本次未触发任何重大问题；凭据未泄露、无 force push、无无关文件改动）。
