@@ -33,14 +33,19 @@ const CONFIG = {
   ]
 };
 
+// 各视图的标题与副标题（随导航切换）
+const VIEW_META = {
+  info:  { title: '个人信息', sub: '极客与 Minecraft 玩家之间，我是 FeSui。' },
+  proj:  { title: '项目导航', sub: '正在搭建与维护中的一些作品。' },
+  tools: { title: '工具箱',   sub: '自用小工具，按需取用。' }
+};
+
 const $ = (sel, root = document) => root.querySelector(sel);
 
 /* ---------- 渲染格言 ---------- */
 function renderMottos() {
-  const motto = $('#motto');
-  const hero = $('#heroMotto');
-  if (motto) motto.textContent = CONFIG.mottos.join(' ');
-  if (hero) hero.textContent = CONFIG.mottos[0];
+  const m = $('#motto');
+  if (m) m.textContent = CONFIG.mottos.join(' ');
 }
 
 /* ---------- 渲染项目卡片 ---------- */
@@ -94,19 +99,39 @@ function renderTreeNode(node) {
 function renderToolTree() {
   const box = $('#toolTree');
   if (!box) return;
-  const ul = document.createElement('ul');
-  ul.className = 'tree-root';
-  CONFIG.toolTree.forEach(n => ul.appendChild(renderTreeNode(n)));
+  const ul = document.createDocumentFragment();
+  const root = document.createElement('ul');
+  root.className = 'tree-root';
+  CONFIG.toolTree.forEach(n => root.appendChild(renderTreeNode(n)));
+  ul.appendChild(root);
   box.appendChild(ul);
 }
 
-/* ---------- 分类 accordion 展开/收起 ---------- */
-function bindCats() {
-  document.querySelectorAll('.cat-title').forEach(btn => {
-    const cat = btn.closest('.cat');
+/* ---------- 视图切换：侧栏仅导航，主区展示对应内容 ---------- */
+function switchView(view) {
+  if (!VIEW_META[view]) view = 'info';
+  document.querySelectorAll('.nav-item').forEach(b => {
+    const on = b.dataset.view === view;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('.view').forEach(s => { s.hidden = s.dataset.view !== view; });
+  const meta = VIEW_META[view];
+  const t = $('#viewTitle'); if (t) t.textContent = meta.title;
+  const s = $('#viewSub');   if (s) s.textContent = meta.sub;
+  // 桌面端：点击导航后侧栏收起为窄条；移动端靠抽屉关闭处理
+  const sb = $('#sidebar');
+  if (sb && window.innerWidth > 767) sb.classList.add('collapsed');
+  try { localStorage.setItem('view', view); } catch (e) {}
+}
+
+/* ---------- 导航绑定 ---------- */
+function bindNav() {
+  document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
-      const open = cat.classList.toggle('open');
-      btn.setAttribute('aria-expanded', String(open));
+      switchView(btn.dataset.view);
+      if (drawerClose) drawerClose();   // 移动端：切换后关闭抽屉
     });
   });
 }
@@ -115,6 +140,7 @@ function bindCats() {
 function bindCollapse() {
   const sb = $('#sidebar');
   const btn = $('#collapseBtn');
+  if (!sb || !btn) return;
   if (localStorage.getItem('sidebar-collapsed') === '1') sb.classList.add('collapsed');
   btn.addEventListener('click', () => {
     const collapsed = sb.classList.toggle('collapsed');
@@ -139,14 +165,16 @@ function applyTheme(t) {
 }
 
 /* ---------- 移动端抽屉 + 遮罩 ---------- */
+let drawerClose = null;
 function bindMobile() {
   const sb = $('#sidebar');
   const menu = $('#menuBtn');
   const overlay = $('#overlay');
+  if (!sb || !menu || !overlay) return;
   const open = () => { sb.classList.add('open-drawer'); overlay.hidden = false; menu.setAttribute('aria-expanded', 'true'); };
-  const close = () => { sb.classList.remove('open-drawer'); overlay.hidden = true; menu.setAttribute('aria-expanded', 'false'); };
+  drawerClose = () => { sb.classList.remove('open-drawer'); overlay.hidden = true; menu.setAttribute('aria-expanded', 'false'); };
   menu.addEventListener('click', open);
-  overlay.addEventListener('click', close);
+  overlay.addEventListener('click', drawerClose);
 }
 
 /* ---------- 加载动画淡出 ---------- */
@@ -162,10 +190,14 @@ function init() {
   renderMottos();
   renderProjects();
   renderToolTree();
-  bindCats();
+  bindNav();
   bindCollapse();
   bindTheme();
   bindMobile();
+  // 恢复上次视图（默认个人信息）
+  let v = 'info';
+  try { v = localStorage.getItem('view') || 'info'; } catch (e) {}
+  switchView(v);
   hideLoader();
 }
 if (document.readyState === 'loading') {

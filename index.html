@@ -19,70 +19,95 @@
   <div class="layout">
     <header class="topbar">
       <button id="menuBtn" class="icon-btn" aria-label="打开侧栏" aria-expanded="false" aria-controls="sidebar">☰</button>
-      <span class="topbar-title">个人主页</span>
+      <span class="topbar-title">FeSui</span>
       <button id="themeBtn" class="icon-btn" aria-label="切换主题（标准 / 液态玻璃）" title="切换主题">◐</button>
     </header>
 
-    <!-- 左侧分类栏 -->
+    <!-- 左侧导航栏：仅作选择；点击后收起，内容在主区展示 -->
     <aside id="sidebar" class="sidebar" aria-label="主导航">
       <div class="sidebar-head">
         <span class="brand">FeSui</span>
-        <button id="collapseBtn" class="icon-btn" aria-label="折叠/展开侧栏" aria-expanded="true">«</button>
+        <button id="collapseBtn" class="icon-btn" aria-label="折叠/展开侧栏" aria-expanded="true" title="折叠/展开">«</button>
       </div>
 
-      <nav class="cats" aria-label="分类导航">
-        <!-- 个人信息 -->
-        <section class="cat open">
-          <button class="cat-title" id="btn-info" aria-expanded="true" aria-controls="panel-info">个人信息</button>
-          <div class="cat-panel" id="panel-info" role="region" aria-labelledby="btn-info">
-            <div class="avatar-box" aria-label="头像占位">
-              <!-- 待补充：<img src="./avatar.jpg" alt="头像" /> -->
-              <span class="avatar-ph">头像待补充</span>
-            </div>
-            <div class="identity-card">
-              <h3>FeSui</h3>
-              <p class="tag">Geek · 极客人格</p>
-            </div>
-            <div class="identity-card">
-              <h3>不执拗的同学</h3>
-              <p class="tag">Minecraft 玩家</p>
-            </div>
-            <blockquote class="motto" id="motto"></blockquote>
-            <!-- 待补充：如需换 GitHub 用户名，改下方 href 即可 -->
-            <a class="github-link" href="https://github.com/gykf123" target="_blank" rel="noopener noreferrer" aria-label="我的 GitHub 主页">
-              <svg class="gh-mark" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-              </svg>
-              <span class="gh-label">我的 GitHub</span>
-              <span class="gh-url" aria-hidden="true">github.com/gykf123</span>
-            </a>
-          </div>
-        </section>
-
-        <!-- 项目导航 -->
-        <section class="cat">
-          <button class="cat-title" id="btn-proj" aria-expanded="false" aria-controls="panel-proj">项目导航</button>
-          <div class="cat-panel" id="panel-proj" role="region" aria-labelledby="btn-proj">
-            <div id="projectList" class="proj-list"></div>
-          </div>
-        </section>
-
-        <!-- 工具箱 -->
-        <section class="cat">
-          <button class="cat-title" id="btn-tools" aria-expanded="false" aria-controls="panel-tools">工具箱</button>
-          <div class="cat-panel" id="panel-tools" role="region" aria-labelledby="btn-tools">
-            <div id="toolTree" class="tree"></div>
-          </div>
-        </section>
+      <nav class="nav" aria-label="主导航">
+        <button class="nav-item active" data-view="info" aria-current="page" title="个人信息">
+          <span class="ico" aria-hidden="true">👤</span><span class="lbl">个人信息</span>
+        </button>
+        <button class="nav-item" data-view="proj" title="项目导航">
+          <span class="ico" aria-hidden="true">📁</span><span class="lbl">项目导航</span>
+        </button>
+        <button class="nav-item" data-view="tools" title="工具箱">
+          <span class="ico" aria-hidden="true">🧰</span><span class="lbl">工具箱</span>
+        </button>
       </nav>
     </aside>
 
-    <!-- 主内容区 -->
+    <!-- 主内容区：随导航切换视图 -->
     <main class="content">
-      <section class="hero">
-        <h1>你好，我是 FeSui</h1>
-        <p class="hero-sub" id="heroMotto"></p>
-        <p class="hero-hint">← 展开左侧分类，查看个人信息、项目与工具箱</p>
+      <header class="view-head">
+        <h1 id="viewTitle" class="view-title">个人信息</h1>
+        <p id="viewSub" class="view-sub">极客与 Minecraft 玩家之间，我是 FeSui。</p>
+      </header>
+
+      <!-- 个人信息视图 -->
+      <section class="view" data-view="info" aria-labelledby="viewTitle">
+        <div class="info-hero glass">
+          <div class="avatar-box" aria-label="头像占位">
+            <!-- 待补充：<img src="./avatar.jpg" alt="头像" /> -->
+            <span class="avatar-ph">头像待补充</span>
+          </div>
+          <div class="info-hero-text">
+            <h2 class="info-name">FeSui</h2>
+            <p class="info-role">极客人格 · Geek ／ Minecraft 玩家</p>
+            <div class="id-chips">
+              <span class="chip">代码</span>
+              <span class="chip">红石</span>
+              <span class="chip">自动化</span>
+              <span class="chip">沙盒</span>
+            </div>
+          </div>
+        </div>
+
+        <section class="about glass">
+          <h3>关于我</h3>
+          <p>我在红石电路与代码逻辑的交界处游走——既会在 Minecraft 里用方块搭出真实的电路，也会在终端前用脚本把重复劳动交给机器。不执拗，也不将就：每一座方块、每一行代码，都该有它存在的道理。</p>
+          <p>世界是开放的沙盒，而我乐此不疲地编辑它。</p>
+        </section>
+
+        <div class="identity-grid">
+          <div class="identity-card glass">
+            <h3>FeSui</h3>
+            <p class="tag">Geek · 极客人格</p>
+            <p class="id-desc">写代码、折腾自动化、把想法变成能跑的东西。</p>
+          </div>
+          <div class="identity-card glass">
+            <h3>不执拗的同学</h3>
+            <p class="tag">Minecraft 玩家</p>
+            <p class="id-desc">在方块世界里建造、探索，也研究游戏背后的机制。</p>
+          </div>
+        </div>
+
+        <!-- 待补充：如需换 GitHub 用户名，改下方 href 即可 -->
+        <a class="github-link glass" href="https://github.com/gykf123" target="_blank" rel="noopener noreferrer" aria-label="我的 GitHub 主页">
+          <svg class="gh-mark" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+          </svg>
+          <span class="gh-label">我的 GitHub</span>
+          <span class="gh-url" aria-hidden="true">github.com/gykf123</span>
+        </a>
+
+        <blockquote class="motto" id="motto"></blockquote>
+      </section>
+
+      <!-- 项目导航视图 -->
+      <section class="view" data-view="proj" hidden aria-labelledby="viewTitle">
+        <div id="projectList" class="proj-list"></div>
+      </section>
+
+      <!-- 工具箱视图 -->
+      <section class="view" data-view="tools" hidden aria-labelledby="viewTitle">
+        <div id="toolTree" class="tree"></div>
       </section>
     </main>
   </div>
