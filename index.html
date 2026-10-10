@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FeSui · 个人主页</title>
+  <meta name="description" content="FeSui（不执拗的同学）的个人主页：极客 + Minecraft 玩家。" />
+  <!-- favicon 占位：替换为 ./favicon.ico 后取消下方注释 -->
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- 加载动画（纯 CSS，内容就绪后淡出） -->
+  <div id="loader" class="loader" aria-hidden="true"><div class="spinner"></div></div>
+
+  <!-- 移动端遮罩层 -->
+  <div id="overlay" class="overlay" hidden></div>
+
+  <div class="layout">
+    <header class="topbar">
+      <button id="menuBtn" class="icon-btn" aria-label="打开侧栏" aria-expanded="false" aria-controls="sidebar">☰</button>
+      <span class="topbar-title">个人主页</span>
+      <button id="themeBtn" class="icon-btn" aria-label="切换主题（标准 / 液态玻璃）" title="切换主题">◐</button>
+    </header>
+
+    <!-- 左侧分类栏 -->
+    <aside id="sidebar" class="sidebar" aria-label="主导航">
+      <div class="sidebar-head">
+        <span class="brand">FeSui</span>
+        <button id="collapseBtn" class="icon-btn" aria-label="折叠/展开侧栏" aria-expanded="true">«</button>
+      </div>
+
+      <nav class="cats" aria-label="分类导航">
+        <!-- 个人信息 -->
+        <section class="cat open">
+          <button class="cat-title" id="btn-info" aria-expanded="true" aria-controls="panel-info">个人信息</button>
+          <div class="cat-panel" id="panel-info" role="region" aria-labelledby="btn-info">
+            <div class="avatar-box" aria-label="头像占位">
+              <!-- 待补充：<img src="./avatar.jpg" alt="头像" /> -->
+              <span class="avatar-ph">头像待补充</span>
+            </div>
+            <div class="identity-card">
+              <h3>FeSui</h3>
+              <p class="tag">Geek · 极客人格</p>
+            </div>
+            <div class="identity-card">
+              <h3>不执拗的同学</h3>
+              <p class="tag">Minecraft 玩家</p>
+            </div>
+            <blockquote class="motto" id="motto"></blockquote>
+          </div>
+        </section>
+
+        <!-- 项目导航 -->
+        <section class="cat">
+          <button class="cat-title" id="btn-proj" aria-expanded="false" aria-controls="panel-proj">项目导航</button>
+          <div class="cat-panel" id="panel-proj" role="region" aria-labelledby="btn-proj">
+            <div id="projectList" class="proj-list"></div>
+          </div>
+        </section>
+
+        <!-- 工具箱 -->
+        <section class="cat">
+          <button class="cat-title" id="btn-tools" aria-expanded="false" aria-controls="panel-tools">工具箱</button>
+          <div class="cat-panel" id="panel-tools" role="region" aria-labelledby="btn-tools">
+            <div id="toolTree" class="tree"></div>
+          </div>
+        </section>
+      </nav>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="content">
+      <section class="hero">
+        <h1>你好，我是 FeSui</h1>
+        <p class="hero-sub" id="heroMotto"></p>
+        <p class="hero-hint">← 展开左侧分类，查看个人信息、项目与工具箱</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="./script.js" defer></script>
+</body>
+</html>
