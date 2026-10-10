@@ -72,7 +72,7 @@
 - 项目导航：4 张占位卡片，统一标注「待补充」，待用户补充真实项目。
 - 工具箱：「矿石查找器」已接 `./tools/ore-finder.html`（独立页面、新标签打开），逆向来源已去除。
 - 个人格言：已写入 3 句，可改 `script.js` 的 `CONFIG.mottos`。
-- GitHub Pages 部署：需确认仓库 `Settings → Pages` 源分支 = `main`、目录 = `/`(root)；预期访问 `https://gykf123.github.io/Myself-sHTML/`。
+- GitHub Pages 部署：仓库 `Settings → Pages` 需设源分支 = `main`、目录 = `/`(root)。【2026-10-10 实测 curl 主页与 `tools/ore-finder.html` 均 HTTP 404，确认 Pages 尚未启用】；启用后预期访问 `https://gykf123.github.io/Myself-sHTML/` 与 `.../tools/ore-finder.html`。
 
 ## 重大问题
 - 无（本次未触发任何重大问题；凭据未泄露、无 force push、无无关文件改动）。
