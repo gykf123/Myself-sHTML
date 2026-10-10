@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>基岩版矿物查找器</title>
+<style>
+  :root{
+    --底:#0d1117; --面板:#161b22; --面板2:#1c2330; --边线:#2a3441;
+    --文字:#e6edf3; --暗淡:#8b949e; --高亮:#58a6ff;
+    --高:#7ee787; --中:#ffcf5c; --低:#ff9d7a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--底);color:var(--文字);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{border-bottom:1px solid var(--边线);padding:12px 18px;display:flex;
+    align-items:center;gap:12px;flex-wrap:wrap;background:var(--面板)}
+  h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.3px}
+  .徽章{font-size:11px;padding:2px 8px;border-radius:10px;background:#21262d;
+    color:var(--暗淡);border:1px solid var(--边线)}
+  .返回主页{margin-right:auto;text-decoration:none;color:var(--高亮);font-size:13px;
+    font-weight:600;padding:4px 10px;border-radius:8px;border:1px solid var(--边线);
+    background:#21262d;transition:background .15s,color .15s}
+  .返回主页:hover{background:#2d333b;color:#fff}
+  .布局{display:grid;grid-template-columns:268px 1fr 312px;height:calc(100vh - 55px)}
+  .侧栏{background:var(--面板);overflow-y:auto;padding:14px}
+  .侧栏:first-child{border-right:1px solid var(--边线)}
+  .侧栏:last-child{border-left:1px solid var(--边线)}
+  .画布区{position:relative;background:#050810;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  .分区{margin-bottom:17px}
+  .分区>label{display:block;font-size:10.5px;letter-spacing:.9px;
+    color:var(--暗淡);margin-bottom:6px;font-weight:600}
+  input[type=text],input[type=number],select{width:100%;background:#0d1117;
+    border:1px solid var(--边线);color:var(--文字);padding:7px 9px;border-radius:6px;
+    font-size:13px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--高亮)}
+  .横排{display:flex;gap:7px}
+  .横排>*{flex:1;min-width:0}
+  button{background:#21262d;border:1px solid var(--边线);color:var(--文字);
+    padding:7px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;
+    font-family:inherit;transition:.15s}
+  button:hover{background:#2d333b;border-color:#444c56}
+  button.主按钮{background:#1f6feb;border-color:#1f6feb;font-weight:600}
+  button.主按钮:hover{background:#388bfd}
+  .矿石列表{display:flex;flex-direction:column;gap:2px}
+  .矿石项{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;
+    cursor:pointer;border:1px solid transparent;transition:.12s;user-select:none}
+  .矿石项:hover{background:#1c2330}
+  .矿石项.选中{background:#1c2b3d;border-color:#2f5d8a}
+  .色点{width:12px;height:12px;border-radius:3px;flex-shrink:0;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+  .矿石项 .名称{flex:1;font-size:12.5px}
+  .矿石项 .精度{font-size:10.5px;color:var(--暗淡);font-variant-numeric:tabular-nums}
+  .精度.高{color:var(--高)} .精度.中{color:var(--中)} .精度.低{color:var(--低)}
+  .数据块{background:var(--面板2);border:1px solid var(--边线);border-radius:7px;
+    padding:9px 11px;margin-bottom:8px}
+  .数据块 .键{font-size:10.5px;color:var(--暗淡);letter-spacing:.4px}
+  .数据块 .值{font-size:18px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+  .行项{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #21262d;
+    font-size:11.5px}
+  .行项:last-child{border:none}
+  .行项 .键{color:var(--暗淡)}
+  .行项 .值{font-variant-numeric:tabular-nums}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{text-align:left;color:var(--暗淡);font-weight:600;padding:4px 3px;
+    border-bottom:1px solid var(--边线);font-size:10px;letter-spacing:.4px}
+  td{padding:4px 3px;border-bottom:1px solid #1b2028;font-variant-numeric:tabular-nums}
+  tbody tr{cursor:pointer}
+  tbody tr:hover td{background:#1c2330}
+  .提示{font-size:11px;color:var(--暗淡);line-height:1.55;margin-top:5px}
+  #气泡{position:absolute;pointer-events:none;background:rgba(13,17,23,.97);
+    border:1px solid var(--边线);border-radius:6px;padding:8px 11px;font-size:12px;
+    display:none;z-index:9;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.6);
+    font-variant-numeric:tabular-nums}
+  .工具条{position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:5}
+  .工具条 button{background:rgba(22,27,34,.94);backdrop-filter:blur(6px);padding:6px 11px}
+  .状态条{position:absolute;bottom:12px;left:12px;background:rgba(13,17,23,.9);
+    border:1px solid var(--边线);border-radius:6px;padding:5px 11px;font-size:11px;
+    color:var(--暗淡);z-index:5;font-variant-numeric:tabular-nums}
+  .高度图{position:absolute;top:12px;left:12px;background:rgba(13,17,23,.92);
+    border:1px solid var(--边线);border-radius:7px;padding:8px 11px;z-index:5;font-size:11px}
+  .高度图 .标题{color:var(--暗淡);margin-bottom:5px;letter-spacing:.5px}
+  .高度图 .柱区{display:flex;height:62px;gap:2px;align-items:flex-end}
+  .高度图 .柱{width:12px;background:#58a6ff;border-radius:2px 2px 0 0;transition:.2s}
+  .高度图 .柱.基岩{background:#8b1a1a}
+  .高度图 .刻度{display:flex;gap:2px;margin-top:3px;color:var(--暗淡);font-size:9px}
+  .高度图 .刻度 span{width:12px;text-align:center}
+  @media(max-width:1180px){
+    .布局{grid-template-columns:1fr;height:auto}
+    .画布区{height:56vh;order:-1}
+    .侧栏{border:none;border-top:1px solid var(--边线)}
+  }
+</style>
+</head>
+<body>
+<header>
+  <a class="返回主页" href="../index.html">← FeSui 主页</a>
+  <h1>基岩版矿物查找器</h1>
+  <span class="徽章">基岩版 · 矿石分布预测</span>
+  <span class="徽章" id="剖面徽章">剖面：—</span>
+  <span class="徽章" id="矿点徽章">矿点：—</span>
+  <span class="徽章" id="缩放显示">—</span>
+</header>
+
+<div class="布局">
+  <!-- 左栏 -->
+  <aside class="侧栏">
+    <div class="分区">
+      <label>世界种子</label>
+      <input type="text" id="种子" value="122512251225" spellcheck="false">
+      <div class="提示">支持数字或文本。文本种子按 Java 字符串哈希换算成数字。</div>
+    </div>
+    <div class="分区">
+      <label>基岩版版本</label>
+      <select id="版本">
+        <option value="26.50">26.50</option>
+        <option value="26.30" selected>26.30</option>
+        <option value="26.23">26.23</option>
+        <option value="26.0">26.0</option>
+        <option value="1.21.120">1.21.120</option>
+        <option value="1.21.90">1.21.90</option>
+        <option value="1.21.60">1.21.60</option>
+        <option value="1.21.50">1.21.50</option>
+        <option value="1.21.0">1.21.0</option>
+        <option value="1.20.60">1.20.60</option>
+        <option value="1.20.1">1.20.1</option>
+        <option value="1.19">1.19</option>
+        <option value="1.18">1.18</option>
+      </select>
+    </div>
+    <div class="分区">
+      <label>维度</label>
+      <select id="维度">
+        <option value="0" selected>主世界</option>
+        <option value="-1">下界</option>
+      </select>
+    </div>
+    <div class="分区">
+      <label>矿石</label>
+      <div class="矿石列表" id="矿石列表"></div>
+    </div>
+    <div class="分区">
+      <label>搜索半径（单位：区块）</label>
+      <input type="number" id="半径" value="10" min="2" max="40">
+      <div class="提示">以画面中心为原点搜索矿点。半径越大越慢。</div>
+    </div>
+    <div class="分区">
+      <label>地表高度（用于高度门控）</label>
+      <input type="number" id="地表" value="64" min="-60" max="319">
+      <div class="提示">某些矿石批次要求地表足够高才会生成。默认 64 为海平面附近。</div>
+    </div>
+  </aside>
+
+  <!-- 中间地图 -->
+  <div class="画布区">
+    <canvas id="画布"></canvas>
+    <div class="高度图" id="高度图" style="display:none">
+      <div class="标题">各 Y 层矿点数</div>
+      <div class="柱区" id="柱区"></div>
+      <div class="刻度" id="刻度区"></div>
+    </div>
+    <div class="工具条">
+      <button id="放大" title="放大">＋</button>
+      <button id="缩小" title="缩小">−</button>
+      <button id="复位" title="回到原点">⌖</button>
+    </div>
+    <div class="状态条" id="状态">就绪</div>
+    <div id="气泡"></div>
+  </div>
+
+  <!-- 右栏 -->
+  <aside class="侧栏">
+    <div class="分区">
+      <label>查找器准确度</label>
+      <div class="数据块" style="text-align:center;padding:12px 10px">
+        <div class="键">基岩版查找器精度</div>
+        <div class="值" id="精度大字" style="font-size:28px;line-height:1.15">—</div>
+        <div id="精度档位" style="font-size:10.5px;margin-top:3px">—</div>
+      </div>
+      <div class="行项"><span class="键">校验模式</span><span class="值" id="精度校验">—</span></div>
+      <div class="行项"><span class="键">宽松模式</span><span class="值" id="精度宽松">—</span></div>
+      <div class="提示">
+        精度指：被标记的矿点里，<strong>确实存在该矿石</strong>的比例。
+        数据来自游戏本体的矿石设置。
+      </div>
+      <div class="提示" style="margin-top:7px">
+        <span class="精度 高">高 ≥85%</span>　
+        <span class="精度 中">中 ≥70%</span>　
+        <span class="精度 低">低 &lt;70%</span>
+      </div>
+    </div>
+
+    <div class="分区">
+      <label>开采层建议</label>
+      <div class="数据块">
+        <div class="键">推荐 Y 坐标</div>
+        <div class="值" id="推荐高度">—</div>
+      </div>
+      <div class="数据块">
+        <div class="键">可开采范围</div>
+        <div class="值" id="可采范围" style="font-size:15px">—</div>
+      </div>
+      <div class="行项"><span class="键">每区块尝试次数</span><span class="值" id="尝试次数">—</span></div>
+      <div class="行项"><span class="键">本屏矿点数</span><span class="值" id="屏内矿点">—</span></div>
+      <div class="提示" style="color:var(--低)">
+        主世界 Y −64 至 −60 是基岩层，矿石不会生成，已从计算中剔除。
+        钻石等深部矿石的原始分布峰值落在基岩里，因此有效峰值上移到 Y −59。
+      </div>
+    </div>
+
+    <div class="分区">
+      <label>生成批次（原版真实参数）</label>
+      <table id="批次表">
+        <thead><tr><th>批次</th><th>次/区块</th><th>矿团</th><th>Y 范围</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="分区">
+      <label>最近矿点 · 前 15 个</label>
+      <table id="矿点表">
+        <thead><tr><th>#</th><th>坐标 X, Y, Z</th><th>矿团</th><th>距离</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="提示">点击任意一行，画面会跳到该矿点。</div>
+    </div>
+
+    <div class="分区">
+      <label>挖掘进度</label>
+      <div class="数据块">
+        <div class="键">本矿石已标记 / 总数</div>
+        <div class="值" id="已挖掘数" style="font-size:19px">0</div>
+      </div>
+      <div class="行项"><span class="键">本矿石完成度</span><span class="值" id="挖掘进度">0%</span></div>
+      <div class="行项"><span class="键">全部已标记累计</span><span class="值" id="累计挖掘">0</span></div>
+      <div class="row" style="margin-top:8px">
+        <button id="清空标记">清空当前矿石标记</button>
+      </div>
+      <div class="提示">
+        <strong>左键</strong>点矿点＝标记／取消「已挖掘」；<strong>右键</strong>点矿点＝查看详情。
+        标记会保存在浏览器里，关掉页面也不丢。
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<script>
+/* ===========================================================
+   基岩版矿物查找器 — 前端内核
+   参数表依据基岩版原版矿石设置，与 Python 内核完全一致
+   =========================================================== */
+const 矿石规则表 = {"26.50":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"26.30":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"26.23":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"26.0":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.21.120":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.21.90":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.21.60":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.21.50":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.21.0":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.20.60":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.20.1":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.19":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}},"1.18":{"coal":{"disp":"煤炭","dim":0,"step":6,"av":88,"al":40,"best":96,"band":[0,319],"batches":[{"n":"coal_upper","it":30,"c":17,"d":0.0,"yt":"uniform","lo":136,"hi":319,"bg":1,"bgates":null},{"n":"coal_lower","it":20,"c":17,"d":0.5,"yt":"trap","lo":0,"hi":192,"bg":1,"bgates":null}]},"iron":{"disp":"铁","dim":0,"step":6,"av":94,"al":94,"best":16,"band":[-59,319],"batches":[{"n":"iron_upper","it":90,"c":9,"d":0.0,"yt":"trap","lo":80,"hi":384,"bg":1,"bgates":null},{"n":"iron_middle","it":10,"c":9,"d":0.0,"yt":"trap","lo":-24,"hi":56,"bg":1,"bgates":null},{"n":"iron_small","it":10,"c":4,"d":0.0,"yt":"uniform","lo":-64,"hi":72,"bg":1,"bgates":null}]},"copper":{"disp":"铜","dim":0,"step":6,"av":94,"al":93,"best":48,"band":[-16,112],"batches":[{"n":"copper","it":16,"c":10,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[0,1,2,3,4,5,6,7,10,11,12,14,16,21,23,24,25,26,27,29,30,32,34,35,36,37,38,44,45,46,48,49,50,129,131,132,140,155,160,163,165,168,175,177,178,179,180,181,182,183,184,185,186]},{"n":"copper_large","it":16,"c":20,"d":0.0,"yt":"trap","lo":-16,"hi":112,"bg":1,"bgates":[174]}]},"gold":{"disp":"金","dim":0,"step":6,"av":85,"al":83,"best":-16,"band":[-59,32],"batches":[{"n":"gold","it":4,"c":9,"d":0.5,"yt":"trap","lo":-64,"hi":32,"bg":1,"bgates":null},{"n":"gold_lower","it":1,"c":9,"d":0.5,"yt":"uniform","lo":-64,"hi":-48,"bg":0,"bgates":null}]},"redstone":{"disp":"红石","dim":0,"step":6,"av":86,"al":85,"best":-59,"band":[-59,15],"batches":[{"n":"redstone","it":4,"c":8,"d":0.0,"yt":"uniform","lo":-64,"hi":15,"bg":1,"bgates":null},{"n":"redstone_lower","it":8,"c":8,"d":0.0,"yt":"trap","lo":-96,"hi":-32,"bg":0,"bgates":null}]},"diamond":{"disp":"钻石","dim":0,"step":6,"av":91,"al":80,"best":-59,"band":[-59,16],"batches":[{"n":"diamond_buried","it":4,"c":8,"d":1.0,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond","it":7,"c":4,"d":0.5,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null},{"n":"diamond_large","it":1,"c":12,"d":0.7,"yt":"triangle","lo":-144,"hi":16,"bg":0,"bgates":null}]},"lapis":{"disp":"青金石","dim":0,"step":6,"av":93,"al":96,"best":0,"band":[-59,64],"batches":[{"n":"lapis","it":2,"c":7,"d":0.0,"yt":"trap","lo":-32,"hi":32,"bg":1,"bgates":null},{"n":"lapis_buried","it":4,"c":7,"d":1.0,"yt":"uniform","lo":-64,"hi":64,"bg":1,"bgates":null}]},"emerald":{"disp":"绿宝石","dim":0,"step":6,"av":88,"al":88,"best":232,"band":[-16,319],"batches":[{"n":"emerald","it":100,"c":3,"d":0.0,"yt":"trap","lo":-16,"hi":480,"bg":1,"bgates":[178,179,180,181,182,177,185,3,34,131]}]},"netherite":{"disp":"远古残骸","dim":-1,"step":7,"av":91,"al":91,"best":15,"band":[8,119],"batches":[{"n":"ancient_debris","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":24,"bg":0,"bgates":null},{"n":"ancient_debris_large","it":1,"c":3,"d":0.0,"yt":"triangle","lo":8,"hi":119,"bg":0,"bgates":null}]},"nether_gold":{"disp":"下界金矿","dim":-1,"step":7,"av":85,"al":85,"best":63,"band":[10,117],"batches":[{"n":"nether_gold","it":10,"c":10,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]},"nether_quartz":{"disp":"下界石英","dim":-1,"step":7,"av":83,"al":83,"best":63,"band":[10,117],"batches":[{"n":"nether_quartz","it":16,"c":14,"d":0.0,"yt":"uniform","lo":10,"hi":117,"bg":0,"bgates":null}]}}};
+
+const 矿石颜色 = {
+  diamond:"#5dced1", iron:"#c0c0c0", copper:"#e08040", gold:"#ffd700",
+  redstone:"#ff5555", lapis:"#4a6fd4", emerald:"#3ddc84", coal:"#6b6b6b",
+  netherite:"#8b3a3a", nether_gold:"#ffcf5c", nether_quartz:"#e8e0d0"
+};
+
+/* 世界高度边界 */
+const 世界 = { 最低:-64, 最高:319, 基岩顶:-59 };
+const 下界 = { 最低:0, 最高:127 };
+
+/* 判断某 Y 层是否可开采（主世界要排除基岩层） */
+function 可开采(y, 维度){
+  if(维度 === -1) return y >= 下界.最低 && y <= 下界.最高;
+  return y >= 世界.基岩顶 && y <= 世界.最高;
+}
+function 钳到可采(y, 维度){
+  if(维度 === -1) return Math.max(下界.最低, Math.min(下界.最高, y));
+  return Math.max(世界.基岩顶, Math.min(世界.最高, y));
+}
+
+/* ---------- MT19937（与 Python 内核同一实现） ---------- */
+class 梅森旋转{
+  constructor(种子){
+    this.mt = new Int32Array(624); this.mti = 624;
+    this.mt[0] = 种子 >>> 0;
+    for(let i = 1; i < 624; i++){
+      const 前 = this.mt[i-1];
+      this.mt[i] = (Math.imul(1812433253, (前 ^ (前 >>> 30))) + i) | 0;
+    }
+  }
+  _生成(){
+    for(let i = 0; i < 624; i++){
+      const y = (this.mt[i] & 0x80000000) | (this.mt[(i+1) % 624] & 0x7fffffff);
+      let v = this.mt[(i + 397) % 624] ^ (y >>> 1);
+      if(y & 1) v ^= 0x9908b0df;
+      this.mt[i] = v | 0;
+    }
+  }
+  取无符号(){
+    if(this.mti >= 624){ this._生成(); this.mti = 0; }
+    let y = this.mt[this.mti++];
+    y ^= y >>> 11; y ^= (y << 7) & 0x9d2c5680; y ^= (y << 15) & 0xefc60000; y ^= y >>> 18;
+    return y >>> 0;
+  }
+  取浮点(){ return (this.取无符号() >>> 8) / 16777216; }
+  取整数(上界){ return this.取无符号() % 上界; }
+}
+
+/* ---------- 特性种子生成器（精确复刻基岩版特性系统） ----------
+   算法依据基岩版原版矿石设置 的 bedrockFinder.wasm：
+     B = (MT19937(种子低32).next() >> 1) | 1
+     A = (MT19937(种子低32).next() >> 1) | 1
+     S = 2216829733（恒定全局常量）
+     x   = G ^ (u32(cz × A) + u32(cx × B))          // G = 种子低32位
+     内  = u32((x << 6) + (x >>> 2)) + S - 1640531527
+     返回 = i32(x ^ 内)
+      参数「盐」保留仅为兼容旧调用，该算法不使用它。 */
+const 区块种子常量_S = 2216829733;        // 0x84222325
+const 区块种子常量_黄金比 = 1640531527;    // 0x61C88647
+
+function 特性种子(世界种子, 区块X, 区块Z, 盐){
+  const g = 世界种子 >>> 0;                          // 只用种子低 32 位
+  const m = new 梅森旋转(g);
+  const B = ((m.取无符号() >>> 1) | 1) >>> 0;
+  const A = ((m.取无符号() >>> 1) | 1) >>> 0;
+  const x = ((g ^ ((((区块Z * A) | 0) >>> 0) + (((区块X * B) | 0) >>> 0))) >>> 0) | 0;
+  const xu = x >>> 0;
+  const 内 = (((((xu << 6) >>> 0) + (xu >>> 2)) >>> 0) + 区块种子常量_S - 区块种子常量_黄金比) >>> 0;
+  return (xu ^ 内) | 0;
+}
+
+/* ---------- 按分布采样 Y 坐标 ----------
+   返回 null 表示：该次尝试落在基岩层，矿区无法生成。
+
+   为什么不把落点「钳制」到 −59？
+   因为基岩版钻石的原始分布峰值在 −64（正好在基岩里），
+   若把 −64 及以下全部钳到 −59，会让 −59 虚假地占据 57% 的矿点。
+   真实行为是：矿团落在基岩层就整簇不生成，直接丢弃这次尝试。
+   修正后 −59 占比约 1.8%，三角分布形状才正常。
+*/
+function 采样高度(随机, 规格, 维度){
+  const 低 = 规格.lo, 高 = 规格.hi, 跨度 = 高 - 低;
+  if(跨度 <= 0) return 可开采(低, 维度) ? 低 : null;
+  let y;
+  if(规格.yt === "triangle" || 规格.yt === "trap"){
+    y = 低 + Math.floor(((随机.取浮点() + 随机.取浮点()) / 2) * 跨度);
+  }else{
+    y = 低 + Math.floor(随机.取浮点() * 跨度);
+  }
+  if(!可开采(y, 维度)) return null;   // 落在基岩层：整簇不生成
+  return y;
+}
+
+/* ---------- 单个矿点的产出权重 ---------- */
+function 矿点权重(批次, 维度, 地表){
+  // 高度门控：地表太低，整批不生成
+  if(批次.bg && 地表 + 4 < Math.min(批次.lo, 批次.hi)) return 0;
+  return 批次.c * (1 - 批次.d);
+}
+
+/* ---------- 在一个区块内枚举矿点 ---------- */
+function 扫描区块(规则, 世界种子, 区块X, 区块Z, 维度, 地表, 生物群系){
+  const 结果 = [];
+  随机 = new 梅森旋转(特性种子(世界种子, 区块X, 区块Z, 规则.step));
+  for(const 批次 of 规则.batches){
+    // 生物群系门控
+    if(批次.bgates){
+      if(生物群系 === null){
+        if(批次.bgates.length / 60 < 0.02) continue;
+      }else if(!批次.bgates.includes(生物群系)) continue;
+    }
+    const 权重 = 矿点权重(批次, 维度, 地表);
+    if(权重 <= 0) continue;
+    const 规格 = { yt:批次.yt, lo:批次.lo, hi:批次.hi };
+    for(let k = 0; k < 批次.it; k++){
+      const y = 采样高度(随机, 规格, 维度);
+      const bx = 区块X * 16 + 随机.取整数(16);
+      const bz = 区块Z * 16 + 随机.取整数(16);
+      if(y === null) continue;            // 落在基岩层，整簇不生成
+      结果.push({ x:bx, y:y, z:bz, 区块X:区块X, 区块Z:区块Z,
+                  批次:批次.n, 矿团:批次.c, 权重:权重 });
+    }
+  }
+  return 结果;
+}
+
+/* ---------- 查找一片区域内的全部矿点 ---------- */
+function 查找矿点(规则, 世界种子, 中心X, 中心Z, 半径区块, 维度, 地表, 生物群系){
+  const 全部 = [];
+  const 中心区块X = 中心X >> 4, 中心区块Z = 中心Z >> 4;
+  for(let cz = 中心区块Z - 半径区块; cz <= 中心区块Z + 半径区块; cz++){
+    for(let cx = 中心区块X - 半径区块; cx <= 中心区块X + 半径区块; cx++){
+      const 本区 = 扫描区块(规则, 世界种子, cx, cz, 维度, 地表, 生物群系);
+      for(const s of 本区){
+        s.距离 = Math.hypot(s.x - 中心X, s.z - 中心Z);
+        全部.push(s);
+      }
+    }
+  }
+  全部.sort((a, b) => a.距离 - b.距离);
+  return 全部;
+}
+
+/* 批次英文 ID → 中文名（界面上不出现英文原始标识） */
+const 批次中文名 = {
+  coal_upper:"煤炭·上层", coal_lower:"煤炭·下层",
+  iron_upper:"铁·上层", iron_middle:"铁·中层", iron_small:"铁·小簇",
+  copper:"铜·普通", copper_large:"铜·大簇",
+  gold:"金·普通", gold_lower:"金·深层",
+  redstone:"红石·普通", redstone_lower:"红石·深层",
+  diamond_buried:"钻石·深埋", diamond:"钻石·普通", diamond_large:"钻石·大簇",
+  lapis:"青金石·普通", lapis_buried:"青金石·深埋",
+  emerald:"绿宝石",
+  ancient_debris:"远古残骸", ancient_debris_large:"远古残骸·大簇",
+  nether_gold:"下界金矿", nether_quartz:"下界石英"
+};
+function 批次名(标识){ return 批次中文名[标识] || 标识.replace(/_/g, " "); }
+
+/* ---------- 全局状态 ---------- */
+const 状态 = {
+  种子: 122512251225,
+  版本: "26.30",
+  维度: 0,
+  矿石: "diamond",
+  中心X: 0,
+  中心Z: 0,
+  缩放: 1.6,          // 每方块像素
+  矿点: [],
+  拖拽: null,
+  刚拖动过: false,    // 用于区分「拖动」和「点选」
+  已挖掘: new Set()   // 已挖掘矿点的键集合（持久化到本地存储）
+};
+
+const 画布 = document.getElementById("画布");
+const 画笔 = 画布.getContext("2d");
+
+/* ---------- 种子解析 ---------- */
+function 解析种子(文本){
+  文本 = (文本 || "").trim();
+  if(!文本) return 0;
+  if(/^-?\d+$/.test(文本)){
+    const 大数 = BigInt(文本);
+    return Number(BigInt.asIntN(64, 大数) & 0x7FFFFFFFn);
+  }
+  let 哈希 = 0;
+  for(let i = 0; i < 文本.length; i++){
+    哈希 = (Math.imul(31, 哈希) + 文本.charCodeAt(i)) | 0;
+  }
+  return 哈希;
+}
+
+/* ---------- 颜色梯度：按矿点密度上色 ---------- */
+function 取颜色(比例){
+  const 色阶 = [
+    [0.00, [93, 206, 209]],
+    [0.50, [88, 166, 255]],
+    [0.78, [255, 207, 92]],
+    [1.00, [255, 123, 74]]
+  ];
+  for(let i = 0; i < 色阶.length - 1; i++){
+    const [起, 起色] = 色阶[i], [止, 止色] = 色阶[i+1];
+    if(比例 >= 起 && 比例 <= 止){
+      const f = (比例 - 起) / (止 - 起);
+      return `rgb(${Math.round(起色[0]+(止色[0]-起色[0])*f)},`
+           + `${Math.round(起色[1]+(止色[1]-起色[1])*f)},`
+           + `${Math.round(起色[2]+(止色[2]-起色[2])*f)})`;
+    }
+  }
+  return "rgb(255,123,74)";
+}
+
+/* ---------- 尺寸自适应 ---------- */
+function 调整尺寸(){
+  const 宽 = 画布.parentElement.clientWidth;
+  const 高 = 画布.parentElement.clientHeight;
+  if(宽 === 0 || 高 === 0) return;
+  const 倍 = window.devicePixelRatio || 1;
+  画布.width = Math.round(宽 * 倍);
+  画布.height = Math.round(高 * 倍);
+  画布.style.width = 宽 + "px";
+  画布.style.height = 高 + "px";
+  画笔.setTransform(倍, 0, 0, 倍, 0, 0);
+}
+let 尺寸计时 = null;
+window.addEventListener("resize", () => {
+  clearTimeout(尺寸计时);
+  尺寸计时 = setTimeout(() => { 调整尺寸(); 刷新(); }, 120);
+});
+
+/* ---------- 坐标换算：世界方块 <-> 屏幕像素 ---------- */
+function 视口左上角(){
+  const 宽 = 画布.clientWidth, 高 = 画布.clientHeight, 缩放 = 状态.缩放;
+  return {
+    左: 状态.中心X - 宽 / (2 * 缩放),
+    上: 状态.中心Z - 高 / (2 * 缩放)
+  };
+}
+function 世界到屏幕(x, z){
+  const 角 = 视口左上角();
+  return { 屏X: (x - 角.左) * 状态.缩放, 屏Y: (z - 角.上) * 状态.缩放 };
+}
+function 屏幕到世界(屏X, 屏Y){
+  const 角 = 视口左上角();
+  return { x: Math.floor(屏X / 状态.缩放 + 角.左),
+           z: Math.floor(屏Y / 状态.缩放 + 角.上) };
+}
+
+/* ---------- 矿石列表 ---------- */
+function 构建矿石列表(){
+  const 规则集 = 矿石规则表[状态.版本] || {};
+  const 容器 = document.getElementById("矿石列表");
+  容器.innerHTML = "";
+  const 键名 = Object.keys(规则集).filter(k => 规则集[k].dim === 状态.维度);
+  for(const 键 of 键名){
+    const 规则 = 规则集[键];
+    const 项 = document.createElement("div");
+    项.className = "矿石项" + (键 === 状态.矿石 ? " 选中" : "");
+    项.dataset.矿 = 键;
+    const 档 = 规则.av >= 85 ? "高" : 规则.av >= 70 ? "中" : "低";
+    const 档名 = 档 === "高" ? "高精度" : 档 === "中" ? "中等精度" : "低精度";
+    项.title = `${规则.disp}｜查找器精度 ${规则.av}%（${档名}）· 宽松模式 ${规则.al}%`;
+    项.innerHTML = `<span class="色点" style="background:${矿石颜色[键] || '#888'}"></span>
+      <span class="名称">${规则.disp}</span>
+      <span class="精度 ${档}">${规则.av}%</span>`;
+    项.onclick = () => { 状态.矿石 = 键; 构建矿石列表(); 刷新(); };
+    容器.appendChild(项);
+  }
+  if(!键名.includes(状态.矿石) && 键名.length) 状态.矿石 = 键名[0];
+}
+
+/* ---------- 绘制地图 ---------- */
+function 绘制(){
+  const 宽 = 画布.clientWidth, 高 = 画布.clientHeight, 缩放 = 状态.缩放;
+  const 倍 = window.devicePixelRatio || 1;
+  画笔.setTransform(倍, 0, 0, 倍, 0, 0);
+  画笔.fillStyle = "#050810";
+  画笔.fillRect(0, 0, 宽, 高);
+
+  const 角 = 视口左上角();
+  const 左 = 角.左 / 16, 上 = 角.上 / 16;
+
+  // 区块网格
+  if(缩放 * 16 >= 5){
+    画笔.strokeStyle = "rgba(255,255,255,.055)";
+    画笔.lineWidth = 1;
+    画笔.beginPath();
+    const 起块X = Math.floor(左), 起块Z = Math.floor(上);
+    const 止块X = Math.ceil(左 + 宽 / (缩放 * 16)), 止块Z = Math.ceil(上 + 高 / (缩放 * 16));
+    for(let cx = 起块X; cx <= 止块X; cx++){
+      const 屏X = Math.round((cx * 16 - 角.左) * 缩放) + .5;
+      画笔.moveTo(屏X, 0); 画笔.lineTo(屏X, 高);
+    }
+    for(let cz = 起块Z; cz <= 止块Z; cz++){
+      const 屏Y = Math.round((cz * 16 - 角.上) * 缩放) + .5;
+      画笔.moveTo(0, 屏Y); 画笔.lineTo(宽, 屏Y);
+    }
+    画笔.stroke();
+  }
+
+  // 坐标轴
+  const 轴X = (0 - 角.左) * 缩放, 轴Z = (0 - 角.上) * 缩放;
+  画笔.strokeStyle = "rgba(88,166,255,.5)";
+  画笔.lineWidth = 1.5;
+  if(轴X >= -2 && 轴X <= 宽 + 2){
+    画笔.beginPath(); 画笔.moveTo(轴X, 0); 画笔.lineTo(轴X, 高); 画笔.stroke();
+  }
+  if(轴Z >= -2 && 轴Z <= 高 + 2){
+    画笔.beginPath(); 画笔.moveTo(0, 轴Z); 画笔.lineTo(宽, 轴Z); 画笔.stroke();
+  }
+  画笔.fillStyle = "rgba(88,166,255,.9)";
+  画笔.font = "11px ui-monospace,monospace";
+  if(轴X >= -2 && 轴X <= 宽 + 2) 画笔.fillText("X=0", 轴X + 4, Math.max(14, 轴Z - 6));
+  if(轴Z >= -2 && 轴Z <= 高 + 2) 画笔.fillText("Z=0", Math.max(4, 轴X + 4), 轴Z + 13);
+
+  // 矿点散点
+  const 半径 = Math.max(0.9, Math.min(2.6, 缩放 * 14));
+  for(const 点 of 状态.矿点){
+    const { 屏X, 屏Y } = 世界到屏幕(点.x, 点.z);
+    if(屏X < -6 || 屏Y < -6 || 屏X > 宽 + 6 || 屏Y > 高 + 6) continue;
+    const 已挖 = 状态.已挖掘.has(标记键(点));
+    画笔.beginPath();
+    画笔.arc(屏X, 屏Y, 已挖 ? 半径 + 0.6 : 半径, 0, Math.PI * 2);
+    if(已挖){
+      // 已挖掘：描边空心圆，中间打对勾
+      画笔.fillStyle = "rgba(10,14,20,.85)";
+      画笔.fill();
+      画笔.strokeStyle = "#7ee787";
+      画笔.lineWidth = Math.max(1, 半径 * 0.55);
+      画笔.stroke();
+    }else{
+      画笔.fillStyle = 取颜色(点.深度比);
+      画笔.fill();
+    }
+  }
+
+  // 放大到一定级别时，给已挖掘矿点标注对勾
+  if(缩放 * 16 >= 26){
+    画笔.strokeStyle = "#7ee787";
+    画笔.lineWidth = 1.6;
+    画笔.lineCap = "round";
+    for(const 点 of 状态.矿点){
+      if(!状态.已挖掘.has(标记键(点))) continue;
+      const { 屏X, 屏Y } = 世界到屏幕(点.x, 点.z);
+      if(屏X < -10 || 屏Y < -10 || 屏X > 宽 + 10 || 屏Y > 高 + 10) continue;
+      画笔.beginPath();
+      画笔.moveTo(屏X - 3.5, 屏Y);
+      画笔.lineTo(屏X - 1, 屏Y + 2.6);
+      画笔.lineTo(屏X + 3.5, 屏Y - 2.8);
+      画笔.stroke();
+    }
+    画笔.lineCap = "butt";
+  }
+
+  // 比例尺
+  const 尺长 = 120;
+  const 格数 = Math.round(尺长 / 缩放);
+  画笔.strokeStyle = "rgba(255,255,255,.45)";
+  画笔.lineWidth = 1.5;
+  画笔.beginPath(); 画笔.moveTo(14, 高 - 16); 画笔.lineTo(14 + 尺长, 高 - 16); 画笔.stroke();
+  画笔.beginPath(); 画笔.moveTo(14, 高 - 20); 画笔.lineTo(14, 高 - 12);
+  画笔.moveTo(14 + 尺长, 高 - 20); 画笔.lineTo(14 + 尺长, 高 - 12); 画笔.stroke();
+  画笔.fillStyle = "rgba(255,255,255,.6)";
+  画笔.font = "10.5px ui-monospace,monospace";
+  画笔.fillText(格数 + " 格", 14, 高 - 22);
+}
+
+/* ---------- 高度分布柱状图 ---------- */
+function 绘制高度图(){
+  const 容器 = document.getElementById("高度图");
+  const 柱区 = document.getElementById("柱区");
+  const 刻度区 = document.getElementById("刻度区");
+  if(!状态.矿点.length){ 容器.style.display = "none"; return; }
+  容器.style.display = "block";
+
+  const 规则 = 矿石规则表[状态.版本][状态.矿石];
+  const 下限 = 状态.维度 === -1 ? 下界.最低 : 世界.基岩顶;
+  const 上限 = Math.min(状态.维度 === -1 ? 下界.最高 : 世界.最高, 规则.band[1] + 8);
+  const 跨度 = 上限 - 下限 + 1;
+  const 组数 = 14;
+  const 桶 = Array(组数).fill(0);
+  const 每桶 = 跨度 / 组数;
+  for(const 点 of 状态.矿点){
+    const 序 = Math.min(组数 - 1, Math.max(0, Math.floor((点.y - 下限) / 每桶)));
+    桶[序]++;
+  }
+  const 峰值 = Math.max(1, ...桶);
+  柱区.innerHTML = 桶.map((数, 序) => {
+    const 高 = Math.max(2, Math.round(数 / 峰值 * 58));
+    const 层顶 = Math.round(下限 + (序 + 1) * 每桶);
+    const 是基岩 = 状态.维度 !== -1 && 层顶 <= 世界.基岩顶 + 1;
+    return `<div class="柱${是基岩 ? ' 基岩' : ''}" style="height:${高}px"
+      title="Y ${Math.round(下限 + 序 * 每桶)} ~ ${层顶}：${数} 个矿点"></div>`;
+  }).join("");
+  刻度区.innerHTML = 桶.map((_, 序) =>
+    `<span>${序 % 3 === 0 ? Math.round(下限 + 序 * 每桶) : ""}</span>`).join("");
+}
+
+/* ---------- 刷新 ---------- */
+let 随机 = null;
+
+function 刷新(){
+  const 规则集 = 矿石规则表[状态.版本] || {};
+  const 规则 = 规则集[状态.矿石];
+  if(!规则) return;
+
+  构建矿石列表();
+
+  document.getElementById("剖面徽章").textContent =
+    "剖面：" + (["1.20.1", "1.19", "1.18"].includes(状态.版本) ? "基础版" : "方块版");
+  document.getElementById("推荐高度").textContent = "Y " + 规则.best;
+  document.getElementById("可采范围").textContent = "Y " + 规则.band[0] + " ~ " + 规则.band[1];
+  document.getElementById("尝试次数").textContent =
+    规则.batches.reduce((和, b) => 和 + b.it, 0);
+
+  // 精度面板（保留配色分级）
+  const 取档 = v => v >= 85 ? "高" : v >= 70 ? "中" : "低";
+  const 档色 = { 高:"#7ee787", 中:"#ffcf5c", 低:"#ff9d7a" };
+  const 档名 = { 高:"高精度", 中:"中等精度", 低:"低精度" };
+  const 档 = 取档(规则.av);
+  const 大字 = document.getElementById("精度大字");
+  大字.textContent = 规则.av + "%";
+  大字.style.color = 档色[档];
+  const 档位 = document.getElementById("精度档位");
+  档位.textContent = 档名[档] + " · 基于基岩版原版矿石设置";
+  档位.style.color = 档色[档];
+  const 验 = document.getElementById("精度校验");
+  验.textContent = 规则.av + "%（" + 档名[取档(规则.av)] + "）";
+  验.style.color = 档色[取档(规则.av)];
+  const 宽 = document.getElementById("精度宽松");
+  宽.textContent = 规则.al + "%（" + 档名[取档(规则.al)] + "）";
+  宽.style.color = 档色[取档(规则.al)];
+
+  // 批次表
+  document.querySelector("#批次表 tbody").innerHTML = 规则.batches.map(b => {
+    const 分布名 = b.yt === "uniform" ? "均匀" : b.yt === "trap" ? "截断三角" : "三角";
+    const 门 = b.bg ? ' <span style="color:#8b949e">·门控</span>' : "";
+    return `<tr><td>${批次名(b.n)}${门}</td>
+      <td>${b.it}</td><td>${b.c}</td>
+      <td>${b.lo} ~ ${b.hi}<br>
+
+      <span style="color:#8b949e">${分布名}</span></td></tr>`;
+  }).join("");
+
+  // 扫描矿点
+  const 起始 = performance.now();
+  const 半径 = Math.max(2, Math.min(40, +document.getElementById("半径").value || 10));
+  const 地表 = +document.getElementById("地表").value || 64;
+  状态.矿点 = 查找矿点(规则, 状态.种子, 状态.中心X, 状态.中心Z,
+                        半径, 状态.维度, 地表, null);
+  const 耗时 = Math.round(performance.now() - 起始);
+
+  // 按深度上色：越深越暖
+  const 低 = 规则.band[0], 高 = 规则.band[1];
+  for(const 点 of 状态.矿点){
+    点.深度比 = 高 > 低 ? 1 - (点.y - 低) / (高 - 低) : 0.5;
+  }
+
+  document.getElementById("矿点徽章").textContent = "矿点：" + 状态.矿点.length;
+  document.getElementById("屏内矿点").textContent = 状态.矿点.length;
+  document.getElementById("缩放显示").textContent = 缩放文本();
+  document.getElementById("状态").textContent =
+    `矿点 ${状态.矿点.length} 个 · 半径 ${半径} 区块 · 中心 X ${状态.中心X} Z ${状态.中心Z} · 耗时 ${耗时} 毫秒`;
+
+  绘制矿点表();
+  更新挖掘统计();
+  document.getElementById("矿点详情").innerHTML = "在地图上点击任意矿点查看详情。";
+  绘制高度图();
+  绘制();
+}
+
+/* ---------- 矿点表 ---------- */
+function 绘制矿点表(){
+  const 容器 = document.querySelector("#矿点表 tbody");
+  const 前 = 状态.矿点.slice(0, 15);
+  容器.innerHTML = 前.map((点, 序) => {
+    const 已挖 = 状态.已挖掘.has(标记键(点));
+    return `<tr data-序="${序}" style="${已挖 ? 'opacity:.5' : ''}">
+      <td>${已挖 ? '<span style="color:#7ee787">✔</span>' : (序 + 1)}</td>
+      <td>${点.x}, ${点.y}, ${点.z}</td>
+      <td>${点.矿团}</td>
+      <td>${点.距离.toFixed(0)}</td></tr>`;
+  }).join("");
+  容器.querySelectorAll("tr").forEach(行 => {
+    行.onclick = () => {
+      const 点 = 前[+行.dataset.序];
+      状态.中心X = 点.x; 状态.中心Z = 点.z;
+      if(状态.缩放 < 1) 状态.缩放 = 1.5;
+      刷新();
+      显示矿点详情(点);        // 跳转后同时在右栏展示该点详情
+    };
+  });
+}
+/* 别名：切换标记后刷新表格 */
+function 更新矿点表(){ 绘制矿点表(); }
+
+/* ---------- 单点详情 ---------- */
+function 显示矿点详情(点){
+  const 规则 = 矿石规则表[状态.版本][状态.矿石];
+  const 层名 = 点.y <= -40 ? "深板岩层" : 点.y < 0 ? "深层" : "浅层";
+  document.getElementById("矿点详情").innerHTML =
+    `<b>${规则.disp} · 精确坐标</b><br>
+     X <b>${点.x}</b>　Y <b>${点.y}</b>　Z <b>${点.z}</b><br>
+     所在区块：${点.区块X}, ${点.区块Z}<br>
+     矿团大小：${点.矿团} 个方块<br>
+     来源批次：${批次名(点.批次)}<br>
+     所处层位：${层名}<br>
+     <span style="color:#8b949e">该矿石查找器精度 ${规则.av}%。
+     建议从 Y${点.y} 直接开挖，或打竖直探井直达该层。</span>`;
+}
+
+/* ===========================================================
+   交互：缩放 / 拖动 / 已挖掘标记
+   =========================================================== */
+
+/* ---------- 光标命中的矿点 ----------
+   容差随缩放变化：放大时精度高（好点中单个矿点），缩小时放宽。
+   注意容差不能过大，否则会误抓邻近的另一颗矿点。
+*/
+function 拾取矿点(屏X, 屏Y){
+  const 容差 = Math.max(5, Math.min(13, 状态.缩放 * 7));
+  const 容差方 = 容差 * 容差;
+  let 命中 = null, 最近 = 容差方;
+  for(const 点 of 状态.矿点){
+    const p = 世界到屏幕(点.x, 点.z);
+    const 距 = (p.屏X - 屏X) ** 2 + (p.屏Y - 屏Y) ** 2;
+    if(距 < 最近){ 最近 = 距; 命中 = 点; }
+  }
+  return 命中;
+}
+
+/* ---------- 已挖掘标记的键（矿石+坐标唯一） ---------- */
+function 标记键(点){
+  return 状态.版本 + "|" + 状态.维度 + "|" + 状态.矿石 + "|" + 点.x + "," + 点.y + "," + 点.z;
+}
+
+/* 持久化到浏览器本地存储 */
+function 读取标记(){
+  try{
+    const 原始 = localStorage.getItem("基岩版矿物查找器_已挖掘");
+    return 原始 ? new Set(JSON.parse(原始)) : new Set();
+  }catch(e){ return new Set(); }
+}
+function 保存标记(){
+  try{
+    localStorage.setItem("基岩版矿物查找器_已挖掘", JSON.stringify([...状态.已挖掘]));
+  }catch(e){}
+}
+function 切换挖掘标记(点){
+  const 键 = 标记键(点);
+  if(状态.已挖掘.has(键)) 状态.已挖掘.delete(键);
+  else 状态.已挖掘.add(键);
+  保存标记();
+  绘制();
+  更新挖掘统计();
+}
+
+/* ---------- 挖掘统计面板 ---------- */
+function 更新挖掘统计(){
+  const 本类 = 状态.矿点.filter(点 => 状态.已挖掘.has(标记键(点)));
+  const 全部 = 状态.已挖掘.size;
+  document.getElementById("已挖掘数").textContent = 本类.length;
+  document.getElementById("累计挖掘").textContent = 全部;
+  document.getElementById("挖掘进度").textContent =
+    状态.矿点.length ? Math.round(本类.length / 状态.矿点.length * 100) + "%" : "0%";
+}
+
+/* ---------- 鼠标按下：区分「拖动」与「点选」 ---------- */
+画布.addEventListener("mousedown", e => {
+  状态.拖拽 = {
+    屏X: e.offsetX, 屏Y: e.offsetY,
+    中X: 状态.中心X, 中Z: 状态.中心Z,
+    已移动: false
+  };
+});
+
+画布.addEventListener("mousemove", e => {
+  const 气泡 = document.getElementById("气泡");
+
+  if(状态.拖拽){
+    const 移X = (e.offsetX - 状态.拖拽.屏X) / 状态.缩放;
+    const 移Z = (e.offsetY - 状态.拖拽.屏Y) / 状态.缩放;
+    if(Math.abs(移X) > 2 || Math.abs(移Z) > 2) 状态.拖拽.已移动 = true;
+    状态.中心X = Math.round(状态.拖拽.中X - 移X);
+    状态.中心Z = Math.round(状态.拖拽.中Z - 移Z);
+    气泡.style.display = "none";
+    拖动重绘();                       // 只重绘，不重算矿点
+    return;
+  }
+
+  // 悬停气泡
+  const 命中 = 拾取矿点(e.offsetX, e.offsetY);
+  if(命中){
+    const 已挖 = 状态.已挖掘.has(标记键(命中));
+    气泡.style.display = "block";
+    气泡.style.left = Math.min(e.offsetX + 16, 画布.clientWidth - 210) + "px";
+    气泡.style.top = (e.offsetY + 16) + "px";
+    气泡.innerHTML = `<b>矿点 X ${命中.x}　Y ${命中.y}　Z ${命中.z}</b>
+      ${已挖 ? '　<span style="color:#7ee787">✔ 已挖掘</span>' : ''}<br>
+      区块 ${命中.区块X}, ${命中.区块Z}<br>
+      矿团 ${命中.矿团} 方块 · ${批次名(命中.批次)}<br>
+      <span style="color:#8b949e">左键${已挖 ? '取消标记' : '标记已挖掘'} · 右键查看详情</span>`;
+    画布.style.cursor = "pointer";
+  }else{
+    气泡.style.display = "none";
+    画布.style.cursor = 状态.拖拽 ? "grabbing" : "crosshair";
+  }
+});
+
+window.addEventListener("mouseup", () => {
+  // 保留「是否发生过拖动」的信息，供随后的 click 事件判断
+  if(状态.拖拽) 状态.刚拖动过 = 状态.拖拽.已移动;
+  状态.拖拽 = null;
+});
+
+画布.addEventListener("mouseleave", () => {
+  document.getElementById("气泡").style.display = "none";
+  状态.拖拽 = null;
+});
+
+/* ---------- 左键：切换「已挖掘」标记 ---------- */
+画布.addEventListener("click", e => {
+  if(状态.刚拖动过){ 状态.刚拖动过 = false; return; }   // 刚才是拖动，不是点选
+  const 命中 = 拾取矿点(e.offsetX, e.offsetY);
+  if(!命中){
+    document.getElementById("矿点详情").innerHTML =
+      "该处附近没有矿点。试试缩小或加大搜索半径。";
+    return;
+  }
+  切换挖掘标记(命中);
+  显示矿点详情(命中);
+  更新矿点表();                                  // 表格同步显示标记状态
+});
+
+/* ---------- 右键：查看详情 ---------- */
+画布.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  const 命中 = 拾取矿点(e.offsetX, e.offsetY);
+  if(命中) 显示矿点详情(命中);
+});
+
+/* ---------- 滚轮缩放：以光标为锚点 ---------- */
+画布.addEventListener("wheel", e => {
+  e.preventDefault();
+  const 旧缩放 = 状态.缩放;
+  // 光标处的世界坐标（缩放前）
+  const 光标世界X = 状态.中心X + (e.offsetX - 画布.clientWidth / 2) / 旧缩放;
+  const 光标世界Z = 状态.中心Z + (e.offsetY - 画布.clientHeight / 2) / 旧缩放;
+  状态.缩放 = Math.max(0.12, Math.min(12, 旧缩放 * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  // 保持光标下的世界点不动
+  状态.中心X = 光标世界X - (e.offsetX - 画布.clientWidth / 2) / 状态.缩放;
+  状态.中心Z = 光标世界Z - (e.offsetY - 画布.clientHeight / 2) / 状态.缩放;
+  绘制();                                        // 缩放不改变矿点集合，只需重绘
+  document.getElementById("缩放显示").textContent = 缩放文本();
+}, { passive:false });
+
+function 缩放文本(){
+  const 每格 = 状态.缩放 * 16;
+  return 每格 >= 1 ? 每格.toFixed(1) + " 像素/区块" : 状态.缩放.toFixed(2) + " 像素/方块";
+}
+
+/* ---------- 拖动重绘（复用绘制，但不重算） ---------- */
+function 拖动重绘(){
+  绘制();
+  // 拖动时同步刷新状态栏坐标，让用户知道自己在哪
+  document.getElementById("状态").textContent =
+    `矿点 ${状态.矿点.length} 个 · 中心 X ${状态.中心X} Z ${状态.中心Z} · ${缩放文本()}`;
+}
+
+document.getElementById("放大").onclick = () => {
+  状态.缩放 = Math.min(12, 状态.缩放 * 1.3);
+  绘制();
+  document.getElementById("缩放显示").textContent = 缩放文本();
+};
+document.getElementById("缩小").onclick = () => {
+  状态.缩放 = Math.max(0.12, 状态.缩放 / 1.3);
+  绘制();
+  document.getElementById("缩放显示").textContent = 缩放文本();
+};
+document.getElementById("复位").onclick = () => {
+  状态.中心X = 0; 状态.中心Z = 0; 状态.缩放 = 1.6;
+  刷新();
+};
+
+/* ---------- 清空当前矿石的已挖掘标记 ---------- */
+document.getElementById("清空标记").onclick = () => {
+  if(!confirm("确定清空当前矿石的全部「已挖掘」标记吗？")) return;
+  for(const 点 of 状态.矿点) 状态.已挖掘.delete(标记键(点));
+  保存标记();
+  绘制();
+  更新矿点表();
+  更新挖掘统计();
+};
+
+document.getElementById("种子").oninput = e => {
+  状态.种子 = 解析种子(e.target.value);
+  clearTimeout(状态._计时);
+  状态._计时 = setTimeout(刷新, 320);
+};
+document.getElementById("版本").onchange = e => { 状态.版本 = e.target.value; 刷新(); };
+document.getElementById("维度").onchange = e => {
+  状态.维度 = +e.target.value;
+  状态.矿石 = 状态.维度 === 0 ? "diamond" : "netherite";
+  刷新();
+};
+document.getElementById("半径").onchange = 刷新;
+document.getElementById("地表").onchange = 刷新;
+
+/* ---------- 启动 ---------- */
+状态.已挖掘 = 读取标记();     // 恢复上次保存的挖掘标记
+构建矿石列表();
+调整尺寸();
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    调整尺寸();
+    刷新();
+    setTimeout(刷新, 260);
+  });
+});
+</script>
+</body>
+</html>

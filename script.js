@@ -25,7 +25,7 @@ const CONFIG = {
       name: '我的世界',
       children: [
         { name: '基岩版', children: [
-          { name: '矿石查找器', href: '#', note: '链接待补充' }
+          { name: '矿石查找器', href: './tools/ore-finder.html', target: '_blank', note: '基岩版矿石分布预测' }
         ]}
       ]
     }
@@ -83,6 +83,7 @@ function renderTreeNode(node) {
     const a = document.createElement('a');
     a.className = 'tree-leaf';
     a.href = node.href || '#';
+    if (node.target) { a.target = node.target; a.rel = 'noopener'; }
     a.innerHTML = `<span class="label">${node.name}</span>${node.note ? `<span class="note">${node.note}</span>` : ''}`;
     li.appendChild(a);
   }

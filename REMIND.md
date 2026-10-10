@@ -55,6 +55,9 @@
 - [2026-10-10] 按任务「不得提交 SSH 公钥」约束，自 REMIND.md 移除明文公钥；公钥仅存于本沙箱 `~/.ssh`，不进仓库。
 - [2026-10-10] 仅精确 `git add` 四个任务文件（index.html / style.css / script.js / REMIND.md），未纳入 `github_access_setup.sh` 与 `.codebuddy`。
 - [2026-10-10] 仓库无本地 git 身份，按无人值守取默认值：user.name=`gykf123`、user.email=`gykf123@users.noreply.github.com`（GitHub 无回复邮箱，commit 不泄露真实邮箱），仅 local 作用域。
+- [2026-10-10] 矿石查找器（基岩版矿物查找器.html）作为独立子页面部署于 `tools/ore-finder.html`：自包含单文件（HTML/CSS/JS 全内联，不依赖 wasm/Python），由工具箱树「我的世界→基岩版→矿石查找器」以 `target="_blank"` 打开，**未内嵌**进主页。
+- [2026-10-10] 集成时严格「去掉逆向来源」：`原站实现倒查报告.md`/`wasm直连测试结论.md`/`说明文档.md`/`注意事项与使用说明.md` 与 `wasm校验器/` 整目录、`bedrock_ore_core.py`/`template2.html`/`rules_inline2.js` 均未纳入部署；`ore-finder.html` 内"逻辑逆向自 minecraftsearch.com""原站""对拍原站 wasm"等字样与「与原站交叉验证」面板已清除（断言无 minecraftsearch/逆向/原站 残留）。
+- [2026-10-10] 风格统一：矿石查找器顶部加「← FeSui 主页」返回链接（相对 `../index.html`，兼容子路径），与主站品牌/导航统一；保持独立深色工具风（与主站深色模式协调）。
 
 ## 歧义与默认值
 - 仓库名含 `'` 在 GitHub 不合法 → 取连字符形式 `Myself-sHTML`（探测命中）。
@@ -67,7 +70,7 @@
 ## TODO / 待补充锚点
 - 头像：`index.html` 头像位为占位容器，待用户补充 `<img src="./avatar.jpg">`。
 - 项目导航：4 张占位卡片，统一标注「待补充」，待用户补充真实项目。
-- 工具箱：「矿石查找器」`href="#"` 链接待补充。
+- 工具箱：「矿石查找器」已接 `./tools/ore-finder.html`（独立页面、新标签打开），逆向来源已去除。
 - 个人格言：已写入 3 句，可改 `script.js` 的 `CONFIG.mottos`。
 - GitHub Pages 部署：需确认仓库 `Settings → Pages` 源分支 = `main`、目录 = `/`(root)；预期访问 `https://gykf123.github.io/Myself-sHTML/`。
 
