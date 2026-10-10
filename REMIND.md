@@ -67,6 +67,8 @@
 - [2026-10-10] 主题切换入口补强：用户反馈 topbar 的 `◐` 按钮在 iPad Safari 不易见/不可点；在侧栏头部（`.sidebar-head`）新增 `#sidebarThemeBtn` 主题切换按钮，与 topbar `#themeBtn` 共用 `applyTheme()`，两个入口任选其一。
 - [2026-10-10] 彩蛋按钮：在「关于我」简介后加 `#eggBtn`（"来点惊喜"），点击后从 `CONFIG.eggLinks` 随机选一条链接在新标签打开；预设数组当前为空，空数组时按钮文字临时变为"预设链接待补充…"并自动恢复，后续在 `CONFIG.eggLinks` 里加 `{title,url}` 即可生效。
 - [2026-10-10] 动画增强：视图内子元素 stagger 上浮入场（`.view:not([hidden]) > *`）、项目卡片 stagger、chip hover 微缩放、彩蛋按钮脉冲 + 骰子抖动；所有动画尊重 `prefers-reduced-motion: reduce`。
+- [2026-10-10] 液态玻璃升级（从毛玻璃到真·液态玻璃）：参考 GitHub 开源实现 `arsalan06106/liquid-glass-html-css`，在 `index.html` 注入隐藏 SVG filter `#lg-distort`（`feTurbulence` + `feDisplacementMap`），glass 主题下 `.glass`/`.sidebar` 使用 `backdrop-filter: blur(12px) url(#lg-distort) saturate(160%)` 实现背景边缘折射扭曲；叠加 8 层 `inset box-shadow` 模拟顶部高光、边缘反射、内部阴影与投影；降级方案保留。
+- [2026-10-10] 默认主题改为液态玻璃：`<body>` 开头内联脚本在无 localStorage 时默认添加 `theme-glass` 类，`script.js` 的 `bindTheme()` 默认值同步改为 `'glass'`，避免刷新闪烁；用户仍可点 `◐` 切回标准主题。
 
 ## 冲突记录（REMIND vs 任务提示词）
 - 原始任务提示词要求「左侧分类栏：三个一级分类，点击分类标题展开/收起子内容」，但用户后续明确修正为「左侧边栏只是一个选择，点了工具箱后侧边栏收起、主界面上方标题工具箱、不是所有全挤在侧边栏」。按 REMIND「若 REMIND 与本提示词冲突，自行按 REMIND 执行」的原则，这里用户实时指令即最高优先级，已按新需求重构；未删除/隐藏旧结构，而是重写为导航+主区视图。
