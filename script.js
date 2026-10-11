@@ -66,8 +66,16 @@ function renderProjects() {
   CONFIG.projects.forEach(p => {
     const a = document.createElement('a');
     a.className = 'proj-card';
-    a.href = p.href;
-    if (p.target) { a.target = p.target; a.rel = 'noopener noreferrer'; }
+    const isPlaceholder = !p.href || p.href === '#';
+    if (isPlaceholder) {
+      a.classList.add('is-placeholder');
+      a.setAttribute('aria-disabled', 'true');
+      a.href = '#';
+      a.addEventListener('click', e => e.preventDefault());
+    } else {
+      a.href = p.href;
+      if (p.target) { a.target = p.target; a.rel = 'noopener noreferrer'; }
+    }
     const tags = p.tags.map(t => `<span class="tag">${t}</span>`).join('');
     a.innerHTML = `<h4>${p.name}</h4><p>${p.desc}</p><div class="tags">${tags}</div>`;
     frag.appendChild(a);
@@ -171,6 +179,9 @@ function switchView(view) {
   const meta = VIEW_META[view];
   swapText($('#viewTitle'), meta.title);
   swapText($('#viewSub'), meta.sub);
+  // 无障碍：切换后把焦点移到视图标题，便于键盘/读屏用户定位
+  const title = $('#viewTitle');
+  if (title) { title.setAttribute('tabindex', '-1'); title.focus({ preventScroll: true }); }
   // 桌面端：点击导航后侧栏收起为窄条；移动端靠抽屉关闭处理
   const sb = $('#sidebar');
   if (sb && window.innerWidth > 767) sb.classList.add('collapsed');
@@ -207,14 +218,14 @@ function bindTheme() {
   document.querySelectorAll('#themeBtn, #sidebarThemeBtn').forEach(btn => {
     if (!btn) return;
     btn.addEventListener('click', () => {
-      const next = document.body.classList.contains('theme-glass') ? 'standard' : 'glass';
+      const next = document.documentElement.classList.contains('theme-glass') ? 'standard' : 'glass';
       applyTheme(next);
       localStorage.setItem('theme', next);
     });
   });
 }
 function applyTheme(t) {
-  document.body.classList.toggle('theme-glass', t === 'glass');
+  document.documentElement.classList.toggle('theme-glass', t === 'glass');
 }
 
 /* ---------- 彩蛋按钮：随机跳转到预设链接 ---------- */
