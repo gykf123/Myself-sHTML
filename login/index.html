@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FKD · 登录 / 注册</title>
+  <meta name="description" content="FKD 账号登录与注册申请入口" />
+  <link rel="icon" href="../favicon.png" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #e8eaed;
+      background:
+        radial-gradient(700px 480px at 18% 20%, #5b8cff55, transparent 60%),
+        radial-gradient(620px 420px at 84% 26%, #b15bff48, transparent 60%),
+        radial-gradient(680px 500px at 50% 88%, #4fffe044, transparent 60%),
+        linear-gradient(135deg, #0b0f2a, #161a3a);
+      background-attachment: fixed;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(22px) saturate(140%);
+      -webkit-backdrop-filter: blur(22px) saturate(140%);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 22px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+      padding: 34px 30px 26px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .logo {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, #5b8cff, #b15bff);
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 20px; color: #fff;
+      box-shadow: 0 6px 18px rgba(91, 140, 255, 0.4);
+    }
+    .brand h1 { font-size: 22px; letter-spacing: 1px; }
+    .sub { color: #9aa0aa; font-size: 13px; margin: 2px 0 20px; }
+
+    .tabs { display: flex; gap: 6px; background: rgba(255,255,255,.06); padding: 5px; border-radius: 12px; margin-bottom: 20px; }
+    .tabs button {
+      flex: 1; border: 0; background: transparent; color: #9aa0aa;
+      padding: 9px 0; border-radius: 9px; cursor: pointer; font-size: 14px; transition: .2s;
+    }
+    .tabs button.active { background: linear-gradient(135deg, #5b8cff, #b15bff); color: #fff; font-weight: 600; }
+
+    form { display: flex; flex-direction: column; gap: 13px; }
+    form[hidden] { display: none; }
+    label { font-size: 12px; color: #9aa0aa; margin-bottom: -6px; }
+    input, textarea {
+      width: 100%; padding: 12px 14px; border-radius: 11px; font-size: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #e8eaed; outline: none; transition: border .2s, background .2s;
+    }
+    input:focus, textarea:focus { border-color: #6f9bff; background: rgba(255,255,255,.1); }
+    textarea { resize: vertical; min-height: 64px; }
+    input::placeholder, textarea::placeholder { color: #6b7280; }
+
+    .btn {
+      margin-top: 6px; padding: 13px; border: 0; border-radius: 12px; cursor: pointer;
+      font-size: 15px; font-weight: 600; color: #fff;
+      background: linear-gradient(135deg, #5b8cff, #b15bff);
+      box-shadow: 0 8px 22px rgba(91, 140, 255, 0.35); transition: transform .15s, opacity .2s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+    .msg { font-size: 13px; min-height: 18px; margin-top: 4px; }
+    .msg.error { color: #ff8a8a; }
+    .msg.success { color: #7ff0a8; }
+
+    .hint { font-size: 12px; color: #8a909c; margin-top: 14px; line-height: 1.6; text-align: center; }
+    .back { display: block; text-align: center; margin-top: 14px; font-size: 13px; color: #6f9bff; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <div class="logo">F</div>
+      <h1>FKD</h1>
+    </div>
+    <p class="sub">登录或申请账号 · 基岩版社区</p>
+
+    <div class="tabs">
+      <button data-tab="login" class="active">登录</button>
+      <button data-tab="apply">注册申请</button>
+    </div>
+
+    <form id="loginForm" autocomplete="on">
+      <label for="loginUsername">用户名</label>
+      <input id="loginUsername" type="text" placeholder="登录名" required />
+      <label for="loginPassword">密码</label>
+      <input id="loginPassword" type="password" placeholder="密码" required />
+      <button class="btn" type="submit" id="loginBtn">登录</button>
+      <div class="msg" id="loginMsg"></div>
+    </form>
+
+    <form id="applyForm" hidden autocomplete="on">
+      <label for="applyUsername">用户名（3-20 位，中英文/数字/下划线）</label>
+      <input id="applyUsername" type="text" placeholder="登录名" required />
+      <label for="applyPassword">密码（至少 6 位）</label>
+      <input id="applyPassword" type="password" placeholder="密码" required />
+      <label for="applyContact">联系方式（选填）</label>
+      <input id="applyContact" type="text" placeholder="QQ / 邮箱 / 微信" />
+      <label for="applyReason">申请理由（选填）</label>
+      <textarea id="applyReason" placeholder="为什么想加入？"></textarea>
+      <button class="btn" type="submit" id="applyBtn">提交申请</button>
+      <div class="msg" id="applyMsg"></div>
+    </form>
+
+    <p class="hint">注册为申请制，提交后需管理员审核通过方可登录。</p>
+    <a class="back" href="../index.html">← 返回 FeSui 主页</a>
+  </main>
+
+  <script>
+    // 与主站共用同一 Supabase 项目（公开的前端 publishable key，可内联）
+    const SUPABASE_URL = 'https://yowwyasttkywyqgseuqz.supabase.co';
+    const ANON_KEY = 'sb_publishable_j4rpi2ejPTMGxo79uaaX3g_kQYrinS4';
+    const MAIN_SITE = 'https://fkd.xn--0iv.gay';
+    const FUNCTIONS_BASE = SUPABASE_URL + '/functions/v1';
+
+    // 只允许跳回本项目域名，避免开放重定向
+    function getRedirect() {
+      const raw = new URLSearchParams(location.search).get('redirect');
+      if (!raw) return MAIN_SITE + '/';
+      try {
+        const u = new URL(raw, location.origin);
+        const allowed = ['fkd.xn--0iv.gay', 'fesui.xn--0iv.gay', location.host];
+        if (allowed.includes(u.host)) return u.toString();
+      } catch (e) {}
+      return MAIN_SITE + '/';
+    }
+
+    async function callFn(path, body) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 20000);
+      try {
+        const r = await fetch(FUNCTIONS_BASE + '/' + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+          body: JSON.stringify(body),
+          signal: ctrl.signal
+        });
+        clearTimeout(timer);
+        let data = {};
+        try { data = await r.json(); } catch (e) {}
+        return { ok: r.ok, status: r.status, data };
+      } catch (e) {
+        clearTimeout(timer);
+        return { ok: false, status: 0, data: { error: '网络请求失败，请检查网络后重试' } };
+      }
+    }
+
+    function setMsg(el, text, ok) {
+      el.textContent = text || '';
+      el.className = 'msg ' + (ok ? 'success' : 'error');
+    }
+
+    // Tab 切换
+    document.querySelectorAll('.tabs button').forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        const tab = b.dataset.tab;
+        document.getElementById('loginForm').hidden = tab !== 'login';
+        document.getElementById('applyForm').hidden = tab !== 'apply';
+        setMsg(document.getElementById('loginMsg'), '', true);
+        setMsg(document.getElementById('applyMsg'), '', true);
+      });
+    });
+
+    // 登录：成功后带 token 跳回主站（方案B：URL 传参，主站落地到 localStorage）
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('loginMsg');
+      const btn = document.getElementById('loginBtn');
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      if (!username || !password) { setMsg(msg, '请输入用户名和密码', false); return; }
+      btn.disabled = true; btn.textContent = '登录中...';
+      setMsg(msg, '', true);
+      const { ok, data } = await callFn('login', { username, password });
+      btn.disabled = false; btn.textContent = '登录';
+      if (!ok) { setMsg(msg, data.error || '登录失败', false); return; }
+      const token = data.token;
+      if (!token) { setMsg(msg, '登录成功但未返回 token', false); return; }
+      const target = new URL(getRedirect());
+      target.searchParams.set('token', token);
+      location.href = target.toString();
+    });
+
+    // 注册申请：提交后等待审核
+    document.getElementById('applyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('applyMsg');
+      const btn = document.getElementById('applyBtn');
+      const username = document.getElementById('applyUsername').value.trim();
+      const password = document.getElementById('applyPassword').value;
+      const contact = document.getElementById('applyContact').value.trim();
+      const reason = document.getElementById('applyReason').value.trim();
+      if (!username || !password) { setMsg(msg, '请输入用户名和密码', false); return; }
+      btn.disabled = true; btn.textContent = '提交中...';
+      setMsg(msg, '', true);
+      const { ok, data } = await callFn('apply', { username, password, contact, reason });
+      btn.disabled = false; btn.textContent = '提交申请';
+      if (!ok) { setMsg(msg, data.error || '申请失败', false); return; }
+      setMsg(msg, data.message || '申请已提交，等待管理员审核', true);
+      e.target.reset();
+    });
+  </script>
+</body>
+</html>
