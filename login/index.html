@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FKD · 登录 / 注册</title>
-  <meta name="description" content="FKD 账号登录与注册申请入口" />
+  <title id="pageTitle">登录 / 注册</title>
+  <meta name="description" content="账号登录与注册入口" />
   <link rel="icon" href="../favicon.png" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -87,14 +87,14 @@
 <body>
   <main class="card">
     <div class="brand">
-      <div class="logo">F</div>
-      <h1>FKD</h1>
+      <div class="logo" id="logoEl">U</div>
+      <h1 id="brandEl">账户</h1>
     </div>
-    <p class="sub">登录或申请账号 · 基岩版社区</p>
+    <p class="sub" id="subEl">登录或注册账号</p>
 
     <div class="tabs">
       <button data-tab="login" class="active">登录</button>
-      <button data-tab="apply">注册申请</button>
+      <button data-tab="apply">注册</button>
     </div>
 
     <form id="loginForm" autocomplete="on">
@@ -113,34 +113,59 @@
       <input id="applyPassword" type="password" placeholder="密码" required />
       <label for="applyContact">联系方式（选填）</label>
       <input id="applyContact" type="text" placeholder="QQ / 邮箱 / 微信" />
-      <label for="applyReason">申请理由（选填）</label>
-      <textarea id="applyReason" placeholder="为什么想加入？"></textarea>
-      <button class="btn" type="submit" id="applyBtn">提交申请</button>
+      <label for="applyReason">简介（选填）</label>
+      <textarea id="applyReason" placeholder="一句话介绍自己"></textarea>
+      <button class="btn" type="submit" id="applyBtn">注册</button>
       <div class="msg" id="applyMsg"></div>
     </form>
 
-    <p class="hint">注册为申请制，提交后需管理员审核通过方可登录。</p>
-    <a class="back" href="../index.html">← 返回 FeSui 主页</a>
+    <p class="hint">注册成功后即可直接登录，无需审核。</p>
+    <a class="back" id="backLink" href="../">← 返回主页</a>
   </main>
 
   <script>
     // 与主站共用同一 Supabase 项目（公开的前端 publishable key，可内联）
     const SUPABASE_URL = 'https://yowwyasttkywyqgseuqz.supabase.co';
     const ANON_KEY = 'sb_publishable_j4rpi2ejPTMGxo79uaaX3g_kQYrinS4';
-    const MAIN_SITE = 'https://fkd.xn--0iv.gay';
     const FUNCTIONS_BASE = SUPABASE_URL + '/functions/v1';
 
-    // 只允许跳回本项目域名，避免开放重定向
+    // —— 通用配置：由调用方通过 URL 参数传入，本页不写死任何站点 / 品牌 ——
+    //   brand    : 品牌名（标题与 Logo 文字）
+    //   home     : 主站首页（默认回跳目标 + “返回主页”链接 + 同源白名单基准）
+    //   redirect : 登录后具体回跳地址（可选，缺省回 home）
+    const qs = new URLSearchParams(location.search);
+    const BRAND = (qs.get('brand') || '账户').trim();
+    const HOME = (qs.get('home') || location.origin + '/').trim();
+
+    // 同源判定：允许回跳到 home 同父域下的任意子域（如 fkd / fesui 同属一个主域）
+    // 注：父域取 host 最后两段，覆盖 .gay 等单段顶级域场景
+    function parentDomain(host) {
+      return host.split('.').slice(-2).join('.');
+    }
+    function isAllowedHost(host) {
+      try {
+        const base = new URL(HOME).host;
+        return host === base || parentDomain(host) === parentDomain(base);
+      } catch (e) { return false; }
+    }
+    // 仅允许回跳到 home 同源地址，避免开放重定向
     function getRedirect() {
-      const raw = new URLSearchParams(location.search).get('redirect');
-      if (!raw) return MAIN_SITE + '/';
+      const raw = qs.get('redirect');
+      if (!raw) return HOME;
       try {
         const u = new URL(raw, location.origin);
-        const allowed = ['fkd.xn--0iv.gay', 'fesui.xn--0iv.gay', location.host];
-        if (allowed.includes(u.host)) return u.toString();
+        if ((u.protocol === 'https:' || u.protocol === 'http:') && isAllowedHost(u.host)) {
+          return u.toString();
+        }
       } catch (e) {}
-      return MAIN_SITE + '/';
+      return HOME;
     }
+
+    // 按品牌参数渲染标题、品牌区与返回链接
+    document.getElementById('pageTitle').textContent = BRAND + ' · 登录 / 注册';
+    document.getElementById('brandEl').textContent = BRAND;
+    document.getElementById('logoEl').textContent = BRAND.slice(0, 1).toUpperCase();
+    document.getElementById('backLink').href = HOME;
 
     async function callFn(path, body) {
       const ctrl = new AbortController();
@@ -200,7 +225,7 @@
       location.href = target.toString();
     });
 
-    // 注册申请：提交后等待审核
+    // 注册：提交后账号直接生效（status=approved），无需审核
     document.getElementById('applyForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = document.getElementById('applyMsg');
@@ -213,9 +238,9 @@
       btn.disabled = true; btn.textContent = '提交中...';
       setMsg(msg, '', true);
       const { ok, data } = await callFn('apply', { username, password, contact, reason });
-      btn.disabled = false; btn.textContent = '提交申请';
-      if (!ok) { setMsg(msg, data.error || '申请失败', false); return; }
-      setMsg(msg, data.message || '申请已提交，等待管理员审核', true);
+      btn.disabled = false; btn.textContent = '注册';
+      if (!ok) { setMsg(msg, data.error || '注册失败', false); return; }
+      setMsg(msg, data.message || '注册成功，现在可以登录', true);
       e.target.reset();
     });
   </script>
