@@ -63,7 +63,12 @@
         <button class="nav-item" data-view="links" title="友链">
           <span class="ico" aria-hidden="true">🔗</span><span class="lbl">友链</span>
         </button>
+        <button class="nav-item" data-view="wall" title="留言墙">
+          <span class="ico" aria-hidden="true">📝</span><span class="lbl">留言墙</span>
+        </button>
       </nav>
+
+      <div id="authArea" class="auth-area" aria-live="polite"></div>
     </aside>
 
     <!-- 主内容区：随导航切换视图 -->
@@ -142,6 +147,15 @@
       <section class="view" data-view="links" hidden aria-labelledby="viewTitle">
         <div id="friendList" class="friend-list"></div>
         <p class="friend-note glass">想交换友链？把你的站点名、网址和一句简介<a class="mailto-link" href="mailto:gykf123@users.noreply.github.com?subject=友链申请">发邮件给我</a>，审核通过后会展示在这里。</p>
+      </section>
+
+      <!-- 留言墙视图 -->
+      <section class="view" data-view="wall" hidden aria-labelledby="viewTitle">
+        <div class="wall glass">
+          <div id="wallComposer" class="wall-composer"></div>
+          <ul id="wallList" class="wall-list" aria-live="polite"></ul>
+          <p id="wallMsg" class="wall-msg" role="status"></p>
+        </div>
       </section>
     </main>
   </div>

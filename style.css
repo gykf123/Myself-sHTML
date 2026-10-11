@@ -484,6 +484,67 @@ html.theme-glass .sidebar {
 .overlay.show { opacity: 1; }
 .overlay[hidden] { display: none; }
 
+/* ---------- 侧栏登录状态区 ---------- */
+.auth-area { margin-top: 14px; }
+.login-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 12px; text-decoration: none;
+  color: var(--text); font-size: 14px; font-weight: 600;
+  background: var(--accent-soft); border: 1px solid transparent;
+  transition: background .2s, transform .15s var(--ease), border-color .2s;
+}
+.login-link:hover { transform: translateX(2px); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.login-link .ico { font-size: 18px; line-height: 1; }
+.auth-in { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 12px; background: var(--surface-2); }
+.auth-in .ico { font-size: 16px; }
+.auth-in .lbl { font-size: 14px; font-weight: 600; }
+.auth-logout { margin-left: auto; border: 0; background: transparent; color: var(--text-dim); cursor: pointer; font-size: 13px; text-decoration: underline; }
+.auth-logout:hover { color: var(--accent); }
+.sidebar.collapsed .auth-area .lbl { display: none; }
+.sidebar.collapsed .login-link,
+.sidebar.collapsed .auth-in { justify-content: center; padding: 9px 0; }
+
+/* ---------- 留言墙 ---------- */
+.wall { padding: 20px; border-radius: var(--radius); }
+.wall-composer { margin-bottom: 18px; }
+.wall-gate {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px; border-radius: 12px;
+  background: var(--surface-2); color: var(--text-dim); font-size: 14px;
+}
+.wall-login { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+.wall-login:hover { text-decoration: underline; }
+.wall-form { display: flex; flex-direction: column; gap: 10px; }
+.wall-input {
+  width: 100%; padding: 10px 12px; border-radius: 10px; font: inherit; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--border); outline: none;
+  transition: border-color .2s, background .2s;
+}
+.wall-input:focus { border-color: var(--accent); background: var(--surface); }
+.wall-content { resize: vertical; min-height: 72px; line-height: 1.6; }
+.wall-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wall-count { font-size: 12px; color: var(--text-dim); }
+.wall-submit {
+  padding: 9px 20px; border: 0; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 600; color: #fff;
+  background: var(--accent); box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 40%, transparent);
+  transition: transform .15s var(--ease), opacity .2s;
+}
+.wall-submit:hover { transform: translateY(-1px); }
+.wall-submit:disabled { opacity: .6; cursor: wait; transform: none; }
+
+.wall-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.wall-item {
+  padding: 12px 14px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  animation: fadeUp .3s var(--ease) both;
+}
+.wall-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.wall-name { font-weight: 600; font-size: 14px; color: var(--accent); }
+.wall-time { font-size: 12px; color: var(--text-dim); }
+.wall-text { margin: 0; font-size: 14px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.wall-loading, .wall-empty { color: var(--text-dim); font-size: 14px; padding: 8px 2px; }
+.wall-msg { margin: 12px 0 0; font-size: 13px; min-height: 16px; color: var(--accent); }
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 1199px) {
   .content { padding: 36px 28px; }

@@ -1,0 +1,10 @@
+# ---------- 本地/敏感文件，绝不进仓库 ----------
+# 个人 GitHub 访问恢复脚本（含个人网络配置，按 REMIND 永不提交）
+github_access_setup.sh
+
+# 密钥文件（PAT / service_role / JWT secret 等，任何形式都不进仓库）
+*.pat.env
+pat.env
+.env
+*.key
+secrets.*

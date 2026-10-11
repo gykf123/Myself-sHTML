@@ -36,10 +36,19 @@ const CONFIG = {
     { name: '白鹿原嚒', url: 'https://blym.top/', desc: '技术博客与开源项目分享，Minecraft 玩家的自留地。', favicon: 'https://blym.top/favicon.ico' },
     { name: 'MCJS', url: 'https://mcjs.link', desc: '网页版 Minecraft 最佳中文版，无需下载即可在浏览器里游玩。', favicon: 'https://mcjs.link/favicon.ico' }
   ],
-  // 彩蛋按钮预设链接（待补充；空数组时按钮会提示）
+  // 彩蛋按钮预设链接：点击随机跳转到以下「精神污染」整活视频之一
   eggLinks: [
-    // { title: '示例站点', url: 'https://example.com' }
-  ]
+    { title: '🧊 冰冰冰 500 小时纯享版', url: 'https://www.bilibili.com/video/BV1a6ho6cEan/' },
+    { title: '💀 彩色骷髅跳舞 原版', url: 'https://www.bilibili.com/video/BV17vywBVEwu/' },
+    { title: '😵‍💫 只剩下抽象了', url: 'https://www.bilibili.com/video/BV1M3o5BhEw7/' },
+    { title: '🤣 倒霉否哥系列', url: 'https://www.bilibili.com/video/BV1kuzkB9EBE/' }
+  ],
+  // Supabase 配置（留言墙后端；ANON_KEY 为 publishable，可公开内联）
+  supabase: {
+    url: 'https://yowwyasttkywyqgseuqz.supabase.co',
+    anonKey: 'sb_publishable_j4rpi2ejPTMGxo79uaaX3g_kQYrinS4',
+    table: 'guestbook'
+  }
 };
 
 // 各视图的标题与副标题（随导航切换）
@@ -47,7 +56,8 @@ const VIEW_META = {
   info:  { title: '个人信息', sub: '极客与 Minecraft 玩家之间，我是 FeSui。' },
   proj:  { title: '项目导航', sub: '正在搭建与维护中的一些作品。' },
   tools: { title: '工具箱',   sub: '自用小工具，按需取用。' },
-  links: { title: '友链',     sub: '与优秀的站点建立连接，共同成长。' }
+  links: { title: '友链',     sub: '与优秀的站点建立连接，共同成长。' },
+  wall:  { title: '留言墙',   sub: '留一句话，证明你来过。' }
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -179,6 +189,8 @@ function switchView(view) {
   const meta = VIEW_META[view];
   swapText($('#viewTitle'), meta.title);
   swapText($('#viewSub'), meta.sub);
+  // 进入留言墙视图时渲染输入框并加载留言
+  if (view === 'wall') { renderWallComposer(); loadWall(); }
   // 无障碍：切换后把焦点移到视图标题，便于键盘/读屏用户定位
   const title = $('#viewTitle');
   if (title) { title.setAttribute('tabindex', '-1'); title.focus({ preventScroll: true }); }
@@ -255,6 +267,152 @@ function bindEgg() {
   });
 }
 
+/* ---------- 登录接入（复用 login/index.html 的账号系统） ---------- */
+const AUTH_KEY = 'fe_token';
+function getToken() { try { return localStorage.getItem(AUTH_KEY) || ''; } catch (e) { return ''; } }
+
+// 解析登录回调 URL 中的 token（login 页跳回时携带 ?token=xxx）
+function consumeLoginReturn() {
+  try {
+    const t = new URLSearchParams(location.search).get('token');
+    if (t) {
+      localStorage.setItem(AUTH_KEY, t);
+      const u = new URL(location.href); u.searchParams.delete('token');
+      history.replaceState(null, '', u.pathname + u.search);
+    }
+  } catch (e) {}
+}
+
+function loginHref() {
+  const back = location.origin + location.pathname;
+  return './login/index.html?brand=FeSui&home=' +
+    encodeURIComponent(location.origin + '/') + '&redirect=' + encodeURIComponent(back);
+}
+
+// 侧栏登录状态区：未登录显示入口，已登录显示「已登录 + 退出」
+function renderAuth() {
+  const box = $('#authArea');
+  if (!box) return;
+  if (getToken()) {
+    box.innerHTML =
+      '<div class="auth-in" title="已登录">' +
+        '<span class="ico" aria-hidden="true">✅</span>' +
+        '<span class="lbl">已登录</span>' +
+        '<button id="logoutBtn" class="auth-logout" type="button">退出</button>' +
+      '</div>';
+    const out = $('#logoutBtn');
+    if (out) out.addEventListener('click', () => {
+      try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+      renderAuth(); renderWallComposer();
+    });
+  } else {
+    box.innerHTML =
+      '<a class="login-link" href="' + loginHref() + '">' +
+        '<span class="ico" aria-hidden="true">🔐</span>' +
+        '<span class="lbl">登录 / 注册</span>' +
+      '</a>';
+  }
+}
+
+/* ---------- 留言墙（Supabase guestbook 表） ---------- */
+async function supabaseReq(path, opts = {}) {
+  const { url, anonKey, table } = CONFIG.supabase;
+  const headers = {
+    'apikey': anonKey,
+    'Authorization': 'Bearer ' + anonKey,
+    'Content-Type': 'application/json'
+  };
+  const res = await fetch(url + path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+  let data = null;
+  try { data = await res.json(); } catch (e) {}
+  return { ok: res.ok, status: res.status, data };
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function formatTime(iso) {
+  try {
+    const d = new Date(iso), now = new Date(), diff = (now - d) / 1000;
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  } catch (e) { return ''; }
+}
+
+async function loadWall() {
+  const list = $('#wallList'), msg = $('#wallMsg');
+  if (!list) return;
+  list.innerHTML = '<li class="wall-loading">加载中…</li>';
+  if (msg) msg.textContent = '';
+  const { ok, data } = await supabaseReq(
+    `/rest/v1/${CONFIG.supabase.table}?select=*&order=created_at.desc&limit=100`);
+  if (!ok) {
+    list.innerHTML = '';
+    if (msg) msg.textContent = '留言墙尚未开启，等待主人配置数据库。';
+    return;
+  }
+  renderWallList(data || []);
+}
+
+function renderWallList(rows) {
+  const list = $('#wallList');
+  if (!list) return;
+  if (!rows.length) {
+    list.innerHTML = '<li class="wall-empty">还没有人留言，来当第一个吧。</li>';
+    return;
+  }
+  list.innerHTML = rows.map(r =>
+    `<li class="wall-item">
+      <div class="wall-meta"><span class="wall-name">${escapeHtml(r.nickname || '匿名访客')}</span><span class="wall-time">${formatTime(r.created_at)}</span></div>
+      <p class="wall-text">${escapeHtml(r.content || '')}</p>
+    </li>`).join('');
+}
+
+// 输入框：未登录显示登录引导，已登录显示表单
+function renderWallComposer() {
+  const box = $('#wallComposer');
+  if (!box) return;
+  if (!getToken()) {
+    box.innerHTML = '<div class="wall-gate"><span>登录后即可留言。</span><a class="wall-login" href="' + loginHref() + '">去登录 / 注册</a></div>';
+    return;
+  }
+  box.innerHTML =
+    '<form id="wallForm" class="wall-form">' +
+      '<input id="wallNick" class="wall-input wall-nick" type="text" maxlength="30" placeholder="昵称（默认：匿名访客）" />' +
+      '<textarea id="wallContent" class="wall-input wall-content" maxlength="500" rows="3" placeholder="留一句话，证明你来过…" required></textarea>' +
+      '<div class="wall-actions">' +
+        '<span id="wallCount" class="wall-count">0 / 500</span>' +
+        '<button type="submit" class="wall-submit">发布留言</button>' +
+      '</div>' +
+    '</form>';
+  const form = $('#wallForm'), content = $('#wallContent'), count = $('#wallCount');
+  if (content) content.addEventListener('input', () => { count.textContent = content.value.length + ' / 500'; });
+  if (form) form.addEventListener('submit', e => { e.preventDefault(); submitWall(content.value.trim()); });
+}
+
+async function submitWall(content) {
+  const msg = $('#wallMsg');
+  if (!content) { if (msg) msg.textContent = '留言内容不能为空。'; return; }
+  const btn = $('#wallForm .wall-submit');
+  if (btn) btn.disabled = true;
+  if (msg) msg.textContent = '发布中…';
+  const nick = ($('#wallNick').value.trim()) || '匿名访客';
+  const { ok, status } = await supabaseReq(
+    `/rest/v1/${CONFIG.supabase.table}`,
+    { method: 'POST', body: JSON.stringify({ content, nickname: nick }) });
+  if (msg) msg.textContent = ok ? '已发布，感谢留言！' : ('发布失败（' + (status || '网络错误') + '），请稍后再试。');
+  if (btn) btn.disabled = false;
+  if (ok) {
+    const c = $('#wallContent'); if (c) c.value = '';
+    const n = $('#wallCount'); if (n) n.textContent = '0 / 500';
+    await loadWall();
+    if (msg) msg.textContent = '已发布，感谢留言！';
+  }
+}
+
 /* ---------- 移动端抽屉 + 遮罩 ---------- */
 let drawerClose = null;
 function bindMobile() {
@@ -292,6 +450,9 @@ function init() {
   renderProjects();
   renderToolTree();
   renderFriendLinks();
+  consumeLoginReturn();
+  renderAuth();
+  loadWall();
   bindNav();
   bindCollapse();
   bindTheme();
