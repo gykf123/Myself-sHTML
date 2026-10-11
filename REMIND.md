@@ -70,6 +70,10 @@
 - [2026-10-10] 液态玻璃升级（从毛玻璃到真·液态玻璃）：参考 GitHub 开源实现 `arsalan06106/liquid-glass-html-css`，在 `index.html` 注入隐藏 SVG filter `#lg-distort`（`feTurbulence` + `feDisplacementMap`），glass 主题下 `.glass`/`.sidebar` 使用 `backdrop-filter: blur(12px) url(#lg-distort) saturate(160%)` 实现背景边缘折射扭曲；叠加 8 层 `inset box-shadow` 模拟顶部高光、边缘反射、内部阴影与投影；降级方案保留。
 - [2026-10-10] 默认主题改为液态玻璃：`<body>` 开头内联脚本在无 localStorage 时默认添加 `theme-glass` 类，`script.js` 的 `bindTheme()` 默认值同步改为 `'glass'`，避免刷新闪烁；用户仍可点 `◐` 切回标准主题。
 - [2026-10-10] 更多过渡动画：补齐工具箱树展开/收起的高度+透明度过渡、导航 active 左侧指示条平滑伸缩、身份卡片 hover 抬起与高光、头像 hover 缩放旋转、视图标题切换轻量滑入、移动端遮罩淡入淡出、彩蛋点击庆祝弹跳+骰子加速、主内容 `.content` 初始淡入；所有动画仍只用 `transform`/`opacity`/`max-height`，尊重 `prefers-reduced-motion: reduce`。
+- [2026-10-11] 液态玻璃升级（折射贴图，方案A 简化版）：用预计算径向位移贴图（feImage 内联 base64，编码 g=r 使边缘弯曲最强）替代原随机 `feTurbulence` 噪声；glass 主题下 `.glass` 新增镜面高光伪元素（顶部亮线 + 边缘反射，screen 混合，不挡内容）；主题类从 `<body>` 前移至 `<head>` 操作 `<html>`（彻底防闪），CSS 全部 `body.theme-glass` 改为 `html.theme-glass`。
+- [2026-10-11] 无障碍增强：新增 `prefers-reduced-transparency: reduce` 降级（关闭模糊、改用近不透明表面保对比度）；视图切换后焦点自动移到 `#viewTitle`（`tabindex="-1"`）并配 `aria-live="polite"` 播报；占位项目卡片（`href="#"`）加 `is-placeholder`+`aria-disabled` 并阻止默认跳转（不再跳页顶）。
+- [2026-10-11] SEO/分享与资源：`<head>` 补 Open Graph + Twitter Card 元标签；新增 `favicon.png`（头像缩至 64×64）与 `og-image.png`（1200×630 深色渐变占位分享卡）；友链底部"发邮件给我"指向 `mailto:gykf123@users.noreply.github.com`。
+- [2026-10-11] 跳过项（判断不在个人主页合理投入内）：WebGL/WebGPU 真折射（过度）、新购纯 ASCII 短域名（沙箱不可操作）、三级帧率探测降级（已由 reduced-motion + reduced-transparency 覆盖主要场景）。
 
 ## 冲突记录（REMIND vs 任务提示词）
 - 原始任务提示词要求「左侧分类栏：三个一级分类，点击分类标题展开/收起子内容」，但用户后续明确修正为「左侧边栏只是一个选择，点了工具箱后侧边栏收起、主界面上方标题工具箱、不是所有全挤在侧边栏」。按 REMIND「若 REMIND 与本提示词冲突，自行按 REMIND 执行」的原则，这里用户实时指令即最高优先级，已按新需求重构；未删除/隐藏旧结构，而是重写为导航+主区视图。
