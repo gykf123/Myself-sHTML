@@ -31,6 +31,11 @@ const CONFIG = {
       ]
     }
   ],
+  // 友链（大卡片，参考 blym.top 的友链网格样式；favicon 取站点自身，加载失败回退为站点首字）
+  friendLinks: [
+    { name: '白鹿原嚒', url: 'https://blym.top/', desc: '技术博客与开源项目分享，Minecraft 玩家的自留地。', favicon: 'https://blym.top/favicon.ico' },
+    { name: 'MCJS', url: 'https://mcjs.link', desc: '网页版 Minecraft 最佳中文版，无需下载即可在浏览器里游玩。', favicon: 'https://mcjs.link/favicon.ico' }
+  ],
   // 彩蛋按钮预设链接（待补充；空数组时按钮会提示）
   eggLinks: [
     // { title: '示例站点', url: 'https://example.com' }
@@ -41,7 +46,8 @@ const CONFIG = {
 const VIEW_META = {
   info:  { title: '个人信息', sub: '极客与 Minecraft 玩家之间，我是 FeSui。' },
   proj:  { title: '项目导航', sub: '正在搭建与维护中的一些作品。' },
-  tools: { title: '工具箱',   sub: '自用小工具，按需取用。' }
+  tools: { title: '工具箱',   sub: '自用小工具，按需取用。' },
+  links: { title: '友链',     sub: '与优秀的站点建立连接，共同成长。' }
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -64,6 +70,41 @@ function renderProjects() {
     if (p.target) { a.target = p.target; a.rel = 'noopener noreferrer'; }
     const tags = p.tags.map(t => `<span class="tag">${t}</span>`).join('');
     a.innerHTML = `<h4>${p.name}</h4><p>${p.desc}</p><div class="tags">${tags}</div>`;
+    frag.appendChild(a);
+  });
+  box.appendChild(frag);
+}
+
+/* ---------- 渲染友链大卡片 ---------- */
+function renderFriendLinks() {
+  const box = $('#friendList');
+  if (!box) return;
+  const frag = document.createDocumentFragment();
+  CONFIG.friendLinks.forEach(f => {
+    const a = document.createElement('a');
+    a.className = 'friend-card glass';
+    a.href = f.url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    // 站点首字（favicon 加载失败时回退）
+    const initial = (f.name || '#').trim().charAt(0);
+    const logo = document.createElement('div');
+    logo.className = 'friend-logo';
+    const img = document.createElement('img');
+    img.alt = f.name;
+    img.loading = 'lazy';
+    img.src = f.favicon || '';
+    img.addEventListener('error', () => { img.remove(); logo.textContent = initial; });
+    logo.appendChild(img);
+    const body = document.createElement('div');
+    body.className = 'friend-body';
+    const host = (() => { try { return new URL(f.url).hostname; } catch (e) { return f.url; } })();
+    body.innerHTML =
+      `<h4 class="friend-name">${f.name}<span class="go" aria-hidden="true">↗</span></h4>` +
+      `<p class="friend-desc">${f.desc}</p>` +
+      `<p class="friend-url">${host}</p>`;
+    a.appendChild(logo);
+    a.appendChild(body);
     frag.appendChild(a);
   });
   box.appendChild(frag);
@@ -239,6 +280,7 @@ function init() {
   renderMottos();
   renderProjects();
   renderToolTree();
+  renderFriendLinks();
   bindNav();
   bindCollapse();
   bindTheme();
