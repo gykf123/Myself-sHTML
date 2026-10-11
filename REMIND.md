@@ -74,6 +74,9 @@
 - [2026-10-11] 无障碍增强：新增 `prefers-reduced-transparency: reduce` 降级（关闭模糊、改用近不透明表面保对比度）；视图切换后焦点自动移到 `#viewTitle`（`tabindex="-1"`）并配 `aria-live="polite"` 播报；占位项目卡片（`href="#"`）加 `is-placeholder`+`aria-disabled` 并阻止默认跳转（不再跳页顶）。
 - [2026-10-11] SEO/分享与资源：`<head>` 补 Open Graph + Twitter Card 元标签；新增 `favicon.png`（头像缩至 64×64）与 `og-image.png`（1200×630 深色渐变占位分享卡）；友链底部"发邮件给我"指向 `mailto:gykf123@users.noreply.github.com`。
 - [2026-10-11] 跳过项（判断不在个人主页合理投入内）：WebGL/WebGPU 真折射（过度）、新购纯 ASCII 短域名（沙箱不可操作）、三级帧率探测降级（已由 reduced-motion + reduced-transparency 覆盖主要场景）。
+- [2026-10-11] 新增「留言墙」板块（侧栏第 5 入口 `data-view="wall"`，主区视图「留一句话证明你来过」）：后端用 Supabase 新表 `public.guestbook`（与 messages/users 等隔离），经 Management API（PAT）执行建表 SQL 并显式 `GRANT SELECT,INSERT TO anon,authenticated`（适配 2026-10-30 新政策，否则 Data API 返回 permission denied）；前端用 publishable `ANON_KEY` 经 REST `/rest/v1/guestbook` 直连读写（读公开、写宽松，个人站点可接受，无需 Edge Function 校验），XSS 用 `escapeHtml`、写入走 REST 参数化；未登录显示「登录后即可留言」引导、已登录显示表单（昵称+内容，限长 30/500），提交成功提示与列表刷新时序已修正（先 `await loadWall()` 再显示「已发布」）。
+- [2026-10-11] 登录接入：复用 `login/index.html`（用户已加的账号系统，签 HS256 JWT、7 天有效）；主页 `consumeLoginReturn()` 解析回调 `?token=` 存 localStorage（`fe_token`，跨域 Cookie 不通故用 URL 传参 + 落地清参），`renderAuth()` 显示「已登录/退出」或「登录/注册」入口，`loginHref()` 生成跳转（brand=FeSui + home + redirect）。
+- [2026-10-11] 密钥保管铁律：PAT / service_role / JWT_SECRET 仅本地一次性使用，存于 `/root/.supabase/pat.env`（600 权限、仓库之外）；新增 `.gitignore` 排除 `*.pat.env`/`pat.env`/`github_access_setup.sh`/`*.key`/`secrets.*`；前端只用 publishable `ANON_KEY`（已内联，`/workspace` 内不含任何 secret）。建表走 Management API（PAT 仅调用时存在于内存），不写任何密钥到源码或脚本文件。
 
 ## 冲突记录（REMIND vs 任务提示词）
 - 原始任务提示词要求「左侧分类栏：三个一级分类，点击分类标题展开/收起子内容」，但用户后续明确修正为「左侧边栏只是一个选择，点了工具箱后侧边栏收起、主界面上方标题工具箱、不是所有全挤在侧边栏」。按 REMIND「若 REMIND 与本提示词冲突，自行按 REMIND 执行」的原则，这里用户实时指令即最高优先级，已按新需求重构；未删除/隐藏旧结构，而是重写为导航+主区视图。
