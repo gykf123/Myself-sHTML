@@ -8,3 +8,8 @@ pat.env
 .env
 *.key
 secrets.*
+
+# 本地生成/预览用资源（不入仓库）
+preview-*.png
+*.preview.png
+*.log

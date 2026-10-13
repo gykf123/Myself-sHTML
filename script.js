@@ -12,12 +12,13 @@ const CONFIG = {
     '不执拗，也不将就——每一座方块、每一行代码，都该有它的道理。',
     '世界是开放的沙盒，而我乐此不疲地编辑它。'
   ],
-  // 项目导航占位卡片（统一标注「待补充」）
+  // 项目导航卡片；href 缺失或 '#' 时标记为「规划中」（视觉有意，而非损坏态）
+  lastUpdated: '2026-10-13',
   projects: [
-    { name: '红石自动化实验室', desc: '基于 Minecraft 红石与真实电路原理的自动化演示', tags: ['Minecraft', '待补充'], href: '#' },
-    { name: '终端工具箱', desc: '一组零依赖的命令行小工具', tags: ['CLI', '待补充'], href: '#' },
-    { name: '静态站点生成器', desc: '纯前端、无构建步骤的极简建站方案', tags: ['Web', '待补充'], href: '#' },
-    { name: '数据可视化', desc: '用原生 Canvas / SVG 讲故事', tags: ['Chart', '待补充'], href: '#' },
+    { name: '红石自动化实验室', desc: '基于 Minecraft 红石与真实电路原理的自动化演示', tags: ['Minecraft'] },
+    { name: '终端工具箱', desc: '一组零依赖的命令行小工具', tags: ['CLI'] },
+    { name: '静态站点生成器', desc: '纯前端、无构建步骤的极简建站方案', tags: ['Web'] },
+    { name: '数据可视化', desc: '用原生 Canvas / SVG 讲故事', tags: ['Chart'] },
     { name: 'FKD 服务器主页', desc: 'FKD 游戏服务器官方网站', tags: ['Minecraft', '服务器'], href: 'https://FKD.是.gay', target: '_blank' }
   ],
   // 工具箱树（由数组配置驱动渲染）
@@ -76,9 +77,9 @@ function renderProjects() {
   CONFIG.projects.forEach(p => {
     const a = document.createElement('a');
     a.className = 'proj-card';
-    const isPlaceholder = !p.href || p.href === '#';
-    if (isPlaceholder) {
-      a.classList.add('is-placeholder');
+    const isSoon = !p.href || p.href === '#';
+    if (isSoon) {
+      a.classList.add('is-soon');
       a.setAttribute('aria-disabled', 'true');
       a.href = '#';
       a.addEventListener('click', e => e.preventDefault());
@@ -444,6 +445,26 @@ function hideLoader() {
   setTimeout(() => l.remove(), 400);
 }
 
+/* ---------- 返回顶部（滚动出现，平滑滚动） ---------- */
+function bindToTop() {
+  const btn = $('#toTop');
+  if (!btn) return;
+  const onScroll = () => {
+    const show = window.scrollY > 320;
+    btn.hidden = !show;
+    btn.classList.toggle('show', show);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  onScroll();
+}
+
+/* ---------- 页脚年份 / 最后更新 ---------- */
+function fillFooter() {
+  const y = $('#footYear'); if (y) y.textContent = new Date().getFullYear();
+  const u = $('#footUpdated'); if (u) u.textContent = CONFIG.lastUpdated || '';
+}
+
 /* ---------- 初始化 ---------- */
 function init() {
   renderMottos();
@@ -458,6 +479,8 @@ function init() {
   bindTheme();
   bindEgg();
   bindMobile();
+  bindToTop();
+  fillFooter();
   // 恢复上次视图（默认个人信息）
   let v = 'info';
   try { v = localStorage.getItem('view') || 'info'; } catch (e) {}
