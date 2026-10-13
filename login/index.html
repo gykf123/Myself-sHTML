@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title id="pageTitle">登录 / 注册</title>
+  <meta name="referrer" content="no-referrer" />
   <meta name="description" content="账号登录与注册入口" />
   <link rel="icon" href="../favicon.png" />
   <style>
@@ -240,8 +241,12 @@
       const { ok, data } = await callFn('apply', { username, password, contact, reason });
       btn.disabled = false; btn.textContent = '注册';
       if (!ok) { setMsg(msg, data.error || '注册失败', false); return; }
-      setMsg(msg, data.message || '注册成功，现在可以登录', true);
       e.target.reset();
+      // 体验优化：注册成功后自动切到登录 tab、预填用户名、聚焦密码框
+      document.querySelector('.tabs button[data-tab="login"]').click();
+      document.getElementById('loginUsername').value = username;
+      setMsg(document.getElementById('loginMsg'), (data.message || '注册成功') + '，请输入密码登录', true);
+      document.getElementById('loginPassword').focus();
     });
   </script>
 </body>
