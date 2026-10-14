@@ -37,12 +37,19 @@ const CONFIG = {
     { name: '白鹿原嚒', url: 'https://blym.top/', desc: '技术博客与开源项目分享，Minecraft 玩家的自留地。', favicon: 'https://blym.top/favicon.ico' },
     { name: 'MCJS', url: 'https://mcjs.link', desc: '网页版 Minecraft 最佳中文版，无需下载即可在浏览器里游玩。', favicon: 'https://mcjs.link/favicon.ico' }
   ],
-  // 彩蛋按钮预设链接：点击随机跳转到以下「精神污染」整活视频之一
+  // 彩蛋按钮预设链接：点击随机跳转（"精神污染"/鬼畜整活向，链接均来自权威来源真实存在）
   eggLinks: [
     { title: '🧊 冰冰冰 500 小时纯享版', url: 'https://www.bilibili.com/video/BV1a6ho6cEan/' },
     { title: '💀 彩色骷髅跳舞 原版', url: 'https://www.bilibili.com/video/BV17vywBVEwu/' },
     { title: '😵‍💫 只剩下抽象了', url: 'https://www.bilibili.com/video/BV1M3o5BhEw7/' },
-    { title: '🤣 倒霉否哥系列', url: 'https://www.bilibili.com/video/BV1kuzkB9EBE/' }
+    { title: '🤣 倒霉否哥系列', url: 'https://www.bilibili.com/video/BV1kuzkB9EBE/' },
+    { title: '🎤 念诗之王（改革春风吹满地）', url: 'https://www.bilibili.com/video/av19390801/' },
+    { title: '🎙️ 雷总摇起来 Are you OK（循环向）', url: 'https://www.bilibili.com/video/av2271112/' },
+    { title: '🍢 面筋哥×波澜哥 烤面筋融化你的心', url: 'https://www.bilibili.com/video/av21061574/' },
+    { title: '🕺 全明星 双♂人♂舞', url: 'https://www.bilibili.com/video/av2648921/' },
+    { title: '🐷 全英雄联盟最骚的骚猪', url: 'https://www.bilibili.com/video/av4606803/' },
+    { title: '🐰 我是 papi 酱（电音单曲）', url: 'https://www.bilibili.com/video/av4033926/' },
+    { title: '🎺 全明星 Rap 黑喂狗', url: 'https://www.bilibili.com/video/av3327562/' }
   ],
   // Supabase 配置（留言墙后端；ANON_KEY 为 publishable，可公开内联）
   supabase: {
@@ -343,6 +350,11 @@ function formatTime(iso) {
   } catch (e) { return ''; }
 }
 
+function updateWallBadge(n) {
+  const b = $('#wallBadge');
+  if (b) b.textContent = '💬 ' + n + ' 条留言';
+}
+
 async function loadWall() {
   const list = $('#wallList'), msg = $('#wallMsg');
   if (!list) return;
@@ -361,6 +373,7 @@ async function loadWall() {
 function renderWallList(rows) {
   const list = $('#wallList');
   if (!list) return;
+  updateWallBadge(rows.length);
   if (!rows.length) {
     list.innerHTML = '<li class="wall-empty">还没有人留言，来当第一个吧。</li>';
     return;
@@ -465,6 +478,50 @@ function fillFooter() {
   const u = $('#footUpdated'); if (u) u.textContent = CONFIG.lastUpdated || '';
 }
 
+/* ---------- 留言墙刷新按钮 ---------- */
+function bindWallRefresh() {
+  const btn = $('#wallRefresh');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (btn.classList.contains('spin')) return;
+    btn.classList.add('spin');
+    btn.disabled = true;
+    await loadWall();
+    btn.disabled = false;
+    setTimeout(() => btn.classList.remove('spin'), 600);
+  });
+}
+
+/* ---------- 侧栏实时时钟 ---------- */
+function bindClock() {
+  const el = $('#sideClock');
+  if (!el) return;
+  const p = n => String(n).padStart(2, '0');
+  const tick = () => {
+    const d = new Date();
+    el.innerHTML =
+      '<span class="dot" aria-hidden="true"></span>' +
+      '<span class="clk">' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + '</span>';
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ---------- 顶部滚动进度条 ---------- */
+function bindProgress() {
+  const bar = $('#progress');
+  if (!bar) return;
+  const onScroll = () => {
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    const r = h > 0 ? Math.min(window.scrollY / h, 1) : 0;
+    bar.style.transform = 'scaleX(' + r + ')';
+    bar.style.opacity = r > 0.01 ? '1' : '0';
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  onScroll();
+}
+
 /* ---------- 初始化 ---------- */
 function init() {
   renderMottos();
@@ -481,6 +538,9 @@ function init() {
   bindMobile();
   bindToTop();
   fillFooter();
+  bindWallRefresh();
+  bindClock();
+  bindProgress();
   // 恢复上次视图（默认个人信息）
   let v = 'info';
   try { v = localStorage.getItem('view') || 'info'; } catch (e) {}

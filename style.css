@@ -582,6 +582,48 @@ html.theme-glass .sidebar {
 .to-top.show { opacity: 1; transform: none; }
 .to-top:hover { border-color: var(--accent); background: var(--accent-soft); }
 
+/* ---------- 顶部滚动进度条 ---------- */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 40;
+  background: var(--accent);
+  transform-origin: left center; transform: scaleX(0);
+  opacity: 0; transition: opacity .2s var(--ease);
+  pointer-events: none;
+}
+html.theme-glass .scroll-progress {
+  background: linear-gradient(90deg, #5b8cff, #b15bff, #4fffe0);
+  box-shadow: 0 0 8px rgba(143,178,255,.6);
+}
+
+/* ---------- 侧栏实时时钟 ---------- */
+.side-clock {
+  margin-top: 10px; padding: 9px 12px; border-radius: 10px;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 13px; color: var(--text-dim);
+}
+.side-clock .dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: #38d39a; box-shadow: 0 0 6px #38d39a; animation: blink 2s ease-in-out infinite;
+}
+.side-clock .clk { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .5px; }
+.sidebar.collapsed .side-clock { display: none; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ---------- 留言墙头部（计数徽章 + 刷新） ---------- */
+.wall-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.wall-badge { font-size: 14px; font-weight: 700; color: var(--text); }
+.wall-refresh {
+  width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 16px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim);
+  display: grid; place-items: center;
+  transition: transform .2s var(--ease), color .2s, border-color .2s;
+}
+.wall-refresh:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-1px); }
+.wall-refresh:disabled { cursor: wait; }
+.wall-refresh.spin { animation: spin360 .6s var(--ease); }
+@keyframes spin360 { to { transform: rotate(360deg); } }
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 1199px) {
   .content { padding: 36px 28px; }

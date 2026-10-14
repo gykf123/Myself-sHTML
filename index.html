@@ -51,6 +51,9 @@
   <!-- 移动端遮罩层 -->
   <div id="overlay" class="overlay" hidden></div>
 
+  <!-- 顶部滚动进度条（随页面滚动填充） -->
+  <div id="progress" class="scroll-progress" aria-hidden="true"></div>
+
   <div class="layout">
     <header class="topbar">
       <button id="menuBtn" class="icon-btn" aria-label="打开侧栏" aria-expanded="false" aria-controls="sidebar">☰</button>
@@ -87,6 +90,9 @@
       </nav>
 
       <div id="authArea" class="auth-area" aria-live="polite"></div>
+
+      <!-- 侧栏实时时钟（折叠为窄条时隐藏） -->
+      <div id="sideClock" class="side-clock" aria-hidden="true"></div>
     </aside>
 
     <!-- 主内容区：随导航切换视图 -->
@@ -170,6 +176,10 @@
       <!-- 留言墙视图 -->
       <section class="view" data-view="wall" hidden aria-labelledby="viewTitle">
         <div class="wall glass">
+          <div class="wall-head">
+            <span class="wall-badge" id="wallBadge">💬 留言墙</span>
+            <button id="wallRefresh" class="wall-refresh" type="button" title="刷新留言" aria-label="刷新留言"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>
+          </div>
           <div id="wallComposer" class="wall-composer"></div>
           <ul id="wallList" class="wall-list" aria-live="polite"></ul>
           <p id="wallMsg" class="wall-msg" role="status"></p>
