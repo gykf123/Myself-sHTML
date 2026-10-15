@@ -206,7 +206,10 @@
       });
     });
 
-    // 登录：成功后带 token 跳回主站（方案B：URL 传参，主站落地到 localStorage）
+    // 登录：成功后先换一张一次性票(ticket)，再跳回主站。
+    // 旧做法把 JWT 直接写在 URL 上（会被 CDN/代理访问日志、浏览器历史、外链 Referer 记录），
+    // 现在 URL 上只有 2 分钟有效、兑换一次即作废的票，真正的 JWT 走 POST 响应体（no-store）。
+    // 换票接口万一异常，自动回退到旧的 ?token= 方式，保证登录链路不被卡住。
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = document.getElementById('loginMsg');
@@ -217,12 +220,17 @@
       btn.disabled = true; btn.textContent = '登录中...';
       setMsg(msg, '', true);
       const { ok, data } = await callFn('login', { username, password });
-      btn.disabled = false; btn.textContent = '登录';
-      if (!ok) { setMsg(msg, data.error || '登录失败', false); return; }
+      if (!ok) { btn.disabled = false; btn.textContent = '登录'; setMsg(msg, data.error || '登录失败', false); return; }
       const token = data.token;
-      if (!token) { setMsg(msg, '登录成功但未返回 token', false); return; }
+      if (!token) { btn.disabled = false; btn.textContent = '登录'; setMsg(msg, '登录成功但未返回 token', false); return; }
       const target = new URL(getRedirect());
-      target.searchParams.set('token', token);
+      let ticket = null;
+      try {
+        const ex = await callFn('auth-exchange', { action: 'issue', token });
+        if (ex.ok && ex.data && ex.data.ticket) ticket = ex.data.ticket;
+      } catch (err) { ticket = null; }
+      btn.textContent = '跳转中...';
+      target.searchParams.set(ticket ? 'ticket' : 'token', ticket || token);
       location.href = target.toString();
     });
 
