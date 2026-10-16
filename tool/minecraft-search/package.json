@@ -1,0 +1,11 @@
+{
+  "name": "minecraft-search-clone",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minecraft 工具集与参考库（种子地图 / 矿石 / 结构 / 群系 / 附魔 / 命令 / 合成 / 文本）— 纯静态，零运行时依赖",
+  "scripts": {
+    "start": "node serve.mjs",
+    "dev": "node serve.mjs 8080"
+  }
+}

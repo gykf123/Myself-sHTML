@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工具 — Minecraft 搜索</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232f9e44'/></svg>">
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+<main class="wrap" style="padding-top:34px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="sub" style="max-width:720px"></p>
+  <div class="grid cols-3" id="tools" style="margin-top:22px"></div>
+  <div class="panel" style="margin-top:34px">
+    <h2 id="mapTitle"></h2>
+    <p class="muted" id="mapSub" style="font-size:.9rem"></p>
+    <div class="row">
+      <a class="btn primary" href="seed-finder.html" id="openMap"></a>
+      <a class="btn" href="../best-seeds.html" id="openSeeds"></a>
+    </div>
+  </div>
+  <div class="panel">
+    <h2 id="refTitle"></h2>
+    <div class="grid cols-4" id="refs" style="margin-top:6px"></div>
+  </div>
+</main>
+<script type="module">
+import { boot, TOOLS, REF_CATEGORIES, t, lang, el, $ } from '../assets/js/core.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+$('#h1').textContent = zh ? '全部工具' : 'All tools';
+$('#sub').textContent = zh
+  ? '九款工具全部在浏览器本地运行：世界生成计算由 cubiomes WebAssembly 内核在 Web Worker 中完成，其余工具为纯前端逻辑，无需注册、无广告。'
+  : 'All nine tools run locally in your browser: world-generation maths is done by a cubiomes WebAssembly core in a Web Worker, the rest is pure front-end logic. No sign-up, no ads.';
+$('#tools').replaceChildren(...TOOLS.map(x => el('a', { class: 'card tool', href: `/tools/${x.slug}.html` },
+  el('div', { class: 'tool-icon' }, x.icon), el('h3', {}, t(x.name)), el('p', {}, t(x.desc)))));
+$('#mapTitle').textContent = zh ? '种子地图' : 'Seed Map';
+$('#mapSub').textContent = zh
+  ? '在一张可交互的地图上查看任意种子的群系、结构、矿石与出生点，支持 Java 版与基岩版、多维度与自定义比例。'
+  : 'Inspect biomes, structures, ores and the spawn point of any seed on an interactive map — Java and Bedrock, multiple dimensions and custom scale.';
+$('#openMap').textContent = zh ? '打开种子地图 →' : 'Open the Seed Map →';
+$('#openSeeds').textContent = zh ? '精选种子' : 'Best Seeds';
+$('#refTitle').textContent = zh ? '参考库' : 'Reference';
+$('#refs').replaceChildren(...REF_CATEGORIES.map(c => el('a', { class: 'card', href: `/items/?c=${c.slug}` },
+  el('h3', { style: 'font-size:.95rem' }, c.slug), el('p', { class: 'faint', style: 'font-size:.78rem' }, '→'))));
+</script>
+</body>
+</html>

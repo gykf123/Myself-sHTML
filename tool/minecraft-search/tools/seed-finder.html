@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>种子查找器 — Minecraft 搜索</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0,1.5fr) minmax(320px,1fr); align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  #map { height: 520px; }
+  .cond { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; }
+  .cond select, .cond input { flex: 1; }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:24px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:820px"></p>
+  <div id="toolbar"></div>
+  <div class="layout" style="margin-top:16px">
+    <div><div id="map"></div><p class="faint" style="font-size:.8rem" id="mapHint"></p></div>
+    <div>
+      <div class="panel">
+        <h2 id="critTitle"></h2>
+        <p class="faint" style="font-size:.82rem" id="critSub"></p>
+        <div id="conds"></div>
+        <button class="btn sm" id="addCond" style="margin-top:4px"></button>
+        <div class="field-row" style="margin-top:12px">
+          <div><label class="fld" id="lblRadius"></label><input type="number" id="searchRadius" value="1024" step="256"></div>
+          <div><label class="fld" id="lblTries"></label><input type="number" id="maxTries" value="300" step="50"></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="findBtn"></button>
+          <span class="badge n" id="progress"></span>
+        </div>
+      </div>
+      <div class="panel"><h2 id="foundTitle"></h2><div id="found"></div></div>
+    </div>
+  </div>
+</main>
+<script type="module">
+import { boot, t, lang, el, $, toast, copyText, parseSeed } from '../assets/js/core.js';
+import { SeedMap, toolbar, structurePicker, prettyStruct, ORES, prettyOre } from '../assets/js/seedmap/toolkit.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+$('#h1').textContent = zh ? '种子查找器' : 'Seed Finder';
+$('#lead').textContent = zh
+  ? '按条件筛选种子：指定必须存在（或必须不存在）的结构与群系，工具会自动搜索并给出第一个符合条件的种子，并在地图上验证。'
+  : 'Filter seeds by criteria: require structures or biomes to be present (or absent), and the tool searches until it finds a matching seed, verified on the map.';
+$('#mapHint').textContent = t('map.hint');
+$('#critTitle').textContent = zh ? '搜索条件' : 'Criteria';
+$('#critSub').textContent = zh ? '每行一个条件，全部满足才算命中。' : 'One condition per row; every row must hold.';
+$('#lblRadius').textContent = zh ? '搜索半径（方块）' : 'Search radius (blocks)';
+$('#lblTries').textContent = zh ? '最大尝试次数' : 'Max attempts';
+$('#findBtn').textContent = zh ? '搜索种子' : 'Search for a seed';
+$('#foundTitle').textContent = zh ? '命中结果' : 'Matches';
+
+const map = new SeedMap($('#map'));
+await map.init({ core: 'vendor', edition: 'java', version: '1.21.4', dimension: 'overworld', y: 64 });
+const tb = toolbar($('#toolbar'), map, { autoApply: false });
+
+// 支持从「精选种子」等页面带参跳转：?s=<种子>&v=<版本>
+{
+  const qp = new URLSearchParams(location.search);
+  const s = qp.get('s'), v = qp.get('v');
+  if (v && [...tb.verSel.options].some(o => o.value === v)) tb.verSel.value = v;
+  if (s) { tb.seedInput.value = s; tb.apply(); }
+}
+
+const PRESETS = [
+  { id: 'village', label: zh ? '村庄' : 'Village', kind: 'structure' },
+  { id: 'pillager_outpost', label: zh ? '掠夺者前哨站' : 'Pillager outpost', kind: 'structure' },
+  { id: 'woodland_mansion', label: zh ? '林地府邸' : 'Woodland mansion', kind: 'structure' },
+  { id: 'ancient_city', label: zh ? '远古城市' : 'Ancient city', kind: 'structure' },
+  { id: 'trial_chambers', label: zh ? '试炼密室' : 'Trial chambers', kind: 'structure' },
+  { id: 'ocean_monument', label: zh ? '海底神殿' : 'Ocean monument', kind: 'structure' },
+  { id: 'mushroom_fields', label: zh ? '蘑菇岛' : 'Mushroom fields', kind: 'biome' },
+  { id: 'cherry_grove', label: zh ? '樱花树林' : 'Cherry grove', kind: 'biome' },
+  { id: 'deep_dark', label: zh ? '深暗之域' : 'Deep dark', kind: 'biome' },
+];
+
+const conds = $('#conds');
+function addRow() {
+  const row = el('div', { class: 'cond' });
+  const kindSel = el('select', {}, el('option', { value: 'structure' }, zh ? '结构' : 'Structure'), el('option', { value: 'biome' }, zh ? '群系' : 'Biome'));
+  const valSel = el('select', {});
+  const fill = () => {
+    const list = kindSel.value === 'structure'
+      ? PRESETS.filter(p => p.kind === 'structure')
+      : PRESETS.filter(p => p.kind === 'biome');
+    valSel.replaceChildren(...list.map(p => el('option', { value: p.id }, p.label)));
+  };
+  fill(); kindSel.onchange = fill;
+  const modeSel = el('select', { style: 'max-width:110px' },
+    el('option', { value: 'must' }, zh ? '必须存在' : 'Must exist'),
+    el('option', { value: 'absent' }, zh ? '必须不存在' : 'Must not exist'));
+  const del = el('button', { class: 'btn sm', onclick: () => row.remove() }, '✕');
+  row.append(kindSel, valSel, modeSel, del);
+  conds.append(row);
+}
+addRow();
+$('#addCond').textContent = zh ? '+ 添加条件' : '+ Add condition';
+$('#addCond').onclick = addRow;
+
+let biomeNameToId = null;
+async function ensureBiomeMap() {
+  if (biomeNameToId) return biomeNameToId;
+  const list = await map.biomeList();
+  biomeNameToId = new Map(list.map(b => [b.name, b.id]));
+  return biomeNameToId;
+}
+
+async function check(radius) {
+  const bm = await ensureBiomeMap();
+  const rows = [...conds.querySelectorAll('.cond')].map(r => {
+    const [k, v, m] = r.querySelectorAll('select');
+    return { kind: k.value, id: v.value, mode: m.value };
+  });
+  if (!rows.length) throw new Error(zh ? '请至少添加一个条件' : 'Add at least one criterion');
+
+  const structRows = rows.filter(r => r.kind === 'structure');
+  const biomeRows = rows.filter(r => r.kind === 'biome');
+
+  // 结构检查
+  for (const r of structRows) {
+    const pts = await map.findStructures(r.id, -radius, -radius, radius, radius, 1, false);
+    const ok = pts.length > 0;
+    if (r.mode === 'must' && !ok) return { ok: false };
+    if (r.mode === 'absent' && ok) return { ok: false };
+  }
+  // 群系检查（采样网格）
+  if (biomeRows.length) {
+    const gridSize = 256, half = gridSize / 2;
+    const res = await map._send('grid', { x: -half, z: -half, size: gridSize, y: map.state.y });
+    const present = new Set(res.grid);
+    for (const r of biomeRows) {
+      const bid = bm.get(r.id);
+      const ok = bid != null && present.has(bid);
+      if (r.mode === 'must' && !ok) return { ok: false };
+      if (r.mode === 'absent' && ok) return { ok: false };
+    }
+  }
+  return { ok: true, structRows };
+}
+
+$('#findBtn').onclick = async () => {
+  const btn = $('#findBtn'); const old = btn.textContent;
+  btn.disabled = true; btn.textContent = t('map.locating');
+  const radius = Number($('#searchRadius').value) || 1024;
+  const tries = Math.max(10, Math.min(2000, Number($('#maxTries').value) || 300));
+  const found = [];
+  try {
+    for (let i = 0; i < tries; i++) {
+      const seed = BigInt(Math.floor(Math.random() * 2 ** 48) - 2 ** 47);
+      $('#progress').textContent = `${i + 1} / ${tries}`;
+      await map.setSeed(seed);
+      const r = await check(radius);
+      if (r.ok) {
+        found.push({ seed, structs: r.structRows || [] });
+        if (found.length >= 5) break;
+      }
+      if (i % 5 === 0) await new Promise(r2 => setTimeout(r2, 0));   // 让出主线程
+    }
+    $('#progress').textContent = `${found.length} ${zh ? '个命中' : 'hits'}`;
+    renderFound(found, radius);
+    if (!found.length) toast(zh ? '未在限定次数内找到，试试放宽条件' : 'No match within the attempt limit — loosen the criteria');
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = old;
+};
+
+function renderFound(found, radius) {
+  $('#found').replaceChildren(...found.map((f, i) => {
+    const box = el('div', { class: 'copybox', style: 'margin-bottom:10px' },
+      el('pre', {}, String(f.seed)),
+      el('button', { class: 'btn sm', onclick: () => copyText(String(f.seed), t('act.copied')) }, t('act.copy')),
+      el('button', {
+        class: 'btn sm', onclick: async () => {
+          $('#seedInput').value = String(f.seed);
+          await map.setSeed(f.seed);
+          map.spawn = await map.getSpawn().catch(() => null);
+          map.setMarkers([]);
+          for (const s of f.structs) {
+            const pts = await map.findStructures(s.id, -radius, -radius, radius, radius, 60, false);
+            map.addMarkers(pts.map(p => ({ ...p, color: '#ffd43b', label: prettyStruct(s.id, zh) })));
+          }
+          map.schedule(); toast(zh ? '已在地图验证' : 'Verified on map');
+        },
+      }, zh ? '验证' : 'Verify'));
+    return el('div', {},
+      el('div', { class: 'faint', style: 'font-size:.8rem' }, `#${i + 1}`), box);
+  }));
+  if (!found.length) $('#found').append(el('div', { class: 'empty' }, zh ? '暂无结果' : 'No results yet'));
+}
+</script>
+</body>
+</html>

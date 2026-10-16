@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生物群系查找器 — Minecraft 搜索</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0,1.65fr) minmax(280px,1fr); align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  #map { height: 560px; }
+  .big-list { max-height: 300px; overflow: auto; }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:24px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:820px"></p>
+  <div id="toolbar"></div>
+  <div class="layout" style="margin-top:16px">
+    <div><div id="map"></div><p class="faint" style="font-size:.8rem" id="mapHint"></p></div>
+    <div><div class="panel">
+      <h2 id="biomeTitle"></h2>
+      <p class="muted" style="font-size:.85rem" id="biomeSub"></p>
+      <input type="search" id="biomeFilter" />
+      <div class="big-list chips" id="biomeChips" style="margin-top:10px"></div>
+    </div><div id="range"></div></div>
+  </div>
+  <div id="results"></div>
+</main>
+<script type="module">
+import { boot, t, lang, el, $, toast } from '../assets/js/core.js';
+import { SeedMap, toolbar, resultTable, rangePicker } from '../assets/js/seedmap/toolkit.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+$('#h1').textContent = zh ? '生物群系查找器' : 'Biome Finder';
+$('#lead').textContent = zh
+  ? '高亮种子中的任意群系：从樱花树林到深暗之域。选择群系后扫描区域，每一片都会给出坐标，点击即可在地图上定位。'
+  : 'Highlight any biome on your seed — from cherry groves to the deep dark. Pick biomes, scan the area, and every patch comes with coordinates you can jump to on the map.';
+$('#mapHint').textContent = t('map.hint');
+$('#biomeTitle').textContent = zh ? '选择群系' : 'Pick biomes';
+$('#biomeSub').textContent = zh ? '可多选。扫描按 Y 高度取样，洞穴群系请调整 Y 高度。' : 'Multi-select. Scanning samples at the current Y level — adjust Y for cave biomes.';
+$('#biomeFilter').placeholder = zh ? '筛选群系…' : 'Filter biomes…';
+
+const map = new SeedMap($('#map'));
+await map.init({ core: 'vendor', edition: 'java', version: '1.21.4', dimension: 'overworld', y: 64 });
+const tb = toolbar($('#toolbar'), map);
+const table = resultTable($('#results'), map, zh ? '群系坐标' : 'Biome coordinates');
+
+const FRIENDLY = {
+  plains: ['平原', 'Plains'], sunflower_plains: ['向日葵平原', 'Sunflower Plains'], desert: ['沙漠', 'Desert'],
+  forest: ['森林', 'Forest'], flower_forest: ['繁花森林', 'Flower Forest'], birch_forest: ['桦木森林', 'Birch Forest'],
+  dark_forest: ['黑森林', 'Dark Forest'], pale_garden: ['苍白花园', 'Pale Garden'], taiga: ['针叶林', 'Taiga'],
+  snowy_taiga: ['积雪针叶林', 'Snowy Taiga'], savanna: ['热带草原', 'Savanna'], jungle: ['丛林', 'Jungle'],
+  bamboo_jungle: ['竹林', 'Bamboo Jungle'], swamp: ['沼泽', 'Swamp'], mangrove_swamp: ['红树林沼泽', 'Mangrove Swamp'],
+  cherry_grove: ['樱花树林', 'Cherry Grove'], meadow: ['草甸', 'Meadow'], windswept_hills: ['风袭丘陵', 'Windswept Hills'],
+  windswept_forest: ['风袭森林', 'Windswept Forest'], windswept_savanna: ['风袭热带草原', 'Windswept Savanna'],
+  snowy_plains: ['雪原', 'Snowy Plains'], ice_spikes: ['冰刺之地', 'Ice Spikes'], badlands: ['恶地', 'Badlands'],
+  eroded_badlands: ['侵蚀恶地', 'Eroded Badlands'], wooded_badlands: ['疏林恶地', 'Wooded Badlands'],
+  beach: ['沙滩', 'Beach'], snowy_beach: ['积雪沙滩', 'Snowy Beach'], stony_shore: ['石岸', 'Stony Shore'],
+  river: ['河流', 'River'], frozen_river: ['冻河', 'Frozen River'], ocean: ['海洋', 'Ocean'],
+  deep_ocean: ['深海', 'Deep Ocean'], warm_ocean: ['温暖海洋', 'Warm Ocean'], lukewarm_ocean: ['温水海洋', 'Lukewarm Ocean'],
+  cold_ocean: ['冷水海洋', 'Cold Ocean'], frozen_ocean: ['冰冻海洋', 'Frozen Ocean'],
+  mushroom_fields: ['蘑菇岛', 'Mushroom Fields'], deep_dark: ['深暗之域', 'Deep Dark'],
+  lush_caves: ['繁茂洞穴', 'Lush Caves'], dripstone_caves: ['滴水石洞穴', 'Dripstone Caves'],
+  nether_wastes: ['下界荒地', 'Nether Wastes'], soul_sand_valley: ['灵魂沙峡谷', 'Soul Sand Valley'],
+  crimson_forest: ['绯红森林', 'Crimson Forest'], warped_forest: ['诡异森林', 'Warped Forest'],
+  basalt_deltas: ['玄武岩三角洲', 'Basalt Deltas'], the_end: ['末地', 'The End'],
+  end_highlands: ['末地高地', 'End Highlands'], end_midlands: ['末地内陆', 'End Midlands'],
+  small_end_islands: ['末地小岛', 'Small End Islands'], end_barrens: ['末地荒地', 'End Barrens'],
+  river_desert: ['沙漠河流', 'Desert river'],
+};
+
+let selected = new Set();
+let allBiomes = [];
+const chips = $('#biomeChips');
+function renderBiomes(q = '') {
+  const qq = q.trim().toLowerCase();
+  const list = allBiomes.filter(b => {
+    const f = FRIENDLY[b.name];
+    const label = f ? (zh ? f[0] : f[1]) : b.name;
+    return !qq || label.toLowerCase().includes(qq) || b.name.includes(qq);
+  }).slice(0, 200);
+  chips.replaceChildren(...list.map(b => {
+    const f = FRIENDLY[b.name];
+    const label = f ? (zh ? f[0] : f[1]) : b.name.replaceAll('_', ' ');
+    const c = el('button', { class: 'chip' },
+      el('span', { style: `display:inline-block;width:9px;height:9px;border-radius:2px;background:${b.color};margin-right:6px` }), label);
+    c.onclick = () => {
+      selected.has(b.name) ? selected.delete(b.name) : selected.add(b.name);
+      c.classList.toggle('on');
+      map.setLegend([...selected].map(n => {
+        const bb = allBiomes.find(x => x.name === n);
+        const ff = FRIENDLY[n]; return { label: ff ? (zh ? ff[0] : ff[1]) : n, color: bb ? bb.color : '#888' };
+      }));
+    };
+    if (selected.has(b.name)) c.classList.add('on');
+    return c;
+  }));
+}
+
+async function loadBiomes() {
+  const raw = await map.biomeList();
+  allBiomes = raw.map(b => ({ ...b, name: b.name }));
+  renderBiomes();
+}
+await loadBiomes();
+$('#biomeFilter').oninput = e => renderBiomes(e.target.value);
+
+rangePicker($('#range'), async (radius, btn) => {
+  if (!selected.size) return toast(zh ? '请先选择群系' : 'Pick a biome first');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = t('map.locating');
+  try {
+    // 以 4 方块/格 扫描一个网格，找出目标群系的连通块
+    const gridSize = Math.min(512, Math.max(128, Math.floor(radius / 2)));
+    const spanBlocks = gridSize * 4;
+    const half = Math.floor(gridSize / 2);
+    const res = await map._send('grid', { x: -half, z: -half, size: gridSize, y: map.state.y });
+    const want = new Set();
+    allBiomes.forEach(b => { if (selected.has(b.name)) want.add(b.id); });
+    const grid = res.grid;
+    const hits = new Map();       // biomeId → [[x,z], ...]
+    const seen = new Uint8Array(gridSize * gridSize);
+    for (let i = 0; i < grid.length; i++) {
+      if (!want.has(grid[i]) || seen[i]) continue;
+      // 4 邻域洪泛，得到一片区域
+      const stack = [i]; seen[i] = 1;
+      let sx = 0, sz = 0, n = 0;
+      while (stack.length) {
+        const k = stack.pop();
+        const gx = k % gridSize, gz = (k / gridSize) | 0;
+        sx += gx; sz += gz; n++;
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = gx + dx, nz = gz + dz;
+          if (nx < 0 || nz < 0 || nx >= gridSize || nz >= gridSize) continue;
+          const nk = nz * gridSize + nx;
+          if (!seen[nk] && grid[nk] === grid[i]) { seen[nk] = 1; stack.push(nk); }
+        }
+      }
+      if (n < 4) continue;   // 忽略零星噪点
+      const bid = grid[i];
+      if (!hits.has(bid)) hits.set(bid, []);
+      hits.get(bid).push({ x: Math.round((sx / n - gridSize / 2) * 4), z: Math.round((sz / n - gridSize / 2) * 4), area: n * 16 });
+    }
+    const all = [];
+    for (const [bid, pts] of hits) {
+      const b = allBiomes.find(x => x.id === bid);
+      const f = FRIENDLY[b?.name]; const label = f ? (zh ? f[0] : f[1]) : (b?.name || bid);
+      pts.sort((a, c) => c.area - a.area);
+      pts.forEach(p => all.push({ ...p, type: b?.name, color: b?.color || '#888', label }));
+      map.addMarkers(pts.slice(0, 40).map(p => ({ x: p.x, z: p.z, color: b?.color || '#888', label: `${label} ${p.area}㎡` })));
+    }
+    all.sort((a, c) => Math.hypot(a.x, a.z) - Math.hypot(c.x, c.z));
+    table.set(all);
+    if (!all.length) toast(zh ? '该范围内未找到所选群系' : 'No selected biomes in this range');
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = old;
+});
+</script>
+</body>
+</html>

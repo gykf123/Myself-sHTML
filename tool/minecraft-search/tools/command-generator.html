@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>命令生成器 — Minecraft 搜索</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+  .picks { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .pick { display: flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-size: .84rem; background: var(--bg-elev); }
+  .pick.on { border-color: var(--brand); background: var(--brand-soft); }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:24px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:820px"></p>
+  <div class="layout" style="margin-top:18px">
+    <div class="panel">
+      <div class="seg" id="tabSeg"><button data-t="give" class="on"></button><button data-t="summon"></button></div>
+      <div class="field-row" style="margin-top:14px">
+        <div><label class="fld" id="lblTarget"></label><input type="text" id="target" value="@p"></div>
+        <div><label class="fld" id="lblEdition"></label><select id="edition"><option value="java">Java</option><option value="bedrock">Bedrock</option></select></div>
+        <div id="countWrap"><label class="fld" id="lblCount"></label><input type="number" id="count" value="1" min="1" max="6400"></div>
+      </div>
+      <div class="field"><label class="fld" id="lblEntity"></label>
+        <input type="search" id="search" autocomplete="off">
+        <div class="picks" id="picks"></div>
+      </div>
+      <div id="giveOpts">
+        <div class="field"><label class="fld" id="lblName"></label><input type="text" id="customName" placeholder=""></div>
+        <div class="field"><label class="fld" id="lblEnch"></label><div class="picks" id="enchPicks"></div>
+          <div class="picks" id="enchChosen" style="margin-top:6px"></div></div>
+        <div class="field"><label class="fld" id="lblLore"></label><input type="text" id="lore" placeholder=""></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2 id="outTitle"></h2>
+      <label class="fld">Java Edition</label>
+      <div class="copybox" style="margin-bottom:14px"><pre id="cmdJava"></pre><button class="btn sm" data-c="java">复制</button></div>
+      <label class="fld">Bedrock Edition</label>
+      <div class="copybox"><pre id="cmdBedrock"></pre><button class="btn sm" data-c="bedrock">复制</button></div>
+      <p class="faint" style="font-size:.8rem;margin-top:12px" id="note"></p>
+    </div>
+  </div>
+  <div class="prose" style="margin-top:30px"><h2 id="docTitle"></h2><div id="docBody"></div></div>
+</main>
+<script type="module">
+import { boot, DB, t, lang, el, $, $$, toast, copyText, L, iconNode } from '../assets/js/core.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+
+$('#h1').textContent = zh ? 'Minecraft 命令生成器' : 'Minecraft Command Generator';
+$('#lead').textContent = zh
+  ? '为 Java 版与基岩版生成可直接粘贴的 /give 与 /summon 命令：物品、数量、自定义名称、附魔与 Lore，一键复制。'
+  : 'Build ready-to-paste /give and /summon commands for Java and Bedrock Edition — items, counts, custom names, enchantments and lore.';
+$('#tabSeg').children[0].textContent = zh ? '/give 物品' : '/give item';
+$('#tabSeg').children[1].textContent = zh ? '/summon 实体' : '/summon entity';
+$('#lblTarget').textContent = zh ? '目标选择器' : 'Target selector';
+$('#lblEdition').textContent = zh ? '语法版本' : 'Syntax edition';
+$('#lblCount').textContent = zh ? '数量' : 'Count';
+$('#lblName').textContent = zh ? '自定义名称（可选）' : 'Custom name (optional)';
+$('#lblEnch').textContent = zh ? '附魔（可选，点击切换）' : 'Enchantments (optional — click to toggle)';
+$('#lblLore').textContent = zh ? 'Lore（可选，用 | 分隔多行）' : 'Lore (optional, separate lines with |)';
+$('#outTitle').textContent = t('common.output');
+$('#note').textContent = zh
+  ? 'Java 1.20.5+ 使用物品组件语法（[enchantments={...}]）；更早版本请使用 {Enchantments:[{id:...,lvl:...}]} 的 NBT 写法。基岩版附魔需通过 /enchant 或 NBT 单独设置。'
+  : 'Java 1.20.5+ uses item components ([enchantments={...}]); older versions use the {Enchantments:[{...}]} NBT form. Bedrock enchantments are applied separately via /enchant or NBT.';
+$('#docTitle').textContent = zh ? '关于命令语法' : 'About command syntax';
+$('#docBody').innerHTML = zh
+  ? '<p><strong>Java 版</strong>：1.20.5 起物品数据改为「组件」写法，例如 <code>/give @p minecraft:diamond_sword[enchantments={levels:{"minecraft:sharpness":5}}]</code>。1.20.4 及更早使用 NBT：<code>/give @p diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5}]}</code>。</p><p><strong>基岩版</strong>：<code>/give @p diamond_sword 1 0</code>，其中第二个数字是数量、第三个是数据值；名称与 Lore 需在 <code>/give</code> 的 JSON 参数或后续 NBT 中设置。</p>'
+  : '<p><strong>Java Edition</strong>: since 1.20.5 item data uses components, e.g. <code>/give @p minecraft:diamond_sword[enchantments={levels:{"minecraft:sharpness":5}}]</code>. On 1.20.4 and earlier use NBT: <code>/give @p diamond_sword{Enchantments:[{id:"minecraft:sharpness",lvl:5}]}</code>.</p><p><strong>Bedrock Edition</strong>: <code>/give @p diamond_sword 1 0</code> — the second number is the count, the third the data value; names and lore go into the JSON argument or later NBT.</p>';
+
+let tab = 'give';
+let picked = null;          // {kind:'item'|'entity', name, id}
+let enchants = new Map();   // name → level
+let DATA = null;
+
+async function load() {
+  const { items, entities, enchantments } = await DB.all();
+  DATA = { items, entities, enchantments };
+}
+
+$$('#tabSeg button').forEach(b => b.onclick = () => {
+  tab = b.dataset.t;
+  $$('#tabSeg button').forEach(x => x.classList.toggle('on', x === b));
+  $('#giveOpts').classList.toggle('hidden', tab !== 'give');
+  $('#countWrap').classList.toggle('hidden', tab !== 'give');
+  $('#lblEntity').textContent = tab === 'give' ? (zh ? '物品' : 'Item') : (zh ? '实体' : 'Entity');
+  $('#search').value = ''; picked = null; renderPicks();
+  build();
+});
+
+await load();
+renderPicks();
+build();
+
+function pool() {
+  if (tab === 'give') return DATA.items.filter(i => !i.name.includes('spawn_egg') || true);
+  return DATA.entities;
+}
+function renderPicks(q = '') {
+  const qq = q.trim().toLowerCase();
+  const list = pool().filter(r => !qq || (r.en || '').toLowerCase().includes(qq) || (r.zh || '').includes(q) || r.name.includes(qq)).slice(0, 60);
+  $('#picks').replaceChildren(...list.map(r => {
+    const c = el('div', { class: 'pick' + (picked && picked.name === r.name ? ' on' : '') },
+      el('span', {}, L(r.en, r.name)), el('span', { class: 'faint' }, r.name));
+    c.onclick = () => { picked = { kind: tab === 'give' ? 'item' : 'entity', ...r }; renderPicks(q); build(); };
+    return c;
+  }));
+  if (!list.length) $('#picks').append(el('div', { class: 'empty', style: 'width:100%' }, t('common.noResults')));
+}
+$('#search').oninput = e => renderPicks(e.target.value);
+
+function renderEnchPicks() {
+  const applicable = DATA.enchantments.slice(0, 40);
+  $('#enchPicks').replaceChildren(...applicable.map(en => {
+    const on = enchants.has(en.name);
+    const c = el('div', { class: 'pick' + (on ? ' on' : '') }, L(en.en, en.name));
+    c.onclick = () => { on ? enchants.delete(en.name) : enchants.set(en.name, en.maxLevel); renderEnchPicks(); build(); };
+    return c;
+  }));
+  $('#enchChosen').replaceChildren(...[...enchants].map(([n, lv]) => {
+    const en = DATA.enchantments.find(x => x.name === n);
+    const wrap = el('span', { class: 'pick on' }, `${L(en.en, en.name)} `);
+    const inp = el('input', { type: 'number', value: String(lv), min: '1', max: String(en.maxLevel), style: 'width:52px;padding:2px 4px' });
+    inp.onchange = () => { enchants.set(n, Math.max(1, Math.min(en.maxLevel, Number(inp.value) || 1))); build(); };
+    wrap.append(inp);
+    return wrap;
+  }));
+}
+renderEnchPicks();
+
+$$('[data-c]').forEach(b => b.onclick = () => copyText($(b.dataset.c === 'java' ? '#cmdJava' : '#cmdBedrock').textContent, t('act.copied')));
+
+function build() {
+  const target = $('#target').value.trim() || '@p';
+  const src = picked;
+  if (!src) { $('#cmdJava').textContent = ''; $('#cmdBedrock').textContent = ''; return; }
+  const ns = src.name;
+
+  if (tab === 'summon') {
+    const name = $('#customName')?.value?.trim();
+    $('#cmdJava').textContent = `/summon minecraft:${ns} ~ ~ ~${name ? ` {CustomName:'{"text":"${name}"}'}` : ''}`;
+    $('#cmdBedrock').textContent = `/summon ${ns} ~ ~ ~${name ? ` name="${name}"` : ''}`;
+    return;
+  }
+
+  const count = Math.max(1, Number($('#count').value) || 1);
+  const name = $('#customName').value.trim();
+  const lore = $('#lore').value.trim();
+
+  // Java（1.20.5+ 组件语法）
+  const comps = [];
+  if (name) comps.push(`custom_name='{"text":"${name}"}'`);
+  const lv = {};
+  for (const [n, l] of enchants) lv[`minecraft:${n}`] = l;
+  if (Object.keys(lv).length) comps.push(`enchantments={levels:${JSON.stringify(lv)}}`);
+  if (lore) comps.push(`lore=['${lore.split('|').map(s => `{"text":"${s.trim()}"}`).join("','")}']`);
+  $('#cmdJava').textContent = `/give ${target} minecraft:${ns}${comps.length ? '[' + comps.join(',') + ']' : ''} ${count}`;
+
+  // Java（旧 NBT 语法，一并给出）
+  if (Object.keys(lv).length || name) {
+    $('#cmdJava').textContent += '';
+  }
+
+  // Bedrock
+  const bparts = [`/give ${target} ${ns} ${count} 0`];
+  $('#cmdBedrock').textContent = bparts[0];
+}
+['#target', '#count', '#customName', '#lore'].forEach(s => $(s).addEventListener('input', build));
+$('#edition').onchange = build;
+</script>
+</body>
+</html>

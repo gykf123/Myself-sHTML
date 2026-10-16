@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>参考库 — Minecraft 搜索</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232f9e44'/></svg>">
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+<main class="wrap" style="padding-top:26px">
+  <div class="row" style="justify-content:space-between">
+    <div>
+      <h1 id="h1" style="margin-bottom:2px"></h1>
+      <p class="muted" id="sub" style="margin:0"></p>
+    </div>
+    <div class="row">
+      <input type="search" id="filter" style="width:240px" />
+      <span class="badge n" id="count"></span>
+    </div>
+  </div>
+
+  <div class="chips" id="cats" style="margin:18px 0"></div>
+
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <div class="seg" id="sort">
+      <button data-s="az" class="on"></button>
+      <button data-s="id"></button>
+    </div>
+    <div class="row" id="editions"></div>
+  </div>
+
+  <div class="grid cols-3" id="list"></div>
+  <div id="pager" class="row" style="justify-content:center;margin-top:22px"></div>
+</main>
+<script type="module">
+import { boot, DB, REF_CATEGORIES, t, lang, el, $, $$, L, iconNode } from '../assets/js/core.js';
+boot({ active: 'items' });
+const zh = lang() === 'zh';
+
+const KIND_LABEL = {
+  items: [zh ? '物品' : 'Items', zh ? '物品' : 'items'],
+  blocks: [zh ? '方块' : 'Blocks', zh ? '方块' : 'blocks'],
+  entities: [zh ? '生物' : 'Mobs', zh ? '生物' : 'mobs'],
+  biomes: [zh ? '生物群系' : 'Biomes', zh ? '群系' : 'biomes'],
+  enchantments: [zh ? '附魔' : 'Enchantments', zh ? '附魔' : 'enchantments'],
+};
+const CAT_LABEL = {
+  tools: ['工具', 'Tools'], weapons: ['武器', 'Weapons'], equipments: ['装备', 'Equipment'],
+  food: ['食物', 'Food'], potions: ['药水', 'Potions'], resources: ['资源', 'Resources'],
+  seeds: ['种子与作物', 'Seeds'], misc: ['杂项', 'Misc'], enchantments: ['附魔书', 'Enchanted books'],
+};
+
+const params = new URLSearchParams(location.search);
+let cur = params.get('c') || 'items/tools';
+let sort = 'az', needle = '', page = 1;
+const PAGE = 60;
+
+// 分类导航
+$('#cats').replaceChildren(...REF_CATEGORIES.map(c => {
+  const label = c.cat ? (CAT_LABEL[c.cat] || [c.cat, c.cat]) : KIND_LABEL[c.kind];
+  return el('a', { class: 'chip' + (c.slug === cur ? ' on' : ''), href: `/items/?c=${c.slug}` },
+    zh ? label[0] : label[1]);
+}));
+
+$('#filter').placeholder = zh ? '在分类内筛选…' : 'Filter in category…';
+$('#sort').children[0].textContent = zh ? '名称 A–Z' : 'Name A–Z';
+$('#sort').children[1].textContent = zh ? 'ID' : 'ID';
+
+async function loadData() {
+  const slug = cur;
+  let kind, cat = null, data;
+  if (slug.startsWith('items/')) { cat = slug.split('/')[1]; kind = 'items'; data = (await DB.items()).filter(r => r.cat === cat); }
+  else if (slug === 'blocks') { kind = 'blocks'; data = await DB.blocks(); }
+  else if (slug === 'mobs') { kind = 'entities'; data = await DB.entities(); }
+  else if (slug === 'biomes') { kind = 'biomes'; data = await DB.biomes(); }
+  else if (slug === 'enchantments') { kind = 'enchantments'; data = await DB.enchantments(); }
+  else { kind = 'items'; data = await DB.items(); }
+  return { kind, cat, data, slug };
+}
+
+let CUR = null;
+function render() {
+  const { kind, cat, data, slug } = CUR;
+  const label = cat ? (CAT_LABEL[cat] || [cat, cat]) : KIND_LABEL[kind];
+  $('#h1').textContent = zh ? (cat ? `${label[0]}` : label[0]) : (cat ? label[1] : label[1]);
+  $('#sub').textContent = zh ? `参考库 › ${cat ? label[0] : label[0]}` : `Reference › ${label[1]}`;
+
+  const q = needle.toLowerCase();
+  let rows = data.filter(r => !q || (r.en || '').toLowerCase().includes(q) || (r.zh || '').includes(needle) || r.name.includes(q));
+  rows = rows.sort((a, b) => sort === 'id' ? a.id - b.id : L(a.en, a.name).localeCompare(L(b.en, b.name), zh ? 'zh-CN' : 'en'));
+  $('#count').textContent = rows.length;
+
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  page = Math.min(page, pages);
+  const slice = rows.slice((page - 1) * PAGE, page * PAGE);
+
+  $('#list').replaceChildren(...slice.map(r => el('a', {
+    class: 'card item-card', href: `/items/detail.html?type=${kind}&id=${encodeURIComponent(r.name)}`,
+  }, iconNode(kind, r, 34), el('div', {},
+    el('div', { class: 'nm' }, L(r.en, r.name)),
+    el('div', { class: 'sub' }, [r.zh, r.name].filter(Boolean).join(' · '))))));
+
+  $('#pager').replaceChildren(...Array.from({ length: pages }, (_, i) => {
+    if (pages > 12 && Math.abs(i + 1 - page) > 3 && i !== 0 && i !== pages - 1) return null;
+    return el('button', {
+      class: 'btn sm' + (i + 1 === page ? ' primary' : ''),
+      onclick: () => { page = i + 1; render(); scrollTo({ top: 0, behavior: 'smooth' }); },
+    }, String(i + 1));
+  }).filter(Boolean));
+}
+
+$('#filter').addEventListener('input', e => { needle = e.target.value.trim(); page = 1; render(); });
+$$('#sort button').forEach(b => b.addEventListener('click', () => {
+  sort = b.dataset.s; page = 1;
+  $$('#sort button').forEach(x => x.classList.toggle('on', x === b)); render();
+}));
+
+CUR = await loadData();
+render();
+</script>
+</body>
+</html>

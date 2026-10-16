@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>详情 — Minecraft 搜索</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232f9e44'/></svg>">
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .craft-grid { display: grid; gap: 3px; }
+  .craft-grid .cell { width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-sunken); display: grid; place-items: center; }
+  .craft-grid .cell img { width: 30px; height: 30px; image-rendering: pixelated; }
+  .craft-grid .cell.empty { background: transparent; border-style: dashed; }
+  .arrow { font-size: 1.4rem; color: var(--text-faint); margin: 0 14px; }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:26px">
+  <p class="faint" style="margin-bottom:14px"><a href="../items/" id="crumb"></a></p>
+  <div id="content"><p class="muted"><span class="spinner"></span> <span id="loading"></span></p></div>
+</main>
+<script type="module">
+import { boot, DB, t, lang, el, $, L, iconNode, fmt } from '../assets/js/core.js';
+boot({ active: 'items' });
+const zh = lang() === 'zh';
+const p = new URLSearchParams(location.search);
+const type = p.get('type') || 'items';
+const idName = p.get('id') || '';
+$('#loading').textContent = t('common.loading');
+
+const B = {
+  items: ['物品', 'Items'], blocks: ['方块', 'Blocks'], entities: ['生物', 'Mobs'],
+  biomes: ['生物群系', 'Biomes'], enchantments: ['附魔', 'Enchantments'],
+}[type] || ['物品', 'Items'];
+$('#crumb').textContent = zh ? `参考库 › ${B[0]}` : `Reference › ${B[1]}`;
+$('#crumb').href = `/items/?c=${type === 'items' ? 'items/tools' : type}`;
+
+const data = await DB.load(type);
+const rec = data.find(r => r.name === idName);
+if (!rec) {
+  $('#content').innerHTML = `<div class="empty">${zh ? '未找到该条目' : 'Entry not found'}</div>`;
+} else {
+  document.title = `${L(rec.en, rec.name)} — Minecraft 搜索`;
+  const stats = [];
+  const add = (k, v) => { if (v != null && v !== '' && v !== false) stats.push([k, v]); };
+  const yesno = v => v ? t('common.yes') : t('common.no');
+
+  if (type === 'items' || type === 'blocks') add(zh ? '物品 ID' : 'Item ID', rec.id), add(t('common.stack'), rec.stack);
+  if (rec.durability) add(t('common.durability'), fmt(rec.durability));
+  if (rec.cat) add(t('common.category'), rec.cat);
+  if (type === 'blocks') { add(t('common.hardness'), rec.hardness); add(t('common.resistance'), rec.resistance); add(t('common.light'), rec.light); }
+  if (rec.food) add(zh ? '饥饿值恢复' : 'Food points', `${rec.food.pts} (${zh ? '饱和度' : 'sat'} ${rec.food.sat})`);
+  if (type === 'entities') { add(zh ? '类别' : 'Category', rec.cat); add(zh ? '尺寸 (宽×高)' : 'Size (W×H)', `${rec.w} × ${rec.h}`); }
+  if (type === 'biomes') { add(zh ? '维度' : 'Dimension', t('common.' + (rec.dim || 'overworld'))); add(zh ? '温度' : 'Temperature', rec.temp); add(zh ? '降雨' : 'Rainfall', rec.rain); add(zh ? '类别' : 'Category', rec.cat); }
+  if (type === 'enchantments') {
+    add(zh ? '最大等级' : 'Max level', rec.maxLevel);
+    add(zh ? '权重' : 'Weight', rec.weight);
+    add(zh ? '诅咒' : 'Curse', yesno(rec.curse));
+    add(zh ? '仅宝箱' : 'Treasure only', yesno(rec.treasure));
+    add(zh ? '最低消耗' : 'Min cost', `${rec.minCost?.a}–${rec.minCost?.b}`);
+    add(zh ? '最高消耗' : 'Max cost', `${rec.maxCost?.a}–${rec.maxCost?.b}`);
+    add(zh ? '适用' : 'Applies to', (rec.category || '').replaceAll('_', ' '));
+    if (rec.exclude?.length) add(zh ? '互斥' : 'Exclusive with', rec.exclude.join(', '));
+  }
+
+  // 配方：该物品如何获得 / 用作材料
+  let obtainHTML = '', useHTML = '';
+  if (type === 'items' || type === 'blocks') {
+    const recipes = await DB.recipes();
+    const items = await DB.items();
+    const byId = new Map(items.map(i => [i.id, i]));
+    const nameOf = idv => { const r = byId.get(idv); return r ? L(r.en, r.name) : `#${idv}`; };
+    const hrefOf = idv => { const r = byId.get(idv); return r ? `/items/detail.html?type=items&id=${encodeURIComponent(r.name)}` : '#'; };
+    const mkIcon = idv => {
+      const r = byId.get(idv); if (!r) return el('span', { class: 'faint', style: 'font-size:.7rem' }, '#');
+      const a = el('a', { href: hrefOf(idv), title: L(r.en, r.name) }); a.append(iconNode('items', r, 30)); return a;
+    };
+    const recs = recipes.filter(r => r.out === rec.id).slice(0, 6);
+    if (recs.length) {
+      obtainHTML = `<h2>${zh ? '如何获得' : 'How to obtain'}</h2>` + recs.map(r => {
+        let grid = '';
+        if (r.shape) {
+          const cols = Math.max(...r.shape.map(row => row.length));
+          grid = `<div class="craft-grid" style="grid-template-columns:repeat(${cols},40px)">` +
+            r.shape.flatMap(row => Array.from({ length: cols }, (_, i) => {
+              const cv = row[i];
+              return cv == null ? `<div class="cell empty"></div>` : `<div class="cell">${iconTag(cv)}</div>`;
+            })).join('') + '</div>';
+        } else if (r.ing) {
+          grid = `<div class="craft-grid" style="grid-template-columns:repeat(3,40px)">` +
+            r.ing.slice(0, 9).map(iv => `<div class="cell">${iconTag(Array.isArray(iv) ? iv[0] : iv)}</div>`).join('') + '</div>';
+        }
+        return `<div class="row" style="margin:10px 0 18px">
+          ${grid}<span class="arrow">→</span>
+          <div class="row" style="gap:8px">${r.count > 1 ? `<span class="badge n">×${r.count}</span>` : ''}<span class="badge b">${r.type}</span></div>
+        </div>`;
+      }).join('');
+      function iconTag(idv) {
+        const r = byId.get(idv);
+        if (!r) return '';
+        const url = `https://minecraft-api.vercel.app/images/items/${r.name}.png`;
+        return `<img src="${url}" alt="${esc(L(r.en))}" loading="lazy" title="${esc(L(r.en))}" onerror="this.replaceWith(document.createTextNode('${esc(L(r.en)).slice(0,3)}'))">`;
+      }
+    }
+    const uses = recipes.filter(r => {
+      const cells = r.shape ? r.shape.flat() : (r.ing || []).flat();
+      return cells.includes(rec.id);
+    }).slice(0, 8);
+    if (uses.length) {
+      useHTML = `<h2>${zh ? '用途' : 'Usage'}</h2><div class="grid cols-4">` + uses.map(r => {
+        const out = byId.get(r.out);
+        return `<a class="card item-card" href="${out ? `/items/detail.html?type=items&id=${encodeURIComponent(out.name)}` : '#'}">
+          ${out ? `<img src="https://minecraft-api.vercel.app/images/items/${out.name}.png" loading="lazy" style="width:30px;height:30px;image-rendering:pixelated" onerror="this.remove()">` : ''}
+          <div><div class="nm">${esc(out ? L(out.en, out.name) : '#' + r.out)}</div><div class="sub">${r.type}</div></div></a>`;
+      }).join('') + '</div>';
+    }
+  }
+  function esc(s) { return String(s ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
+  $('#content').replaceChildren(
+    el('div', { class: 'detail-head' },
+      type === 'entities' || type === 'biomes' || type === 'enchantments'
+        ? el('div', { class: 'avatar' }, L(rec.en).slice(0, 1))
+        : iconNode(type === 'blocks' ? 'blocks' : 'items', rec, 68),
+      el('div', {},
+        el('h1', { style: 'margin-bottom:4px' }, L(rec.en, rec.name)),
+        el('p', { class: 'muted', style: 'margin:0' },
+          [rec.zh, rec.name].filter(Boolean).join('  ·  '),
+          el('span', { class: 'badge n', style: 'margin-left:10px' }, zh ? B[0] : B[1])))),
+    el('div', { class: 'stat-grid', style: 'margin:22px 0 26px' },
+      stats.map(([k, v]) => el('div', { class: 'stat' }, el('div', { class: 'k' }, k), el('div', { class: 'v' }, String(v))))),
+    el('div', { class: 'prose', html: obtainHTML + useHTML }),
+    el('p', { style: 'margin-top:26px' }, el('a', { href: '/items/' }, zh ? '← 返回参考库' : '← Back to reference')),
+  );
+}
+</script>
+</body>
+</html>

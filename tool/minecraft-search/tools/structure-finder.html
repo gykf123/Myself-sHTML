@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>结构查找器 — Minecraft 搜索</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0,1.65fr) minmax(280px,1fr); align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  #map { height: 560px; }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:24px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:820px"></p>
+  <div id="toolbar"></div>
+  <div class="layout" style="margin-top:16px">
+    <div><div id="map"></div>
+      <p class="faint" style="font-size:.8rem" id="mapHint"></p></div>
+    <div><div id="picker"></div><div id="range"></div></div>
+  </div>
+  <div id="results"></div>
+  <details class="faq" style="margin-top:24px"><summary id="faqQ"></summary><p id="faqA"></p></details>
+</main>
+<script type="module">
+import { boot, t, lang, el, $, toast } from '../assets/js/core.js';
+import { SeedMap, toolbar, structurePicker, resultTable, rangePicker, legendFor, prettyStruct } from '../assets/js/seedmap/toolkit.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+$('#h1').textContent = zh ? '结构查找器' : 'Structure Finder';
+$('#lead').textContent = zh
+  ? '在你的种子中定位任意结构：要塞、村庄、林地府邸、远古城市、试炼密室等。选择结构后扫描区域，每个结果都会给出精确坐标并可直接传送。'
+  : 'Locate any structure on your seed — strongholds, villages, woodland mansions, ancient cities, trial chambers and more. Pick structures, scan an area, and every hit comes with exact coordinates.';
+$('#mapHint').textContent = t('map.hint');
+$('#faqQ').textContent = zh ? '定位精度说明' : 'About accuracy';
+$('#faqA').textContent = zh
+  ? '所有结构坐标都由 cubiomes 按对应游戏版本的生成算法计算。村庄、废墟、沉船等带变体的结构会给出准确的中心坐标；要塞与远古城市受环带分布影响，扫描范围越大越完整。'
+  : 'Structure coordinates are computed by cubiomes using that version\'s generation algorithm. Variant structures (villages, ruins, shipwrecks) report their accurate centre. Strongholds and ancient cities follow ring distribution, so widen the scan for completeness.';
+
+const map = new SeedMap($('#map'));
+await map.init({ core: 'vendor', edition: 'java', version: '1.21.4', dimension: 'overworld', y: 64 });
+const tb = toolbar($('#toolbar'), map);
+const table = resultTable($('#results'), map, zh ? '扫描结果' : 'Scan results');
+
+let chosen = [];
+structurePicker($('#picker'), ids => {
+  chosen = ids;
+  map.setLegend(legendFor(ids, 'structure'));
+});
+
+rangePicker($('#range'), async (radius, btn) => {
+  if (!chosen.length) return toast(zh ? '请先选择至少一种结构' : 'Pick at least one structure');
+  btn.disabled = true; const old = btn.textContent; btn.textContent = t('map.locating');
+  try {
+    const all = [];
+    for (const id of chosen) {
+      const pts = await map.findStructures(id, -radius, -radius, radius, radius, 800, false);
+      const meta = STRUCTURE_META_LOOKUP(id);
+      pts.forEach(p => all.push({ ...p, type: id, color: meta.color }));
+      if (pts.length) map.addMarkers(pts.map(p => ({ ...p, color: meta.color, label: prettyStruct(id, zh) })));
+    }
+    all.sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z));
+    table.set(all);
+    toast(`${all.length} ${t('common.results')}`);
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = old;
+});
+
+function STRUCTURE_META_LOOKUP(id) {
+  const M = {
+    village: '#e8b339', pillager_outpost: '#a0713c', swamp_hut: '#4f7942', igloo: '#9ad5f0',
+    desert_pyramid: '#e3c878', jungle_temple: '#2f9e44', ocean_ruin: '#4dabf7', ruined_portal: '#9775fa',
+    trail_ruins: '#c98a5b', ancient_city: '#424750', woodland_mansion: '#7a4b2a', trial_chambers: '#c0a2e8',
+    mineshaft: '#8a7358', amethyst_geode: '#b47ae8', desert_well: '#dcbf7f', ocean_monument: '#22b8cf',
+    shipwreck: '#a98467', buried_treasure: '#f59f00', nether_fortress: '#b02a2a', bastion_remnant: '#6d4c41',
+    ruined_portal_nether: '#9775fa', end_city: '#b197fc',
+  };
+  return { color: M[id] || '#ffd43b' };
+}
+</script>
+</body>
+</html>

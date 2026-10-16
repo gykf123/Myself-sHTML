@@ -14,14 +14,18 @@
 ├── style.css             # 样式（双主题，CSS 变量驱动）
 ├── script.js             # 交互（配置数据驱动的渲染）
 ├── tool/
-│   └── ore-finder.html   # 基岩版矿物查找器（独立页面）
+│   ├── index.html              # 工具箱目录索引页
+│   ├── ore-finder.html         # 基岩版矿物查找器（独立页面）
+│   └── minecraft-search/       # MC 搜索（9 款 MC 工具子站，WASM 驱动）
 ├── README.md
 └── REMIND.md             # 关键事项与决策固化（内部维护）
 ```
 
 ## 访问地址
 - 主页：`https://gykf123.github.io/Myself-sHTML/`
+- 工具箱目录：`https://gykf123.github.io/Myself-sHTML/tool/`
 - 矿石查找器：`https://gykf123.github.io/Myself-sHTML/tool/ore-finder.html`
+- MC 搜索：`https://gykf123.github.io/Myself-sHTML/tool/minecraft-search/index.html`
 
 ## 功能概览
 - 左侧可折叠分类导航：**个人信息 / 项目导航 / 工具箱**
@@ -29,13 +33,20 @@
 - 双身份卡片：**FeSui**（极客人格）/ **不执拗的同学**（Minecraft 玩家）
 - 个人格言（可自定义）
 - 项目占位卡片（可补充真实项目）
-- 工具箱树形导航：`我的世界 → 基岩版 → 矿石查找器`
+- 工具箱树形导航：`我的世界 → 基岩版 → 矿石查找器`、`我的世界 → 综合工具 → MC 搜索`
 
 ## 矿石查找器
 基岩版矿物分布预测工具：输入世界种子与版本，精确到方块坐标输出矿点分布。
 - 独立页面 `tool/ore-finder.html`，自包含、无需联网、无需服务端
 - 由主页工具箱树「矿石查找器」以新标签页打开
 - 顶部「← FeSui 主页」可返回主页
+
+## MC 搜索（minecraft-search）
+对 minecraftsearch.com 的功能复刻：参考库 + 9 款工具，全部在浏览器本地运行（WASM 世界生成内核，无后端、无追踪）。
+- 子站位于 `tool/minecraft-search/`，入口 `tool/minecraft-search/index.html`
+- 涵盖种子/矿石/结构/群系查找、附魔规划、命令生成、合成计算、文本工作室，以及物品参考库与精选种子
+- 部署适配：源包使用站点根绝对路径（`/assets`、`/wasm` 等），已按文件深度批量改为相对路径；`core.js` 的导航/数据加载改用 `import.meta.url` 运行时定位子站根，与页面深度无关
+- GitHub Pages 无跨源隔离头（COOP/COEP），实测 WASM Worker 链路不受影响，可正常运行
 
 ## 如何自定义
 | 想改什么 | 怎么做 |

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>合成计算器 — Minecraft 搜索</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); align-items: start; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+  .picks { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; max-height: 260px; overflow: auto; }
+  .pick { display: flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-size: .84rem; background: var(--bg-elev); }
+  .pick.on { border-color: var(--brand); background: var(--brand-soft); }
+  .tree { font-family: var(--mono); font-size: .85rem; line-height: 1.9; }
+  .tree .ind { color: var(--text-faint); }
+  .raw { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed var(--border); font-size: .88rem; }
+  .craft-grid { display: grid; gap: 3px; }
+  .craft-grid .cell { width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-sunken); display: grid; place-items: center; font-size: .68rem; color: var(--text-faint); }
+  .craft-grid .cell.empty { background: transparent; border-style: dashed; }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:24px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:820px"></p>
+  <div class="layout" style="margin-top:18px">
+    <div class="panel">
+      <label class="fld" id="lblSearch"></label>
+      <input type="search" id="search" autocomplete="off">
+      <div class="picks" id="picks"></div>
+    </div>
+    <div class="panel">
+      <div class="field-row">
+        <div><label class="fld" id="lblTarget"></label><input type="text" id="target" value="1"></div>
+        <div><label class="fld" id="lblMode"></label><div class="seg" id="modeSeg">
+          <button data-m="one" class="on"></button><button data-m="stack"></button><button data-m="shulker"></button>
+        </div></div>
+      </div>
+      <div id="out"></div>
+    </div>
+  </div>
+  <div class="prose" style="margin-top:30px"><h2 id="docTitle"></h2><div id="docBody"></div></div>
+</main>
+<script type="module">
+import { boot, DB, t, lang, el, $, $$, toast, copyText, L, fmt } from '../assets/js/core.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+
+$('#h1').textContent = zh ? '合成计算器' : 'Crafting Calculator';
+$('#lead').textContent = zh
+  ? '计算合成任意物品所需的原材料、中间产物与堆叠数量。选择目标物品与数量，工具会递归展开配方，给出完整的材料清单。'
+  : 'Work out the raw materials, intermediate crafts and stack counts for any item. Pick a target and a quantity and the tool expands the recipe tree into a full bill of materials.';
+$('#lblSearch').textContent = zh ? '搜索物品' : 'Search items';
+$('#lblTarget').textContent = zh ? '合成数量' : 'Craft count';
+$('#lblMode').textContent = zh ? '按数量' : 'Amount by';
+$('#modeSeg').children[0].textContent = zh ? '个数' : 'Count';
+$('#modeSeg').children[1].textContent = zh ? '组（64）' : 'Stack (64)';
+$('#modeSeg').children[2].textContent = zh ? '潜影盒（27 组）' : 'Shulker (27 stacks)';
+$('#docTitle').textContent = zh ? '计算方式' : 'How it works';
+$('#docBody').innerHTML = zh
+  ? '<p>计算器使用 Minecraft 原版配方数据，按「目标物品 → 配方 → 材料」递归展开。可合成的中间产物会继续展开为更基础的资源，无法合成的材料（如矿石原矿、木材原木）作为原材料列出。</p><p>数量按向上取整计算：需要 7 根木棍而每 2 个木板做 4 根，会给出刚好够用的木板数量。'
+  : '<p>The calculator walks vanilla recipe data from the target item down to base resources. Craftable intermediates are expanded further; items with no recipe (ores, logs) are listed as raw materials.</p><p>Counts round up: needing 7 sticks when each 2 planks yields 4 means just enough planks are reported.';
+
+let DATA = null, recipesByOut = new Map();
+const amount = { one: 1, stack: 64, shulker: 64 * 27 };
+let mode = 1, picked = null;
+
+await (async () => {
+  const [{ items }, recipes] = await Promise.all([DB.all(), DB.recipes()]);
+  DATA = { items };
+  for (const r of recipes) {
+    if (!recipesByOut.has(r.out)) recipesByOut.set(r.out, []);
+    recipesByOut.get(r.out).push(r);
+  }
+})();
+
+function renderPicks(q = '') {
+  const qq = q.trim().toLowerCase();
+  const craftable = new Set([...recipesByOut.keys()]);
+  const list = DATA.items.filter(r => craftable.has(r.id))
+    .filter(r => !qq || (r.en || '').toLowerCase().includes(qq) || (r.zh || '').includes(q) || r.name.includes(qq))
+    .slice(0, 80);
+  $('#picks').replaceChildren(...list.map(r => {
+    const c = el('div', { class: 'pick' + (picked && picked.id === r.id ? ' on' : '') },
+      el('span', {}, L(r.en, r.name)), el('span', { class: 'faint', style: 'font-size:.74rem' }, r.name));
+    c.onclick = () => { picked = r; renderPicks(q); compute(); };
+    return c;
+  }));
+  if (!list.length) $('#picks').append(el('div', { class: 'empty' }, t('common.noResults')));
+}
+renderPicks();
+$('#search').oninput = e => renderPicks(e.target.value);
+$$('#modeSeg button').forEach(b => b.onclick = () => {
+  mode = amount[b.dataset.m];
+  $$('#modeSeg button').forEach(x => x.classList.toggle('on', x === b));
+  compute();
+});
+$('#target').oninput = compute;
+
+const byId = new Map();
+function idx() { if (!byId.size) DATA.items.forEach(i => byId.set(i.id, i)); return byId; }
+
+/** 递归展开：返回 {steps:[{item,count,recipe}], raw:Map(id→count)} */
+function expand(id, count, path = new Set()) {
+  const steps = [], raw = new Map();
+  const B = idx();
+  function rec(iid, need, depth) {
+    const recs = recipesByOut.get(iid);
+    const item = B.get(iid);
+    if (!recs || depth > 8 || path.has(iid)) {
+      raw.set(iid, (raw.get(iid) || 0) + need);
+      return;
+    }
+    const r = recs[0];
+    const outCount = r.count || 1;
+    const times = Math.ceil(need / outCount);
+    steps.push({ item, count: need, times, outCount, recipe: r });
+    const cells = r.shape ? r.shape.flat().filter(v => v != null) : (r.ing || []).flat();
+    if (!cells.length) { raw.set(iid, (raw.get(iid) || 0) + need); return; }
+    const per = new Map();
+    for (const c of cells) per.set(c, (per.get(c) || 0) + 1);
+    path.add(iid);
+    for (const [cid, cnt] of per) rec(cid, cnt * times, depth + 1);
+    path.delete(iid);
+  }
+  rec(id, count, 0);
+  return { steps, raw };
+}
+
+function compute() {
+  if (!picked) { $('#out').innerHTML = `<div class="empty">${zh ? '请选择要合成的物品' : 'Pick an item to craft'}</div>`; return; }
+  const B = idx();
+  const total = (Number($('#target').value) || 1) * mode;
+  const { steps, raw } = expand(picked.id, total);
+  const stacks = Math.ceil(total / (picked.stack || 64));
+
+  const rawHTML = [...raw].sort((a, b) => b[1] - a[1]).map(([id, n]) => {
+    const it = B.get(id);
+    return `<div class="raw"><span><span class="mono faint">${it ? it.name : id}</span> &nbsp;${esc(it ? L(it.en, it.name) : '#' + id)}</span><span class="mono"><b>${fmt(n)}</b></span></div>`;
+  }).join('');
+
+  const stepsHTML = steps.slice(0, 40).map(s => {
+    const name = s.item ? L(s.item.en, s.item.name) : '#' + s.recipe.out;
+    return `<div><span class="ind">└─</span> ${esc(name)} <span class="faint">×${fmt(s.count)}</span>
+      <span class="ind">（合成 ${fmt(s.times)} 次，每次产出 ${s.outCount}）</span></div>`;
+  }).join('');
+
+  const first = recipesByOut.get(picked.id)?.[0];
+  let gridHTML = '';
+  if (first && first.shape) {
+    const cols = Math.max(...first.shape.map(r => r.length));
+    gridHTML = `<div class="craft-grid" style="grid-template-columns:repeat(${cols},34px);margin:10px 0">` +
+      first.shape.flatMap(row => Array.from({ length: cols }, (_, i) => {
+        const v = row[i];
+        const it = v != null ? B.get(v) : null;
+        return `<div class="cell${v == null ? ' empty' : ''}" title="${it ? esc(L(it.en)) : ''}">${it ? esc(L(it.en).slice(0, 4)) : ''}</div>`;
+      })).join('') + '</div>';
+  }
+
+  $('#out').innerHTML = `
+    <h2 style="margin-bottom:6px">${esc(L(picked.en, picked.name))}</h2>
+    <p class="muted" style="font-size:.88rem">${zh
+      ? `需要 <b>${fmt(total)}</b> 个，共 <b>${fmt(stacks)}</b> 组（每组 ${picked.stack || 64}）。`
+      : `Need <b>${fmt(total)}</b> → <b>${fmt(stacks)}</b> stacks of ${picked.stack || 64}.`}</p>
+    ${gridHTML}
+    <h3 style="margin-top:16px">${zh ? '原材料清单' : 'Raw materials'}</h3>
+    <div>${rawHTML || `<div class="faint">${zh ? '该物品没有配方（可直接获取）' : 'No recipe — obtainable directly'}</div>`}</div>
+    <h3 style="margin-top:18px">${zh ? '中间合成步骤' : 'Intermediate steps'}</h3>
+    <div class="tree">${stepsHTML || `<div class="faint">—</div>`}</div>`;
+}
+function esc(s) { return String(s ?? '').replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
+// 默认选一个常见物品
+picked = DATA.items.find(i => i.name === 'diamond_pickaxe' && recipesByOut.has(i.id)) || DATA.items.find(i => recipesByOut.has(i.id));
+renderPicks(); compute();
+</script>
+</body>
+</html>

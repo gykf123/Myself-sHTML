@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minecraft 搜索 — 物品、生物、方块与生物群系参考 + 种子地图</title>
+<meta name="description" content="查找任意 Minecraft 物品、生物、方块或生物群系。种子查找、矿石/结构/群系定位、命令生成、合成计算、附魔规划与文本工作室，Java 版与基岩版。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232f9e44'/><rect x='7' y='7' width='18' height='18' rx='3' fill='%23fff' opacity='.85'/></svg>">
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+<main>
+  <section class="hero wrap">
+    <p class="kicker" data-i="kicker">Minecraft · 参考库 + 工具集</p>
+    <h1 data-i="h1"></h1>
+    <p class="lead" data-i="lead"></p>
+    <div class="hero-search searchbar" style="position:relative">
+      <span class="ico">🔍</span>
+      <input type="search" id="heroInput" autocomplete="off" data-i="placeholder">
+      <div class="suggest hidden" id="heroSuggest"></div>
+    </div>
+    <div class="row" style="justify-content:center;margin-top:14px" id="quickCats"></div>
+  </section>
+
+  <section class="wrap" style="margin-top:26px">
+    <h2 data-i="toolsTitle" style="display:flex;align-items:center;gap:10px"></h2>
+    <div class="grid cols-3" id="tools" style="margin-top:14px"></div>
+  </section>
+
+  <section class="wrap" style="margin-top:44px">
+    <h2 data-i="refTitle"></h2>
+    <p class="muted" data-i="refSub" style="margin-top:-6px"></p>
+    <div class="grid cols-4" id="refs" style="margin-top:14px"></div>
+  </section>
+
+  <section class="wrap" style="margin-top:52px">
+    <div class="prose">
+      <h2 data-i="aboutTitle"></h2>
+      <div id="aboutBody"></div>
+      <h2 data-i="faqTitle"></h2>
+      <div id="faqBody"></div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { boot, TOOLS, REF_CATEGORIES, t, lang, el, iconNode, buildIndex, score, DB, L, $ } from './assets/js/core.js';
+boot({ active: 'home' });
+
+const TXT = {
+  zh: {
+    kicker: 'Minecraft · 参考库 + 工具集',
+    h1: '查找任意 Minecraft 物品、生物、方块或生物群系',
+    lead: '九款免费工具：种子查找与种子地图、矿石 / 结构 / 群系定位、附魔规划、命令生成、合成计算与文本工作室。支持 Java 版与基岩版，无需注册。',
+    placeholder: '搜索物品、方块、生物、群系、附魔…',
+    toolsTitle: '工具',
+    refTitle: '参考库',
+    refSub: '物品、方块、生物、群系与附魔的完整资料，含中文名、属性与获取方式。',
+    aboutTitle: '关于本站',
+    faqTitle: '常见问题',
+    about: `<p>本站是一个 Minecraft 资料与工具站点：一边是可检索的参考库（物品、方块、生物、生物群系、附魔），一边是直接可用的工具（种子地图、矿石 / 结构 / 群系定位、附魔规划、命令生成、合成计算、文本工作室）。全部功能在浏览器本地运行，不需要登录。</p>
+      <p>地图类工具的世界生成计算由 <a href="https://github.com/Cubitect/cubiomes" target="_blank" rel="noopener">cubiomes</a>（MIT 许可，Cubitect 等贡献者）编译的 WebAssembly 内核驱动，在 Web Worker 中执行，因此坐标与版本行为与游戏一致。</p>`,
+    faq: [
+      ['种子地图支持哪些版本？', 'Java 版与基岩版各自支持 1.16 至 1.21 的主要版本，可在工具内切换；切换版本后群系与结构结果会按该版本的生成规则重新计算。'],
+      ['矿石 / 结构定位的精度如何？', '每个标记都会标注定位精度：<em>精确</em>表示按原版生成算法逐块判定；<em>近似</em>表示受限于版本或结构变体，坐标可能存在区块级偏差。'],
+      ['文本工作室支持哪些输出格式？', '原始 § 代码、插件 & 代码、server.properties 转义、/tellraw JSON 组件与 MiniMessage 五种。'],
+      ['数据来自哪里？', '注册表数据来自 PrismarineJS 的 minecraft-data 与 Minecraft 官方语言文件，世界生成算法来自开源项目 cubiomes。'],
+    ],
+  },
+  en: {
+    kicker: 'Minecraft · Reference + Tools',
+    h1: 'Find any Minecraft item, mob, block or biome',
+    lead: 'Nine free tools: seed finder and seed map, ore / structure / biome locators, enchantment planner, command generator, crafting calculator and text studio. Java and Bedrock Edition, no sign-up.',
+    placeholder: 'Search items, blocks, mobs, biomes, enchantments…',
+    toolsTitle: 'Tools',
+    refTitle: 'Reference',
+    refSub: 'Full data for items, blocks, mobs, biomes and enchantments — names, stats and how to obtain them.',
+    aboutTitle: 'About',
+    faqTitle: 'FAQ',
+    about: `<p>This site pairs a searchable reference (items, blocks, mobs, biomes, enchantments) with practical tools (seed map, ore / structure / biome locators, enchantment planner, command generator, crafting calculator, text studio). Everything runs locally in your browser — no account needed.</p>
+      <p>World-generation maths in the map tools is powered by a WebAssembly build of <a href="https://github.com/Cubitect/cubiomes" target="_blank" rel="noopener">cubiomes</a> (MIT, by Cubitect and contributors), executed in a Web Worker so coordinates and version behaviour match the game.</p>`,
+    faq: [
+      ['Which versions does the seed map support?', 'Java and Bedrock each cover the main releases from 1.16 to 1.21. Switching version recomputes biomes and structures with that version\'s rules.'],
+      ['How accurate are the ore / structure locators?', 'Every marker is labelled. <em>Exact</em> means the vanilla generation algorithm was evaluated block by block; <em>approximate</em> means coordinates may be off by a chunk due to version or structure variants.'],
+      ['Which output formats does Text Studio support?', 'Raw § codes, plugin & codes, server.properties escapes, /tellraw JSON components and MiniMessage — five formats.'],
+      ['Where does the data come from?', 'Registry data comes from PrismarineJS minecraft-data plus Minecraft\'s official language files; world generation comes from the open-source cubiomes project.'],
+    ],
+  },
+};
+const T = TXT[lang()] || TXT.en;
+const setI = (k, v) => { const n = document.querySelector(`[data-i="${k}"]`); if (n) k === 'placeholder' ? n.placeholder = v : n.textContent = v; };
+['kicker','h1','lead','placeholder','toolsTitle','refTitle','refSub','aboutTitle','faqTitle'].forEach(k => setI(k, T[k]));
+$('#aboutBody').innerHTML = T.about;
+$('#faqBody').innerHTML = T.faq.map(([q,a]) =>
+  `<details class="faq"><summary>${q}</summary><p>${a}</p></details>`).join('');
+
+// 工具卡片
+$('#tools').replaceChildren(...TOOLS.map(x => el('a', { class: 'card tool', href: `/tools/${x.slug}.html` },
+  el('div', { class: 'tool-icon' }, x.icon),
+  el('h3', {}, t(x.name)),
+  el('p', {}, t(x.desc)))));
+
+// 参考库入口
+$('#refs').replaceChildren(...REF_CATEGORIES.map(c => el('a', { class: 'card', href: `/items/?c=${c.slug}` },
+  el('h3', { style: 'font-size:.98rem' }, catLabel(c)),
+  el('p', { class: 'faint', style: 'font-size:.8rem' }, '#' + c.slug))));
+
+function catLabel(c) {
+  const m = {
+    'items/tools': ['工具', 'Tools'], 'items/weapons': ['武器', 'Weapons'], 'items/equipments': ['装备', 'Equipment'],
+    'items/food': ['食物', 'Food'], 'items/potions': ['药水', 'Potions'], 'items/resources': ['资源', 'Resources'],
+    'items/seeds': ['种子与作物', 'Seeds'], 'items/misc': ['杂项', 'Misc'],
+    'blocks': ['方块', 'Blocks'], 'mobs': ['生物', 'Mobs'], 'biomes': ['生物群系', 'Biomes'],
+    'enchantments': ['附魔', 'Enchantments'],
+  }[c.slug] || [c.slug, c.slug];
+  return lang() === 'zh' ? m[0] : m[1];
+}
+
+// 快捷分类
+$('#quickCats').replaceChildren(...REF_CATEGORIES.slice(0, 8).map(c =>
+  el('a', { class: 'chip', href: `/items/?c=${c.slug}` }, catLabel(c))));
+
+// Hero 搜索
+const hi = $('#heroInput'), hs = $('#heroSuggest');
+hi.placeholder = T.placeholder;
+let idx = null, sel = -1;
+hi.addEventListener('input', async () => {
+  const q = hi.value.trim();
+  if (!q) return hs.classList.add('hidden');
+  idx = idx || await buildIndex();
+  const hits = idx.map(r => ({ r, s: score(q, r) })).filter(x => x.s > 0)
+    .sort((a,b) => b.s - a.s || L(a.r.en).localeCompare(L(b.r.en))).slice(0, 12).map(x => x.r);
+  hs.replaceChildren(...hits.map(r => el('a', { href: `/items/detail.html?type=${r.kind}&id=${encodeURIComponent(r.name)}` },
+    iconNode(r.kind, r, 26), el('span', {}, L(r.en, r.name)), el('span', { class: 'cat' }, r.kind))));
+  hs.classList.toggle('hidden', !hits.length);
+});
+hi.addEventListener('keydown', e => {
+  const links = [...hs.querySelectorAll('a')];
+  if (e.key === 'Escape') { hs.classList.add('hidden'); return; }
+  if (!links.length) return;
+  if (e.key === 'ArrowDown') sel = (sel + 1) % links.length;
+  else if (e.key === 'ArrowUp') sel = (sel - 1 + links.length) % links.length;
+  else if (e.key === 'Enter') return (links[sel] || links[0]).click();
+  else return;
+  e.preventDefault();
+  links.forEach((a, i) => a.classList.toggle('sel', i === sel));
+});
+document.addEventListener('click', e => { if (!e.target.closest('.hero-search')) hs.classList.add('hidden'); });
+</script>
+</body>
+</html>

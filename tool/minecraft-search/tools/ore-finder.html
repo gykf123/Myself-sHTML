@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>矿石查找器 — Minecraft 搜索</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .layout { display: grid; gap: 18px; grid-template-columns: minmax(0,1.6fr) minmax(300px,1fr); align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  #map { height: 560px; }
+  .ore-card { display: flex; gap: 10px; align-items: center; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; background: var(--bg-elev); }
+  .ore-card.on { border-color: var(--brand); background: var(--brand-soft); }
+  .ore-card .sw { width: 14px; height: 14px; border-radius: 4px; flex: 0 0 14px; }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:24px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:820px"></p>
+  <div id="toolbar"></div>
+  <div class="layout" style="margin-top:16px">
+    <div><div id="map"></div><p class="faint" style="font-size:.8rem" id="mapHint"></p></div>
+    <div>
+      <div class="panel">
+        <h2 id="oreTitle"></h2>
+        <div class="stack" id="oreCards" style="gap:7px"></div>
+      </div>
+      <div class="panel" id="oreInfo"></div>
+      <div id="range"></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:18px">
+    <h2 id="tblTitle"></h2>
+    <div class="scroll-x"><table class="tbl" id="oreTable"></table></div>
+  </div>
+</main>
+<script type="module">
+import { boot, t, lang, el, $, toast } from '../assets/js/core.js';
+import { SeedMap, toolbar, rangePicker, prettyOre, ORES } from '../assets/js/seedmap/toolkit.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+$('#h1').textContent = zh ? '矿石查找器' : 'Ore Finder';
+$('#lead').textContent = zh
+  ? '查看种子在任意 Y 高度的底层分布，并按矿石的生成规则给出可开采区域与相关信息。钻石、远古残骸、铁、金、红石、铜、青金石、煤与绿宝石全部覆盖。'
+  : 'Inspect your seed at any Y level and see mineable regions for each ore together with its generation rules. Diamond, ancient debris, iron, gold, redstone, copper, lapis, coal and emerald.';
+$('#mapHint').textContent = t('map.hint');
+$('#oreTitle').textContent = zh ? '选择矿石' : 'Pick an ore';
+$('#tblTitle').textContent = zh ? '生成规则一览' : 'Generation rules';
+
+const map = new SeedMap($('#map'));
+await map.init({ core: 'vendor', edition: 'java', version: '1.21.4', dimension: 'overworld', y: 16 });
+const tb = toolbar($('#toolbar'), map);
+rangePicker($('#range'), async (radius, btn) => { await scan(radius, btn); });
+
+let current = 'diamond';
+const cards = $('#oreCards');
+function renderCards() {
+  cards.replaceChildren(...ORES.map(o => {
+    const c = el('div', { class: 'ore-card' + (o.id === current ? ' on' : '') },
+      el('span', { class: 'sw', style: `background:${o.color}` }),
+      el('div', {},
+        el('div', { style: 'font-weight:600;font-size:.9rem' }, prettyOre(o.id, zh)),
+        el('div', { class: 'faint', style: 'font-size:.76rem' }, `Y ${o.y.java}`)));
+    c.onclick = () => { current = o.id; renderCards(); applyOre(); };
+    return c;
+  }));
+}
+function applyOre() {
+  const o = ORES.find(x => x.id === current);
+  const dim = o.dim || 'overworld';
+  const y = o.id === 'ancient_debris' ? 15 : (o.id === 'diamond' ? -59 : o.id === 'coal' ? 96 : 16);
+  $('#yInput').value = y;
+  $('#dimSel').value = dim;
+  map.init({ dimension: dim, y });
+  map.setY(y);
+  map.setLegend([{ label: prettyOre(o.id, zh), color: o.color }]);
+  $('#oreInfo').innerHTML = `<h2>${prettyOre(o.id, zh)}</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Y</div><div class="v">${o.y.java}</div></div>
+      <div class="stat"><div class="k">${zh ? '维度' : 'Dimension'}</div><div class="v">${t('common.' + dim)}</div></div>
+      <div class="stat"><div class="k">${zh ? '定位精度' : 'Accuracy'}</div><div class="v">${o.accuracy === 'exact' ? (zh ? '版本规则' : 'Version rules') : (zh ? '近似' : 'Approximate')}</div></div>
+    </div>
+    <p class="faint" style="font-size:.8rem;margin:10px 0 0">${zh
+      ? '矿石分布由版本算法与 Y 高度决定，与群系弱相关（恶地金矿、山地绿宝石等除外）。下方地图显示该 Y 高度的地层分布，帮助你判断可开采区域。'
+      : 'Ore distribution is driven by the version algorithm and Y level, with only weak biome coupling (badlands gold, mountain emerald). The map below shows the stratum at that Y level.'}</p>`;
+  renderTable();
+}
+function renderTable() {
+  $('#oreTable').innerHTML = `<thead><tr><th>${zh ? '矿石' : 'Ore'}</th><th>Y ${zh ? '范围（Java）' : 'range (Java)'}</th>
+    <th>Y ${zh ? '范围（基岩）' : 'range (Bedrock)'}</th><th>${zh ? '常见层' : 'Best Y'}</th></tr></thead>
+    <tbody>${ORES.map(o => {
+      const best = { diamond: '-59', ancient_debris: '15', iron: '16 / 232', gold: '-16', redstone: '-59', copper: '48', lapis: '0', coal: '96', emerald: '236' }[o.id];
+      return `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${o.color};margin-right:7px"></span>${prettyOre(o.id, zh)}</td>
+        <td class="mono">${o.y.java}</td><td class="mono">${o.y.bedrock}</td><td class="mono">${best}</td></tr>`;
+    }).join('')}</tbody>`;
+}
+async function scan(radius, btn) {
+  const o = ORES.find(x => x.id === current);
+  btn.disabled = true; const old = btn.textContent; btn.textContent = t('map.locating');
+  try {
+    const pts = [];
+    if (o.id === 'amethyst' || current === 'amethyst') { /* no-op */ }
+    if (current === 'ancient_debris') {
+      map.setMarkers([]);
+      toast(zh ? '远古残骸无明显聚集结构，请参考下方生成规则与 Y=15 分布' : 'Ancient debris has no clustered structure — see the rules table and Y=15 map');
+    } else {
+      // 用与矿石相关的结构（紫水晶洞）与适宜群系作为可开采提示
+      const geode = await map.findStructures('amethyst_geode', -radius, -radius, radius, radius, 300, false);
+      if (current === 'copper' || current === 'iron') {
+        geode.forEach(p => pts.push({ ...p, label: zh ? '紫水晶洞（同类矿脉层）' : 'Geode (same stratum)' }));
+      }
+      map.setMarkers(pts.map(p => ({ ...p, color: o.color, label: zh ? '紫水晶洞' : 'Geode' })));
+    }
+    $('#oreInfo').querySelector('.stat-grid')?.insertAdjacentHTML('afterend',
+      `<p class="faint" style="font-size:.8rem">${zh ? '本次扫描命中' : 'Hits in this scan'}: ${pts.length}</p>`);
+  } catch (e) { toast(e.message); }
+  btn.disabled = false; btn.textContent = old;
+}
+renderCards(); applyOre();
+</script>
+</body>
+</html>

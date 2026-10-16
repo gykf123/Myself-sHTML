@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文本工作室 — Minecraft 搜索</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+<style>
+  .layout { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); align-items: start; }
+  .swatch { width: 34px; height: 34px; border-radius: 7px; border: 1px solid var(--border-strong); cursor: pointer; position: relative; }
+  .swatch.on { outline: 3px solid var(--brand); outline-offset: 1px; }
+  .fmt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 7px; }
+  .fmt { padding: 7px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: .83rem; text-align: center; background: var(--bg-elev); }
+  .fmt.on { border-color: var(--brand); background: var(--brand-soft); font-weight: 700; }
+  .mcprev { font-family: var(--mono); background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; min-height: 46px; white-space: pre-wrap; word-break: break-word; }
+  .grad-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  input[type=color] { width: 44px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-elev); }
+  .sign { background: #6b4a2b; padding: 8px; border-radius: 6px; display: inline-block; }
+  .sign .line { background: #b08a5b; color: #2b1d0e; font-family: var(--mono); font-size: .85rem; padding: 5px 10px; min-width: 200px; min-height: 22px; border-bottom: 1px solid rgba(0,0,0,.15); }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:24px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:820px"></p>
+
+  <div class="panel">
+    <div class="row" style="margin-bottom:12px">
+      <div class="seg" id="modeSeg">
+        <button data-m="codes" class="on"></button>
+        <button data-m="gradient"></button>
+        <button data-m="sign"></button>
+      </div>
+      <span class="grow"></span>
+      <button class="btn sm" id="clearBtn"></button>
+    </div>
+    <label class="fld" id="inputLabel"></label>
+    <textarea id="input" spellcheck="false"></textarea>
+    <label class="fld" style="margin-top:12px" id="prevLabel"></label>
+    <div class="mcprev" id="preview"></div>
+  </div>
+
+  <div class="layout" style="margin-top:16px">
+    <div class="panel" id="codesPanel">
+      <h2 id="colorsTitle"></h2>
+      <div class="row" id="colors" style="gap:8px"></div>
+      <h2 id="fmtsTitle" style="margin-top:18px"></h2>
+      <div class="fmt-grid" id="fmts"></div>
+      <p class="faint" style="font-size:.8rem;margin-top:12px" id="codesNote"></p>
+    </div>
+    <div class="panel" id="gradPanel">
+      <h2 id="gradTitle"></h2>
+      <div class="grad-row"><input type="color" id="c1" value="#ff5555"><input type="range" id="steps" min="2" max="60" value="0" style="flex:1"><span class="mono" id="stepsVal">—</span></div>
+      <div class="grad-row"><input type="color" id="c2" value="#5555ff"><span class="faint" style="font-size:.82rem" id="gradHint"></span></div>
+      <div class="row" style="margin-top:8px">
+        <label class="row" style="gap:6px;font-size:.85rem"><input type="radio" name="gradmode" value="perchar" checked> <span id="lblPerChar"></span></label>
+        <label class="row" style="gap:6px;font-size:.85rem"><input type="radio" name="gradmode" value="span"> <span id="lblSpan"></span></label>
+      </div>
+      <div class="mcprev" id="gradPreview" style="margin-top:12px"></div>
+    </div>
+    <div class="panel" id="signPanel">
+      <h2 id="signTitle"></h2>
+      <div class="sign"><div class="line" id="signL1"></div><div class="line" id="signL2"></div><div class="line" id="signL3"></div><div class="line" id="signL4"></div></div>
+      <div class="field" style="margin-top:12px"><label class="fld" id="lblSignL1"></label><input type="text" id="s1" value="Welcome"></div>
+      <div class="field"><label class="fld" id="lblSignL2"></label><input type="text" id="s2" value="to my shop"></div>
+      <div class="field"><label class="fld" id="lblSignL3"></label><input type="text" id="s3"></div>
+      <div class="field"><label class="fld" id="lblSignL4"></label><input type="text" id="s4"></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px">
+    <h2 id="outTitle"></h2>
+    <div id="outputs"></div>
+  </div>
+
+  <div class="prose" style="margin-top:30px">
+    <h2 id="docTitle"></h2>
+    <div id="docBody"></div>
+    <details class="faq"><summary id="faqQ"></summary><p id="faqA"></p></details>
+  </div>
+</main>
+<script type="module">
+import { boot, t, lang, el, $, $$, toast, copyText } from '../assets/js/core.js';
+boot({ active: 'tools' });
+const zh = lang() === 'zh';
+
+const COLORS = [
+  ['black', '#000000', '§0'], ['dark_blue', '#0000AA', '§1'], ['dark_green', '#00AA00', '§2'],
+  ['dark_aqua', '#00AAAA', '§3'], ['dark_red', '#AA0000', '§4'], ['dark_purple', '#AA00AA', '§5'],
+  ['gold', '#FFAA00', '§6'], ['gray', '#AAAAAA', '§7'], ['dark_gray', '#555555', '§8'],
+  ['blue', '#5555FF', '§9'], ['green', '#55FF55', '§a'], ['aqua', '#55FFFF', '§b'],
+  ['red', '#FF5555', '§c'], ['light_purple', '#FF55FF', '§d'], ['yellow', '#FFFF55', '§e'], ['white', '#FFFFFF', '§f'],
+];
+const FORMATS = [['bold', '§l', 'B'], ['italic', '§o', 'I'], ['underlined', '§n', 'U'], ['strikethrough', '§m', 'S'], ['obfuscated', '§k', '?'], ['reset', '§r', 'R']];
+const ZH = {
+  black: '黑色', dark_blue: '深蓝', dark_green: '深绿', dark_aqua: '深青', dark_red: '深红', dark_purple: '深紫',
+  gold: '金色', gray: '灰色', dark_gray: '深灰', blue: '蓝色', green: '绿色', aqua: '青色', red: '红色',
+  light_purple: '淡紫', yellow: '黄色', white: '白色',
+  bold: '粗体', italic: '斜体', underlined: '下划线', strikethrough: '删除线', obfuscated: '混淆', reset: '重置',
+};
+
+$('#h1').textContent = zh ? '文本工作室 — 颜色代码、渐变与告示牌' : 'Text Studio — Color Codes, Gradients & Signs';
+$('#lead').textContent = zh
+  ? 'Minecraft 颜色代码是以 § 开头的格式码（§c 红、§l 粗体），用于聊天、告示牌、物品名与 MOTD。输入文字，点击颜色或格式，然后按你的场景复制对应语法：原版 §、插件 &、server.properties 转义、/tellraw JSON 组件或 MiniMessage。'
+  : 'Minecraft color codes are §-prefixed codes (§c red, §l bold) that style chat, signs, item names and MOTDs. Type your text, click a color or format, then copy the syntax your surface needs — vanilla §, plugin &, server.properties escapes, /tellraw JSON components or MiniMessage.';
+
+const TXT = {
+  codes: ['颜色代码', 'Color codes'], gradient: ['渐变', 'Gradient'], sign: ['告示牌', 'Signs'],
+  colorsTitle: ['颜色', 'Colors'], fmtsTitle: ['格式', 'Formatting'],
+  inputLabel: ['你的文本（直接输入，或粘贴含 § / & 的字符串）', 'Your text (type, or paste a §/& coded string)'],
+  prevLabel: ['实时预览', 'Live preview'],
+  gradTitle: ['十六进制渐变', 'Hex gradient'],
+  gradHint: ['在 Java 1.16+ 中，原版只在 JSON 文本组件内支持十六进制颜色；§x§R§R§G§G§B§B 是 Spigot/Paper 约定。', 'In vanilla Java 1.16+ hex colors are only inside JSON text components; §x§R§R§G§G§B§B is a Spigot/Paper convention.'],
+  lblPerChar: ['逐字符渐变（插件 §x 序列）', 'Per-character gradient (§x sequence)'],
+  lblSpan: ['分段渐变（JSON 组件）', 'Span gradient (JSON components)'],
+  signTitle: ['告示牌编辑器', 'Sign editor'],
+  outTitle: ['输出 — 选择你的场景需要的格式', 'Output — pick the format your surface needs'],
+  docTitle: ['颜色代码说明', 'About color codes'],
+  clear: ['清空', 'Clear'],
+};
+const T = k => zh ? TXT[k][0] : TXT[k][1];
+$('#modeSeg').children[0].textContent = T('codes');
+$('#modeSeg').children[1].textContent = T('gradient');
+$('#modeSeg').children[2].textContent = T('sign');
+$('#inputLabel').textContent = T('inputLabel');
+$('#prevLabel').textContent = T('prevLabel');
+$('#colorsTitle').textContent = T('colorsTitle');
+$('#fmtsTitle').textContent = T('fmtsTitle');
+$('#gradTitle').textContent = T('gradTitle');
+$('#gradHint').textContent = T('gradHint');
+$('#lblPerChar').textContent = T('lblPerChar');
+$('#lblSpan').textContent = T('lblSpan');
+$('#signTitle').textContent = T('signTitle');
+$('#outTitle').textContent = T('outTitle');
+$('#docTitle').textContent = T('docTitle');
+$('#clearBtn').textContent = T('clear');
+$('#docBody').innerHTML = zh
+  ? '<p>颜色码使用 <code>§</code>（分节符）后跟十六进制字符：<code>§c</code> 红色、<code>§e</code> 黄色，加上格式码 <code>§l</code> 粗体、<code>§o</code> 斜体等。Java 版同时接受 <code>§</code> 与插件常用的 <code>&</code> 形式；基岩版在告示牌、书本与聊天中原生支持相同颜色码。</p><p>原版 Java 1.16+ 只在 JSON 文本组件内支持任意十六进制颜色（<code>"color": "#RRGGBB"</code>）；<code>§x§R§R§G§G§B§B</code> 序列是 Spigot/Paper/BungeeCord 服务端约定，并非原版语法。</p>'
+  : '<p>Color codes use <code>§</code> followed by a hex digit: <code>§c</code> red, <code>§e</code> yellow — plus format codes <code>§l</code> bold, <code>§o</code> italic and so on. Java Edition accepts both <code>§</code> and the plugin-style <code>&</code> form; Bedrock supports the same color codes natively in signs, books and chat.</p><p>Vanilla Java 1.16+ takes any hex color only inside a JSON text component (<code>"color": "#RRGGBB"</code>); the <code>§x§R§R§G§G§B§B</code> sequence is a Spigot/Paper/BungeeCord server convention, not vanilla syntax.</p>';
+$('#faqQ').textContent = zh ? '§ 和 & 有什么区别？' : 'What is the difference between § and &?';
+$('#faqA').textContent = zh
+  ? '§ 是游戏内真正的分节符，会被客户端直接解析成颜色/格式。& 只是一个替代写法，需要服务端插件（如 Essentials、Bukkit 系）或配置文件解析后才能生效，常用于 server.properties 的 motd 与插件配置。'
+  : '§ is the real section sign the client parses into color/formatting. & is only a substitute that requires server-side plugin or config parsing (Essentials, Bukkit-family), commonly used in server.properties motd and plugin configs.';
+
+let mode = 'codes';
+$$('#modeSeg button').forEach(b => b.onclick = () => {
+  mode = b.dataset.m;
+  $$('#modeSeg button').forEach(x => x.classList.toggle('on', x === b));
+  $('#codesPanel').classList.toggle('hidden', mode !== 'codes');
+  $('#gradPanel').classList.toggle('hidden', mode !== 'gradient');
+  $('#signPanel').classList.toggle('hidden', mode !== 'sign');
+  render();
+});
+
+/* ---------------- 颜色 / 格式 ---------------- */
+let lastColor = '§f';
+const colorBox = $('#colors');
+colorBox.replaceChildren(...COLORS.map(([key, hex, code]) => {
+  const s = el('button', { class: 'swatch', style: `background:${hex}`, title: `${zh ? ZH[key] : key} ${code}` });
+  s.onclick = () => { lastColor = code; insert(code); };
+  return s;
+}));
+const fmtBox = $('#fmts');
+fmtBox.replaceChildren(...FORMATS.map(([key, code]) => {
+  const f = el('button', { class: 'fmt', title: code }, zh ? ZH[key] : key);
+  f.onclick = () => { f.classList.toggle('on'); insert(code); };
+  return f;
+}));
+$('#codesNote').textContent = zh ? '点击颜色插入代码；点击格式可切换。输入框内可直接编辑。' : 'Click a color to insert its code; toggle formats. The input is editable directly.';
+
+function insert(code) {
+  const ta = $('#input');
+  const p = ta.selectionStart ?? ta.value.length;
+  ta.value = ta.value.slice(0, p) + code + ta.value.slice(ta.selectionEnd ?? p);
+  ta.focus();
+  ta.selectionStart = ta.selectionEnd = p + code.length;
+  render();
+}
+$('#clearBtn').onclick = () => { $('#input').value = ''; render(); };
+
+/* ---------------- 渐变 ---------------- */
+$('#steps').oninput = () => render();
+$('#c1').oninput = () => render();
+$('#c2').oninput = () => render();
+$$('input[name=gradmode]').forEach(r => r.onchange = render);
+
+function hex2rgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+function rgb2hex(r, g, b) { return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase(); }
+function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
+
+/* ---------------- 渲染 ---------------- */
+function vanillaRender(str) {
+  // 把 § 序列渲染为 HTML（近似客户端效果）
+  const map = Object.fromEntries(COLORS.map(([k, hex, code]) => [code[1], { c: hex }]));
+  let html = '', open = null, fmt = { bold: false, italic: false, u: false, s: false, obf: false };
+  const esc = s => s.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '§' && i + 1 < str.length) {
+      const c = str[i + 1].toLowerCase(); i++;
+      if (map[c]) { if (open) html += '</span>'; open = map[c].c; html += `<span style="color:${open};${styleOf(fmt)}">`; }
+      else if (c === 'l') fmt.bold = true;
+      else if (c === 'o') fmt.italic = true;
+      else if (c === 'n') fmt.u = true;
+      else if (c === 'm') fmt.s = true;
+      else if (c === 'k') fmt.obf = true;
+      else if (c === 'r') {
+        fmt = { bold: false, italic: false, u: false, s: false, obf: false };
+        if (open) { html += '</span>'; open = null; }
+      }
+      if (open) { html = html.replace(/<span style="color:[^"]*">$/, `<span style="color:${open};${styleOf(fmt)}">`); }
+      continue;
+    }
+    if (!open) { open = '#e8eaee'; html += `<span style="color:${open};${styleOf(fmt)}">`; }
+    html += esc(str[i]);
+  }
+  if (open) html += '</span>';
+  return html || esc(str);
+}
+function styleOf(f) {
+  const p = [];
+  if (f.bold) p.push('font-weight:700');
+  if (f.italic) p.push('font-style:italic');
+  if (f.u) p.push('text-decoration:underline');
+  if (f.s) p.push('text-decoration:line-through');
+  if (f.obf) p.push('opacity:.55');
+  return p.join(';');
+}
+
+function outputs(list) {
+  $('#outputs').replaceChildren(...list.map(([label, value]) => el('div', { style: 'margin-bottom:12px' },
+    el('label', { class: 'fld' }, label),
+    el('div', { class: 'copybox' }, el('pre', {}, value),
+      el('button', { class: 'btn sm', onclick: () => copyText(value, t('act.copied')) }, t('act.copy'))))));
+}
+
+function render() {
+  const text = $('#input').value;
+  if (mode === 'codes') {
+    $('#preview').innerHTML = vanillaRender(text) || `<span class="faint">${zh ? '你的样式文本会显示在这里…' : 'Your styled text appears here…'}</span>`;
+    const amp = text.replaceAll('§', '&');
+    const esc = text.replaceAll('§', '\\u00a7');
+    const comps = [{ text: text.replaceAll('§', '') }];
+    const json = JSON.stringify({ text: '', extra: [{ text: text.replace(/§[0-9a-fk-or]/gi, '') }] });
+    const mini = toMini(text);
+    outputs([
+      [zh ? '原版 §（聊天 / 告示牌 / 物品名）' : 'Vanilla § (chat / signs / item names)', text],
+      [zh ? '插件 & 写法（Essentials / Bukkit 系）' : 'Plugin & form (Essentials / Bukkit)', amp],
+      ['server.properties', 'motd=' + esc],
+      ['/tellraw JSON', `/tellraw @a ${json}`],
+      ['MiniMessage', mini],
+    ]);
+  } else if (mode === 'gradient') {
+    const text = ($('#input').value || (zh ? '渐变文字' : 'Gradient text')).slice(0, 64);
+    const [r1, g1, b1] = hex2rgb($('#c1').value), [r2, g2, b2] = hex2rgb($('#c2').value);
+    const n = Math.max(1, text.length - 1);
+    const span = $('#steps').value !== '0' ? Number($('#steps').value) : 0;
+    const chars = [...text];
+    const perChar = document.querySelector('input[name=gradmode]:checked').value === 'perchar';
+    let out = '';
+    if (perChar) {
+      chars.forEach((ch, i) => {
+        const hex = rgb2hex(lerp(r1, r2, i / n), lerp(g1, g2, i / n), lerp(b1, b2, i / n));
+        out += '§x' + [...hex.slice(1)].map(c => '§' + c).join('') + ch;
+      });
+      $('#gradPreview').innerHTML = chars.map((ch, i) => {
+        const hex = rgb2hex(lerp(r1, r2, i / n), lerp(g1, g2, i / n), lerp(b1, b2, i / n));
+        return `<span style="color:${hex}">${ch}</span>`;
+      }).join('');
+    } else {
+      // 分段：每个字符一个 JSON 组件
+      const comps = chars.map((ch, i) => ({ text: ch, color: rgb2hex(lerp(r1, r2, i / n), lerp(g1, g2, i / n), lerp(b1, b2, i / n)) }));
+      out = JSON.stringify(comps);
+      $('#gradPreview').innerHTML = comps.map(c => `<span style="color:${c.color}">${c.text}</span>`).join('');
+    }
+    $('#stepsVal').textContent = String(chars.length);
+    outputs([
+      [zh ? '逐字符 §x 序列（Spigot/Paper）' : 'Per-character §x sequence (Spigot/Paper)', perChar ? out : chars.map((ch, i) => '§x' + [...rgb2hex(lerp(r1, r2, i / n), lerp(g1, g2, i / n), lerp(b1, b2, i / n)).slice(1)].map(c => '§' + c).join('') + ch).join('')],
+      [zh ? 'JSON 文本组件（原版 Java 1.16+）' : 'JSON text component (vanilla Java 1.16+)', JSON.stringify({ text: '', extra: chars.map((ch, i) => ({ text: ch, color: rgb2hex(lerp(r1, r2, i / n), lerp(g1, g2, i / n), lerp(b1, b2, i / n)) })) })],
+    ]);
+  } else {
+    const lines = [1, 2, 3, 4].map(i => $('#s' + i).value);
+    lines.forEach((v, i) => { $('#signL' + (i + 1)).textContent = v; });
+    const seq = lines.map(v => v).join('\\n');
+    outputs([
+      [zh ? '告示牌各行（含换行转义）' : 'Sign lines (with line escapes)', seq],
+      [zh ? 'JSON 组件' : 'JSON component', JSON.stringify(lines.map(v => ({ text: v })))],
+    ]);
+    $('#preview').innerHTML = vanillaRender(lines.filter(Boolean).join(' '));
+  }
+}
+function toMini(str) {
+  const colorMap = { '0': 'black', '1': 'dark_blue', '2': 'dark_green', '3': 'dark_aqua', '4': 'dark_red', '5': 'dark_purple', '6': 'gold', '7': 'gray', '8': 'dark_gray', '9': 'blue', a: 'green', b: 'aqua', c: 'red', d: 'light_purple', e: 'yellow', f: 'white' };
+  const tagMap = { l: 'bold', o: 'italic', n: 'underlined', m: 'strikethrough', k: 'obfuscated', r: 'reset' };
+  let out = '', stack = [];
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '§' && i + 1 < str.length) {
+      const c = str[i + 1].toLowerCase(); i++;
+      if (colorMap[c]) { stack.forEach(x => out += `</${x}>`); stack = []; out = `<${colorMap[c]}>` + out; }
+      else if (tagMap[c]) { if (c === 'r') { stack.forEach(x => out += `</${x}>`); stack = []; } else { out += `<${tagMap[c]}>`; stack.push(tagMap[c]); } }
+      continue;
+    }
+    out += str[i];
+  }
+  stack.reverse().forEach(x => out += `</${x}>`);
+  return out;
+}
+
+$('#input').value = zh ? '§6§l欢迎 §r§a来到 §c§l服务器§r！' : '§6§lWelcome §r§ato the §c§lserver§r!';
+$('#input').oninput = render;
+[1, 2, 3, 4].forEach(i => { $('#s' + i).oninput = render; $('#lblSignL' + i).textContent = (zh ? '第 ' : 'Line ') + i + (zh ? ' 行' : ''); });
+$('#gradPanel').classList.add('hidden');
+$('#signPanel').classList.add('hidden');
+render();
+</script>
+</body>
+</html>

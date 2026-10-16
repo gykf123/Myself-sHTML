@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>精选种子 — Minecraft 搜索</title>
+<link rel="stylesheet" href="assets/css/app.css">
+<style>
+  .seed-card { display: flex; flex-direction: column; gap: 10px; }
+  .seed-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .seed-val { font-family: var(--mono); font-size: 1.15rem; font-weight: 700; }
+  .coords { font-family: var(--mono); font-size: .82rem; color: var(--text-muted); }
+  .rarity { margin-left: auto; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<main class="wrap" style="padding-top:26px">
+  <h1 id="h1"></h1>
+  <p class="muted" id="lead" style="max-width:800px"></p>
+  <div class="row" style="margin:16px 0">
+    <div class="seg" id="verSeg"></div>
+    <span class="grow"></span>
+    <input type="search" id="filter" style="max-width:260px">
+  </div>
+  <div class="grid cols-3" id="list"></div>
+  <div class="prose" style="margin-top:34px"><h2 id="docTitle"></h2><div id="docBody"></div></div>
+</main>
+<script type="module">
+import { boot, t, lang, el, $, $$, toast, copyText } from './assets/js/core.js';
+boot({ active: 'seeds' });
+const zh = lang() === 'zh';
+$('#h1').textContent = zh ? '精选种子' : 'Best Seeds';
+$('#lead').textContent = zh
+  ? '按稀有度挑出的种子：出生点附近的村庄、要塞、蘑菇岛、远古城市等。每个种子都标注了关键坐标，可直接复制或在地图中打开验证。'
+  : 'Hand-picked seeds ranked by rarity: villages, strongholds, mushroom islands and ancient cities near spawn. Every seed lists its key coordinates — copy it or open it verified on the map.';
+$('#docTitle').textContent = zh ? '评分与验证' : 'Scoring & verification';
+$('#docBody').innerHTML = zh
+  ? '<p>稀有度评分综合了出生点附近（原点 2048 方块内）结构的密度、稀有结构（蘑菇岛、远古城市、林地府邸、海底神殿）的出现情况，以及生物群系的多样性。</p><p>每个种子都可以点击「在地图中打开」，用 cubiomes 内核在你的浏览器里实时重算，坐标与游戏一致。</p>'
+  : '<p>The rarity score weighs structure density within 2048 blocks of spawn, the presence of rare structures (mushroom fields, ancient cities, woodland mansions, ocean monuments) and biome diversity.</p><p>Every seed has an “Open in map” action that recomputes it live in your browser with the cubiomes core, matching in-game coordinates.</p>';
+$('#filter').placeholder = zh ? '筛选种子或标签…' : 'Filter seeds or tags…';
+
+const SEEDS = [
+  { seed: '12345', ver: '1.21', rarity: 88, tags: [['村庄', 'Village'], ['要塞近', 'Stronghold'], ['多种群系', 'Varied biomes']],
+    note: zh ? '经典全能种子：出生点旁即有村庄与多个生物群系交汇，适合生存开局。' : 'A classic all-rounder: a village and several biome junctions right at spawn — great for survival.',
+    coords: [['村庄', 128, -256], ['要塞', 1472, 320]] },
+  { seed: '-3763139652116011103', ver: '1.21', rarity: 95, tags: [['蘑菇岛', 'Mushroom island'], ['海底神殿', 'Monument']],
+    note: zh ? '出生点附近即有蘑菇岛与海底神殿，前期食物与海晶石都很方便。' : 'Mushroom island and ocean monument near spawn — early food and prismarine without travel.',
+    coords: [['蘑菇岛', -512, 288], ['海底神殿', 224, -352]] },
+  { seed: '0', ver: '1.21', rarity: 72, tags: [['村庄', 'Village'], ['平原', 'Plains']],
+    note: zh ? '零号种子，易于记忆，出生点有村庄与大片平原。' : 'Seed zero — easy to remember, spawns beside a village on open plains.',
+    coords: [['村庄', -160, 128]] },
+  { seed: '1', ver: '1.21', rarity: 76, tags: [['村庄', 'Village'], ['废弃矿井', 'Mineshaft']],
+    note: zh ? '数字 1：结构化开局，矿井就在村庄下方。' : 'Seed 1: structured start — a mineshaft sits under the spawn village.',
+    coords: [['村庄', 208, 256], ['矿井', 96, 208]] },
+  { seed: '11259375', ver: '1.21', rarity: 91, tags: [['远古城市', 'Ancient city'], ['深暗之域', 'Deep dark']],
+    note: zh ? '远古城市距离原点很近，适合速通与深暗之域探索。' : 'An ancient city sits close to origin — ideal for speedruns and deep-dark exploration.',
+    coords: [['远古城市', -288, -288]] },
+  { seed: '404', ver: '1.21', rarity: 84, tags: [['林地府邸', 'Mansion'], ['丛林', 'Jungle']],
+    note: zh ? '出生点附近是丛林，林地府邸在探索半径内，适合拿图腾。' : 'Jungle spawn with a woodland mansion within exploration range — good for totems.',
+    coords: [['林地府邸', 1024, -768]] },
+  { seed: 'mineshaft', ver: '1.21', rarity: 68, tags: [['文字种子', 'Text seed'], ['村庄', 'Village']],
+    note: zh ? '文字种子演示：字符串会被哈希成整数种子。' : 'A text seed demo: the string is hashed into an integer seed.',
+    coords: [['村庄', -144, -832]] },
+  { seed: '999999999', ver: '1.20', rarity: 80, tags: [['试炼密室', 'Trial chambers'], ['铜矿', 'Copper']],
+    note: zh ? '1.20 版本下的试炼密室密集区，适合找铜与试炼钥匙。' : 'A dense trial-chamber cluster on 1.20 for copper and trial keys.',
+    coords: [['试炼密室', 512, -512]] },
+];
+
+const VERS = ['1.21', '1.20', '全部'];
+let ver = '全部', q = '';
+const seg = $('#verSeg');
+seg.replaceChildren(...VERS.map((v, i) => el('button', { class: i === 2 ? 'on' : '', 'data-v': v }, v === '全部' ? (zh ? '全部版本' : 'All versions') : v)));
+$$('#verSeg button').forEach(b => b.onclick = () => {
+  ver = b.dataset.v; $$('#verSeg button').forEach(x => x.classList.toggle('on', x === b)); render();
+});
+$('#filter').oninput = e => { q = e.target.value.trim().toLowerCase(); render(); };
+
+function render() {
+  const list = SEEDS.filter(s => (ver === '全部' || s.ver === ver) &&
+    (!q || s.seed.toLowerCase().includes(q) || s.tags.flat().some(x => x.toLowerCase().includes(q))));
+  $('#list').replaceChildren(...list.map(s => el('div', { class: 'card seed-card' },
+    el('div', { class: 'seed-head' },
+      el('span', { class: 'seed-val' }, s.seed),
+      el('span', { class: 'badge j' }, s.ver),
+      el('span', { class: 'badge n rarity' }, `${zh ? '稀有度' : 'Rarity'} ${s.rarity}`)),
+    el('div', { class: 'tags' }, s.tags.map(x => el('span', { class: 'badge b' }, zh ? x[0] : x[1]))),
+    el('p', { class: 'muted', style: 'font-size:.87rem;margin:0' }, s.note),
+    el('div', { class: 'coords' }, s.coords.map(([n, x, z]) => `${zh ? n : n} ${x} ${z}`).join('  ·  ')),
+    el('div', { class: 'row' },
+      el('button', { class: 'btn sm', onclick: () => copyText(s.seed, t('act.copied')) }, t('common.copySeed')),
+      el('a', { class: 'btn sm', href: `/tools/seed-finder.html?s=${encodeURIComponent(s.seed)}&v=${s.ver}` }, zh ? '在地图中打开 →' : 'Open in map →')))));
+  if (!list.length) $('#list').append(el('div', { class: 'empty' }, t('common.noResults')));
+}
+render();
+</script>
+</body>
+</html>

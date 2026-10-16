@@ -21,15 +21,19 @@ const CONFIG = {
     { name: '数据可视化', desc: '用原生 Canvas / SVG 讲故事', tags: ['Chart'] },
     { name: 'FKD 服务器主页', desc: 'FKD 游戏服务器官方网站', tags: ['Minecraft', '服务器'], href: 'https://FKD.是.gay', target: '_blank' }
   ],
-  // 工具箱树（由数组配置驱动渲染）
-  toolTree: [
+  // 工具箱（卡片式，由数组配置驱动渲染；repo 为源码浏览地址）
+  tools: [
     {
-      name: '我的世界',
-      children: [
-        { name: '基岩版', children: [
-          { name: '矿石查找器', href: './tool/ore-finder.html', target: '_blank', note: '基岩版矿石分布预测' }
-        ]}
-      ]
+      icon: '⛏️', name: '矿石查找器',
+      desc: '基岩版矿石分布预测：输入种子号，可视化各高度层的矿物概率。',
+      href: './tool/ore-finder.html',
+      repo: 'https://github.com/gykf123/Myself-sHTML/blob/main/tool/ore-finder.html'
+    },
+    {
+      icon: '🧭', name: 'MC 搜索',
+      desc: 'minecraftsearch.com 功能复刻：种子 / 矿石 / 结构 / 群系查找等 9 款工具，Java + 基岩双版，WASM 本地运行。',
+      href: './tool/minecraft-search/index.html',
+      repo: 'https://github.com/gykf123/Myself-sHTML/tree/main/tool/minecraft-search'
     }
   ],
   // 友链（大卡片，参考 blym.top 的友链网格样式；favicon 取站点自身，加载失败回退为站点首字）
@@ -138,45 +142,37 @@ function renderFriendLinks() {
   box.appendChild(frag);
 }
 
-/* ---------- 渲染工具箱树 ---------- */
-function renderTreeNode(node) {
-  const li = document.createElement('li');
-  li.className = 'tree-item';
-  if (node.children && node.children.length) {
-    const btn = document.createElement('button');
-    btn.className = 'tree-folder';
-    btn.type = 'button';
-    btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = `<span class="arrow">▸</span><span class="label">${node.name}</span>`;
-    const ul = document.createElement('ul');
-    ul.className = 'tree-children';
-    node.children.forEach(c => ul.appendChild(renderTreeNode(c)));
-    btn.addEventListener('click', () => {
-      const open = ul.classList.contains('open');
-      ul.classList.toggle('open', !open);
-      btn.setAttribute('aria-expanded', String(!open));
-    });
-    li.appendChild(btn);
-    li.appendChild(ul);
-  } else {
-    const a = document.createElement('a');
-    a.className = 'tree-leaf';
-    a.href = node.href || '#';
-    if (node.target) { a.target = node.target; a.rel = 'noopener'; }
-    a.innerHTML = `<span class="label">${node.name}</span>${node.note ? `<span class="note">${node.note}</span>` : ''}`;
-    li.appendChild(a);
-  }
-  return li;
-}
-function renderToolTree() {
-  const box = $('#toolTree');
+/* ---------- 渲染工具箱卡片 ---------- */
+function renderToolCards() {
+  const box = $('#toolCards');
   if (!box) return;
-  const ul = document.createDocumentFragment();
-  const root = document.createElement('ul');
-  root.className = 'tree-root';
-  CONFIG.toolTree.forEach(n => root.appendChild(renderTreeNode(n)));
-  ul.appendChild(root);
-  box.appendChild(ul);
+  const frag = document.createDocumentFragment();
+  CONFIG.tools.forEach(t => {
+    const card = document.createElement('article');
+    card.className = 'tool-card glass';
+    card.innerHTML =
+      '<div class="tool-card-main">' +
+        '<span class="tool-card-ico" aria-hidden="true"></span>' +
+        '<div class="tool-card-text">' +
+          '<h3 class="tool-card-name"></h3>' +
+          '<p class="tool-card-desc"></p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tool-card-actions">' +
+        '<a class="tool-btn tool-btn-primary" target="_blank" rel="noopener noreferrer">' +
+          '<span class="tool-btn-ico" aria-hidden="true">↗</span>在线跳转</a>' +
+        '<a class="tool-btn tool-btn-ghost" target="_blank" rel="noopener noreferrer">' +
+          '<span class="tool-btn-ico" aria-hidden="true">📦</span>仓库浏览</a>' +
+      '</div>';
+    card.querySelector('.tool-card-ico').textContent = t.icon;
+    card.querySelector('.tool-card-name').textContent = t.name;
+    card.querySelector('.tool-card-desc').textContent = t.desc;
+    const btns = card.querySelectorAll('.tool-btn');
+    btns[0].href = t.href;
+    if (t.repo) btns[1].href = t.repo; else btns[1].hidden = true;
+    frag.appendChild(card);
+  });
+  box.appendChild(frag);
 }
 
 /* 切换文本并触发轻量滑入动画（标题/副标题切换时用） */
@@ -528,7 +524,7 @@ function bindProgress() {
 function init() {
   renderMottos();
   renderProjects();
-  renderToolTree();
+  renderToolCards();
   renderFriendLinks();
   consumeLoginReturn();
   renderAuth();

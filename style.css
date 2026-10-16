@@ -304,29 +304,51 @@ html.theme-glass .identity-card:hover {
   background: var(--accent-soft); color: var(--accent);
 }
 
-/* ---------- 工具箱树 ---------- */
-.tree { font-size: 14px; }
-.tree-root, .tree-children { list-style: none; margin: 0; padding: 0; }
-.tree-children {
-  padding-left: 16px; border-left: 1px dashed var(--border); margin-left: 6px;
-  max-height: 0; opacity: 0; overflow: hidden;
-  transition: max-height .3s var(--ease), opacity .25s var(--ease);
+/* ---------- 工具箱卡片 ---------- */
+.tool-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+  gap: 16px;
 }
-.tree-children.open { max-height: 1000px; opacity: 1; }
-.tree-item { margin: 2px 0; }
-.tree-folder {
-  width: 100%; text-align: left; background: transparent; border: 0; color: var(--text);
-  font: inherit; cursor: pointer; padding: 6px 6px; border-radius: 8px; display: flex; align-items: center; gap: 6px;
+.tool-card {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 20px 22px; border-radius: 16px;
+  transition: transform .2s var(--ease), border-color .2s, box-shadow .3s var(--ease);
 }
-.tree-folder:hover { background: var(--surface-2); }
-.tree-folder .arrow { transition: transform .2s var(--ease); color: var(--accent); }
-.tree-folder[aria-expanded="true"] .arrow { transform: rotate(90deg); }
-.tree-leaf {
-  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: var(--text);
-  padding: 6px 6px; border-radius: 8px;
+.tool-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  box-shadow: var(--shadow);
 }
-.tree-leaf:hover { background: var(--surface-2); }
-.tree-leaf .note { font-size: 11px; color: var(--text-dim); }
+.tool-card-main { display: flex; align-items: center; gap: 16px; flex: 1 1 260px; min-width: 0; }
+.tool-card-ico {
+  width: 52px; height: 52px; flex: none; border-radius: 14px;
+  display: grid; place-items: center; font-size: 24px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.tool-card-text { min-width: 0; }
+.tool-card-name { margin: 0 0 4px; font-size: 16px; }
+.tool-card-desc { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+.tool-card-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+.tool-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 10px; text-decoration: none;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+  transition: transform .15s var(--ease), background .2s, border-color .2s, color .2s;
+}
+.tool-btn:hover { transform: translateY(-1px); }
+.tool-btn-ico { font-size: 12px; }
+.tool-btn-primary { color: #fff; background: var(--accent); border: 1px solid var(--accent); }
+.tool-btn-primary:hover { box-shadow: 0 4px 14px -2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.tool-btn-ghost { color: var(--text-dim); background: transparent; border: 1px solid var(--border); }
+.tool-btn-ghost:hover { color: var(--accent); border-color: var(--accent); }
+/* 移动端：单列、按钮撑满一行 */
+@media (max-width: 767px) {
+  .tool-cards { grid-template-columns: 1fr; }
+  .tool-card { padding: 16px; gap: 14px; }
+  .tool-card-actions { margin-left: 0; width: 100%; }
+  .tool-btn { flex: 1; justify-content: center; }
+}
 
 /* ---------- 友链大卡片（参考 blym.top 友链网格样式） ---------- */
 .friend-list {
@@ -369,6 +391,17 @@ html.theme-glass .identity-card:hover {
 .friend-note { padding: 12px 16px; border-radius: 12px; font-size: 13px; color: var(--text-dim); margin: 0; }
 .mailto-link { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); }
 .mailto-link:hover { border-bottom-color: var(--accent); }
+/* 个人信息区邮箱行 */
+.mail-line {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 12px;
+  padding: 5px 12px; border-radius: 999px; text-decoration: none;
+  font-size: 13px; font-weight: 600; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid transparent;
+  transition: border-color .2s, transform .15s var(--ease);
+}
+.mail-line:hover { border-color: color-mix(in srgb, var(--accent) 45%, transparent); transform: translateY(-1px); }
+.mail-line .mail-ico { font-size: 14px; }
+.mail-line .mail-addr { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .2px; }
 html.theme-glass .friend-card:hover {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.25), 0 14px 34px -10px rgba(0,0,0,.5);
 }
@@ -692,6 +725,7 @@ html.theme-glass .scroll-progress {
   .icon-btn:hover, .nav-item:hover, .avatar-box:hover, .identity-card:hover,
   .github-link:hover, .egg-btn:hover, .proj-card:hover, .friend-card:hover,
   .chip:hover, .wall-submit:hover, .wall-item:hover, .wall-refresh:hover,
+  .mail-line:hover, .tool-btn:hover,
   .friend-card:hover .friend-logo img, .friend-card:hover .friend-name .go {
     transform: none;
   }
