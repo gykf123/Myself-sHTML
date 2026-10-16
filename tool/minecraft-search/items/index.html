@@ -34,7 +34,7 @@
   <div id="pager" class="row" style="justify-content:center;margin-top:22px"></div>
 </main>
 <script type="module">
-import { boot, DB, REF_CATEGORIES, t, lang, el, $, $$, L, iconNode } from '../assets/js/core.js';
+import { boot, DB, REF_CATEGORIES, t, lang, el, $, $$, L, iconNode, rel } from '../assets/js/core.js';
 boot({ active: 'items' });
 const zh = lang() === 'zh';
 
@@ -59,7 +59,7 @@ const PAGE = 60;
 // 分类导航
 $('#cats').replaceChildren(...REF_CATEGORIES.map(c => {
   const label = c.cat ? (CAT_LABEL[c.cat] || [c.cat, c.cat]) : KIND_LABEL[c.kind];
-  return el('a', { class: 'chip' + (c.slug === cur ? ' on' : ''), href: `/items/?c=${c.slug}` },
+  return el('a', { class: 'chip' + (c.slug === cur ? ' on' : ''), href: rel(`/items/?c=${c.slug}`) },
     zh ? label[0] : label[1]);
 }));
 
@@ -96,7 +96,7 @@ function render() {
   const slice = rows.slice((page - 1) * PAGE, page * PAGE);
 
   $('#list').replaceChildren(...slice.map(r => el('a', {
-    class: 'card item-card', href: `/items/detail.html?type=${kind}&id=${encodeURIComponent(r.name)}`,
+    class: 'card item-card', href: rel(`/items/detail.html?type=${kind}&id=${encodeURIComponent(r.name)}`),
   }, iconNode(kind, r, 34), el('div', {},
     el('div', { class: 'nm' }, L(r.en, r.name)),
     el('div', { class: 'sub' }, [r.zh, r.name].filter(Boolean).join(' · '))))));

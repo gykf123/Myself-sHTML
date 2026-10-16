@@ -44,7 +44,7 @@
 </main>
 
 <script type="module">
-import { boot, TOOLS, REF_CATEGORIES, t, lang, el, iconNode, buildIndex, score, DB, L, $ } from './assets/js/core.js';
+import { boot, TOOLS, REF_CATEGORIES, t, lang, el, iconNode, buildIndex, score, DB, L, $, rel } from './assets/js/core.js';
 boot({ active: 'home' });
 
 const TXT = {
@@ -95,13 +95,13 @@ $('#faqBody').innerHTML = T.faq.map(([q,a]) =>
   `<details class="faq"><summary>${q}</summary><p>${a}</p></details>`).join('');
 
 // 工具卡片
-$('#tools').replaceChildren(...TOOLS.map(x => el('a', { class: 'card tool', href: `/tools/${x.slug}.html` },
+$('#tools').replaceChildren(...TOOLS.map(x => el('a', { class: 'card tool', href: rel(`/tools/${x.slug}.html`) },
   el('div', { class: 'tool-icon' }, x.icon),
   el('h3', {}, t(x.name)),
   el('p', {}, t(x.desc)))));
 
 // 参考库入口
-$('#refs').replaceChildren(...REF_CATEGORIES.map(c => el('a', { class: 'card', href: `/items/?c=${c.slug}` },
+$('#refs').replaceChildren(...REF_CATEGORIES.map(c => el('a', { class: 'card', href: rel(`/items/?c=${c.slug}`) },
   el('h3', { style: 'font-size:.98rem' }, catLabel(c)),
   el('p', { class: 'faint', style: 'font-size:.8rem' }, '#' + c.slug))));
 
@@ -118,7 +118,7 @@ function catLabel(c) {
 
 // 快捷分类
 $('#quickCats').replaceChildren(...REF_CATEGORIES.slice(0, 8).map(c =>
-  el('a', { class: 'chip', href: `/items/?c=${c.slug}` }, catLabel(c))));
+  el('a', { class: 'chip', href: rel(`/items/?c=${c.slug}`) }, catLabel(c))));
 
 // Hero 搜索
 const hi = $('#heroInput'), hs = $('#heroSuggest');
@@ -130,7 +130,7 @@ hi.addEventListener('input', async () => {
   idx = idx || await buildIndex();
   const hits = idx.map(r => ({ r, s: score(q, r) })).filter(x => x.s > 0)
     .sort((a,b) => b.s - a.s || L(a.r.en).localeCompare(L(b.r.en))).slice(0, 12).map(x => x.r);
-  hs.replaceChildren(...hits.map(r => el('a', { href: `/items/detail.html?type=${r.kind}&id=${encodeURIComponent(r.name)}` },
+  hs.replaceChildren(...hits.map(r => el('a', { href: rel(`/items/detail.html?type=${r.kind}&id=${encodeURIComponent(r.name)}`) },
     iconNode(r.kind, r, 26), el('span', {}, L(r.en, r.name)), el('span', { class: 'cat' }, r.kind))));
   hs.classList.toggle('hidden', !hits.length);
 });

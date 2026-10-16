@@ -20,7 +20,7 @@
   <div id="content"><p class="muted"><span class="spinner"></span> <span id="loading"></span></p></div>
 </main>
 <script type="module">
-import { boot, DB, t, lang, el, $, L, iconNode, fmt } from '../assets/js/core.js';
+import { boot, DB, t, lang, el, $, L, iconNode, fmt, rel } from '../assets/js/core.js';
 boot({ active: 'items' });
 const zh = lang() === 'zh';
 const p = new URLSearchParams(location.search);
@@ -33,7 +33,7 @@ const B = {
   biomes: ['生物群系', 'Biomes'], enchantments: ['附魔', 'Enchantments'],
 }[type] || ['物品', 'Items'];
 $('#crumb').textContent = zh ? `参考库 › ${B[0]}` : `Reference › ${B[1]}`;
-$('#crumb').href = `/items/?c=${type === 'items' ? 'items/tools' : type}`;
+$('#crumb').href = rel(`/items/?c=${type === 'items' ? 'items/tools' : type}`);
 
 const data = await DB.load(type);
 const rec = data.find(r => r.name === idName);
@@ -70,7 +70,7 @@ if (!rec) {
     const items = await DB.items();
     const byId = new Map(items.map(i => [i.id, i]));
     const nameOf = idv => { const r = byId.get(idv); return r ? L(r.en, r.name) : `#${idv}`; };
-    const hrefOf = idv => { const r = byId.get(idv); return r ? `/items/detail.html?type=items&id=${encodeURIComponent(r.name)}` : '#'; };
+    const hrefOf = idv => { const r = byId.get(idv); return r ? rel(`/items/detail.html?type=items&id=${encodeURIComponent(r.name)}`) : '#'; };
     const mkIcon = idv => {
       const r = byId.get(idv); if (!r) return el('span', { class: 'faint', style: 'font-size:.7rem' }, '#');
       const a = el('a', { href: hrefOf(idv), title: L(r.en, r.name) }); a.append(iconNode('items', r, 30)); return a;
@@ -130,7 +130,7 @@ if (!rec) {
     el('div', { class: 'stat-grid', style: 'margin:22px 0 26px' },
       stats.map(([k, v]) => el('div', { class: 'stat' }, el('div', { class: 'k' }, k), el('div', { class: 'v' }, String(v))))),
     el('div', { class: 'prose', html: obtainHTML + useHTML }),
-    el('p', { style: 'margin-top:26px' }, el('a', { href: '/items/' }, zh ? '← 返回参考库' : '← Back to reference')),
+    el('p', { style: 'margin-top:26px' }, el('a', { href: rel('/items/') }, zh ? '← 返回参考库' : '← Back to reference')),
   );
 }
 </script>

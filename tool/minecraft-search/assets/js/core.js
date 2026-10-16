@@ -7,7 +7,7 @@
    以本文件位置（assets/js/）上跳两级得到子站根，站内链接统一走相对解析，
    与页面所在深度无关。 */
 const _SITE_ROOT = new URL('../../', import.meta.url);
-const rel = p => new URL(String(p).replace(/^\//, ''), _SITE_ROOT).href;
+export const rel = p => new URL(String(p).replace(/^\//, ''), _SITE_ROOT).href;
 
 export const SITE = {
   name: { zh: 'Minecraft 搜索', en: 'Minecraft Search' },
@@ -345,11 +345,11 @@ export function score(q, rec) {
   return 0;
 }
 function itemHref(r) {
-  if (r.kind === 'items') return `/items/detail.html?type=items&id=${encodeURIComponent(r.name)}`;
-  if (r.kind === 'blocks') return `/items/detail.html?type=blocks&id=${encodeURIComponent(r.name)}`;
-  if (r.kind === 'entities') return `/items/detail.html?type=entities&id=${encodeURIComponent(r.name)}`;
-  if (r.kind === 'biomes') return `/items/detail.html?type=biomes&id=${encodeURIComponent(r.name)}`;
-  return `/items/detail.html?type=enchantments&id=${encodeURIComponent(r.name)}`;
+  if (r.kind === 'items') return rel(`/items/detail.html?type=items&id=${encodeURIComponent(r.name)}`);
+  if (r.kind === 'blocks') return rel(`/items/detail.html?type=blocks&id=${encodeURIComponent(r.name)}`);
+  if (r.kind === 'entities') return rel(`/items/detail.html?type=entities&id=${encodeURIComponent(r.name)}`);
+  if (r.kind === 'biomes') return rel(`/items/detail.html?type=biomes&id=${encodeURIComponent(r.name)}`);
+  return rel(`/items/detail.html?type=enchantments&id=${encodeURIComponent(r.name)}`);
 }
 export function initGlobalSearch() {
   const input = $('#gsearch'), box = $('#gsuggest');

@@ -27,7 +27,7 @@
   <div class="prose" style="margin-top:34px"><h2 id="docTitle"></h2><div id="docBody"></div></div>
 </main>
 <script type="module">
-import { boot, t, lang, el, $, $$, toast, copyText } from './assets/js/core.js';
+import { boot, t, lang, el, $, $$, toast, copyText, rel } from './assets/js/core.js';
 boot({ active: 'seeds' });
 const zh = lang() === 'zh';
 $('#h1').textContent = zh ? '精选种子' : 'Best Seeds';
@@ -89,7 +89,7 @@ function render() {
     el('div', { class: 'coords' }, s.coords.map(([n, x, z]) => `${zh ? n : n} ${x} ${z}`).join('  ·  ')),
     el('div', { class: 'row' },
       el('button', { class: 'btn sm', onclick: () => copyText(s.seed, t('act.copied')) }, t('common.copySeed')),
-      el('a', { class: 'btn sm', href: `/tools/seed-finder.html?s=${encodeURIComponent(s.seed)}&v=${s.ver}` }, zh ? '在地图中打开 →' : 'Open in map →')))));
+      el('a', { class: 'btn sm', href: rel(`/tools/seed-finder.html?s=${encodeURIComponent(s.seed)}&v=${s.ver}`) }, zh ? '在地图中打开 →' : 'Open in map →')))));
   if (!list.length) $('#list').append(el('div', { class: 'empty' }, t('common.noResults')));
 }
 render();
