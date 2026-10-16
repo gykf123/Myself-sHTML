@@ -49,7 +49,9 @@ const CONFIG = {
     { title: '🕺 全明星 双♂人♂舞', url: 'https://www.bilibili.com/video/av2648921/' },
     { title: '🐷 全英雄联盟最骚的骚猪', url: 'https://www.bilibili.com/video/av4606803/' },
     { title: '🐰 我是 papi 酱（电音单曲）', url: 'https://www.bilibili.com/video/av4033926/' },
-    { title: '🎺 全明星 Rap 黑喂狗', url: 'https://www.bilibili.com/video/av3327562/' }
+    { title: '🎺 全明星 Rap 黑喂狗', url: 'https://www.bilibili.com/video/av3327562/' },
+    { title: '⚡蒋出没⚡', url: 'https://www.bilibili.com/video/BV1sP9MBcEbT/' },
+    { title: '⚡粉  刷  蒋⚡', url: 'https://www.bilibili.com/video/BV1pucHzSEbH/' }
   ],
   // Supabase 配置（留言墙后端；ANON_KEY 为 publishable，可公开内联）
   supabase: {
