@@ -27,7 +27,7 @@ const CONFIG = {
       name: '我的世界',
       children: [
         { name: '基岩版', children: [
-          { name: '矿石查找器', href: './tools/ore-finder.html', target: '_blank', note: '基岩版矿石分布预测' }
+          { name: '矿石查找器', href: './tool/ore-finder.html', target: '_blank', note: '基岩版矿石分布预测' }
         ]}
       ]
     }

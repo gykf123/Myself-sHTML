@@ -13,7 +13,7 @@
 ├── index.html            # 主页
 ├── style.css             # 样式（双主题，CSS 变量驱动）
 ├── script.js             # 交互（配置数据驱动的渲染）
-├── tools/
+├── tool/
 │   └── ore-finder.html   # 基岩版矿物查找器（独立页面）
 ├── README.md
 └── REMIND.md             # 关键事项与决策固化（内部维护）
@@ -21,7 +21,7 @@
 
 ## 访问地址
 - 主页：`https://gykf123.github.io/Myself-sHTML/`
-- 矿石查找器：`https://gykf123.github.io/Myself-sHTML/tools/ore-finder.html`
+- 矿石查找器：`https://gykf123.github.io/Myself-sHTML/tool/ore-finder.html`
 
 ## 功能概览
 - 左侧可折叠分类导航：**个人信息 / 项目导航 / 工具箱**
@@ -33,7 +33,7 @@
 
 ## 矿石查找器
 基岩版矿物分布预测工具：输入世界种子与版本，精确到方块坐标输出矿点分布。
-- 独立页面 `tools/ore-finder.html`，自包含、无需联网、无需服务端
+- 独立页面 `tool/ore-finder.html`，自包含、无需联网、无需服务端
 - 由主页工具箱树「矿石查找器」以新标签页打开
 - 顶部「← FeSui 主页」可返回主页
 
@@ -53,4 +53,4 @@
 - 保存后约 1 分钟构建生效
 
 ## 本地预览
-直接双击 `index.html` 即可（无需服务器）；矿石查找器同样直接打开 `tools/ore-finder.html`。
+直接双击 `index.html` 即可（无需服务器）；矿石查找器同样直接打开 `tool/ore-finder.html`。

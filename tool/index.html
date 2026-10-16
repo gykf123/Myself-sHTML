@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FeSui 的工具箱</title>
+<meta name="description" content="FeSui 的实用小工具集合：基岩版矿石分布预测等。">
+<style>
+  :root{
+    --底:#0d1117; --面板:#161b22; --面板2:#1c2330; --边线:#2a3441;
+    --文字:#e6edf3; --暗淡:#8b949e; --高亮:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--底);color:var(--文字);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    min-height:100vh;display:flex;flex-direction:column}
+  header{border-bottom:1px solid var(--边线);padding:12px 18px;display:flex;
+    align-items:center;gap:12px;flex-wrap:wrap;background:var(--面板)}
+  h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.3px}
+  .徽章{font-size:11px;padding:2px 8px;border-radius:10px;background:#21262d;
+    color:var(--暗淡);border:1px solid var(--边线)}
+  .返回主页{margin-right:auto;text-decoration:none;color:var(--高亮);font-size:13px;
+    font-weight:600;padding:4px 10px;border-radius:8px;border:1px solid var(--边线);
+    background:#21262d;transition:background .15s,color .15s}
+  .返回主页:hover{background:#2d333b;color:#fff}
+  main{flex:1;width:100%;max-width:960px;margin:0 auto;padding:36px 20px 48px}
+  .简介{color:var(--暗淡);font-size:13px;margin:0 0 22px}
+  .工具网格{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .工具卡{display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:12px;
+    background:var(--面板);border:1px solid var(--边线);text-decoration:none;color:inherit;
+    transition:transform .18s ease,border-color .18s,box-shadow .18s}
+  .工具卡:hover{transform:translateY(-3px);border-color:var(--高亮);
+    box-shadow:0 10px 28px -12px rgba(88,166,255,.35)}
+  .工具卡:active{transform:translateY(-1px)}
+  .图标{font-size:26px;line-height:1}
+  .名称{font-size:15px;font-weight:650}
+  .描述{font-size:12.5px;color:var(--暗淡);flex:1}
+  .前往{font-size:12.5px;font-weight:600;color:var(--高亮)}
+  .占位卡{display:flex;flex-direction:column;gap:6px;padding:18px;border-radius:12px;
+    border:1px dashed var(--边线);color:var(--暗淡);font-size:13px}
+  .占位卡 .图标{opacity:.5}
+  footer{border-top:1px solid var(--边线);padding:14px 18px;text-align:center;
+    color:var(--暗淡);font-size:12px}
+  @media (max-width:520px){
+    main{padding:24px 14px 36px}
+    .工具网格{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .工具卡{transition:none}
+    .工具卡:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <a class="返回主页" href="../index.html">← FeSui 主页</a>
+  <h1>🧰 工具箱</h1>
+  <span class="徽章" id="工具数">1 个工具</span>
+</header>
+<main>
+  <p class="简介">这里放着一些自包含的小工具——无需联网、无需服务端，打开就能用。</p>
+  <div class="工具网格">
+    <a class="工具卡" href="./ore-finder.html">
+      <span class="图标" aria-hidden="true">⛏️</span>
+      <span class="名称">矿石查找器</span>
+      <span class="描述">基岩版 Minecraft 矿石分布预测：输入种子号，可视化各高度层的矿物概率。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <div class="占位卡" aria-hidden="true">
+      <span class="图标">🛠️</span>
+      <span>更多工具酝酿中…</span>
+      <span style="font-size:12px">有想法？去留言墙告诉我。</span>
+    </div>
+  </div>
+</main>
+<footer>© 2026 FeSui · 不执拗的同学 · <a href="../index.html" style="color:var(--高亮)">返回主页</a></footer>
+</body>
+</html>

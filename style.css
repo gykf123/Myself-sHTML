@@ -192,6 +192,9 @@ html.theme-glass .sidebar {
 .view-title.swap { animation: titleSwap .3s var(--ease); }
 .view-sub.swap { animation: titleSwap .3s var(--ease) .04s; }
 @keyframes titleSwap { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+/* 切视图时 JS 会给标题程序聚焦（读屏播报用），去掉浏览器默认蓝色焦点环；
+   该元素 tabindex=-1 不参与 Tab 序列，对键盘导航无影响 */
+.view-title:focus { outline: none; }
 
 .view { animation: fadeUp .28s var(--ease) backwards; }
 .view[hidden] { display: none; }
@@ -527,6 +530,9 @@ html.theme-glass .sidebar {
 .sidebar.collapsed .auth-area .lbl { display: none; }
 .sidebar.collapsed .login-link,
 .sidebar.collapsed .auth-in { justify-content: center; padding: 9px 0; }
+/* 折叠窄条（60px）里横排放不下 ✅+退出，改竖排 */
+.sidebar.collapsed .auth-in { flex-direction: column; gap: 5px; padding: 9px 4px; }
+.sidebar.collapsed .auth-logout { margin-left: 0; font-size: 12px; }
 
 /* ---------- 留言墙 ---------- */
 .wall { padding: 20px; border-radius: var(--radius); }
