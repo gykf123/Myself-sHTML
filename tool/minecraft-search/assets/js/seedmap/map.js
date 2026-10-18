@@ -13,7 +13,9 @@ export const ZOOM_LEVELS = [1, 2, 4];               // 每像素方块数（缩�
 export class SeedMap {
   constructor(container, opts = {}) {
     this.el = container;
-    this.worker = new Worker('cubiomes-worker.js');
+    // worker 脚本与本文件同目录；按 import.meta.url 解析，
+    // 避免相对页面 URL（页面可能在 tools/ items/ 等任意深度）而 404
+    this.worker = new Worker(new URL('cubiomes-worker.js', import.meta.url));
     this.msgId = 0;
     this.pending = new Map();
     this.tiles = new Map();            // key → {canvas, ready}

@@ -3,7 +3,7 @@
    种子输入 / 版本与维度切换 / 地图尺寸 / 坐标跳转 / 扫描结果列表
    ========================================================================== */
 import { el, $, t, lang, toast, copyText, parseSeed, fmt } from '../core.js';
-import { SeedMap, ALL_STRUCTURES, STRUCTURE_META, ORES, STRUCTURE_GROUPS } from './map.js';
+import { SeedMap, ALL_STRUCTURES, STRUCTURE_META, ORES, STRUCTURE_GROUPS } from './map.js?v=20261018';
 
 export const VERSIONS = ['1.21.4', '1.21.3', '1.21', '1.20', '1.19.4', '1.19', '1.18', '1.17', '1.16'];
 export const DIMS = [

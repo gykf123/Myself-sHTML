@@ -37,7 +37,7 @@
 </main>
 <script type="module">
 import { boot, t, lang, el, $, toast } from '../assets/js/core.js';
-import { SeedMap, toolbar, rangePicker, prettyOre, ORES } from '../assets/js/seedmap/toolkit.js';
+import { SeedMap, toolbar, rangePicker, prettyOre, ORES } from '../assets/js/seedmap/toolkit.js?v=20261018';
 boot({ active: 'tools' });
 const zh = lang() === 'zh';
 $('#h1').textContent = zh ? '矿石查找器' : 'Ore Finder';
@@ -72,8 +72,11 @@ function applyOre() {
   const y = o.id === 'ancient_debris' ? 15 : (o.id === 'diamond' ? -59 : o.id === 'coal' ? 96 : 16);
   $('#yInput').value = y;
   $('#dimSel').value = dim;
-  map.init({ dimension: dim, y });
-  map.setY(y);
+  // init 会重置生成器并重放种子；await 保证顺序，避免瓦片请求跑到无种子状态
+  void (async () => {
+    await map.init({ dimension: dim, y });
+    map.setY(y);
+  })();
   map.setLegend([{ label: prettyOre(o.id, zh), color: o.color }]);
   $('#oreInfo').innerHTML = `<h2>${prettyOre(o.id, zh)}</h2>
     <div class="stat-grid">

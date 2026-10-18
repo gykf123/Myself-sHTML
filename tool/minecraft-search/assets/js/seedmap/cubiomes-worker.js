@@ -22,8 +22,10 @@
    ========================================================================== */
 
 const CORE_URL = {
-  vendor: '../../wasm/vendor/cubiomes.js',
-  oss: '../../wasm/oss/cubiomes.js',
+  // 本脚本位于 assets/js/seedmap/，importScripts 相对本脚本解析；
+  // 上三级（seedmap → js → assets → 子站根）到达站点根下的 wasm/
+  vendor: '../../../wasm/vendor/cubiomes.js',
+  oss: '../../../wasm/oss/cubiomes.js',
 };
 
 /* cubiomes 的 MCVersion 枚举 —— 由站内 JAVA_MC_VERSION_MAP 逆向而来 */
@@ -82,7 +84,9 @@ function initGen({ edition, version, dimension, largeBiomes }) {
   // 维度变体：下界 / 末地需要对应变体内核（vendor 构建内支持）
   call('init_generator', 'number', ['number', 'number'], [mc, flags]);
   STATE.mc = mc; STATE.dim = dim; STATE.flags = flags;
-  STATE.seed = null; STATE.edition = edition; STATE.version = version;
+  STATE.edition = edition; STATE.version = version;
+  // 注意：不清 STATE.seed。init_generator 会重置生成器（含种子），
+  // 因此 init 后若已有种子必须重新 applySeed 重放（见下方 init case）。
 }
 
 function applySeed(seed) {
@@ -150,6 +154,9 @@ self.onmessage = async ev => {
       case 'init': {
         await ensureModule(msg.core || 'vendor');
         initGen(msg);
+        // init_generator 重置了生成器种子：若此前已设置过种子，重新重放，
+        // 避免「先 setSeed 后 init」的竞态把种子丢掉（ore-finder 曾踩中）
+        if (STATE.seed !== null) applySeed(STATE.seed);
         post({ id, type: 'ready', core: STATE.core, mc: STATE.mc });
         break;
       }

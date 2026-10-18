@@ -224,6 +224,7 @@
         <tbody></tbody>
       </table>
       <div class="提示">点击任意一行，画面会跳到该矿点。</div>
+      <div class="提示" id="矿点详情" style="margin-top:8px">在地图上点击任意矿点查看详情。</div>
     </div>
 
     <div class="分区">
@@ -718,7 +719,8 @@ function 刷新(){
 
   绘制矿点表();
   更新挖掘统计();
-  document.getElementById("矿点详情").innerHTML = "在地图上点击任意矿点查看详情。";
+  const 详情 = document.getElementById("矿点详情");
+  if (详情) 详情.innerHTML = "在地图上点击任意矿点查看详情。";
   绘制高度图();
   绘制();
 }
@@ -752,7 +754,9 @@ function 更新矿点表(){ 绘制矿点表(); }
 function 显示矿点详情(点){
   const 规则 = 矿石规则表[状态.版本][状态.矿石];
   const 层名 = 点.y <= -40 ? "深板岩层" : 点.y < 0 ? "深层" : "浅层";
-  document.getElementById("矿点详情").innerHTML =
+  const 详情 = document.getElementById("矿点详情");
+  if (!详情) return;
+  详情.innerHTML =
     `<b>${规则.disp} · 精确坐标</b><br>
      X <b>${点.x}</b>　Y <b>${点.y}</b>　Z <b>${点.z}</b><br>
      所在区块：${点.区块X}, ${点.区块Z}<br>
@@ -877,8 +881,8 @@ window.addEventListener("mouseup", () => {
   if(状态.刚拖动过){ 状态.刚拖动过 = false; return; }   // 刚才是拖动，不是点选
   const 命中 = 拾取矿点(e.offsetX, e.offsetY);
   if(!命中){
-    document.getElementById("矿点详情").innerHTML =
-      "该处附近没有矿点。试试缩小或加大搜索半径。";
+    const 详情 = document.getElementById("矿点详情");
+    if (详情) 详情.innerHTML = "该处附近没有矿点。试试缩小或加大搜索半径。";
     return;
   }
   切换挖掘标记(命中);
