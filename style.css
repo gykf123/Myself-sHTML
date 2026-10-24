@@ -740,3 +740,16 @@ html.theme-glass .scroll-progress {
     transform: scale(.98);
   }
 }
+
+/* ---------- 全局动效减弱（尊重系统「减弱动态效果」设置） ----------
+   站内 50+ 处动画此前仅个别做了降级；此处统一收口：
+   液态光斑停止漂移，其余动画/过渡压到近乎瞬时，锚点滚动改即时。 */
+@media (prefers-reduced-motion: reduce) {
+  html.theme-glass::before { animation: none; }
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

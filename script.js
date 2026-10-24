@@ -450,14 +450,39 @@ async function submitWall(content) {
   if (btn) btn.disabled = true;
   if (msg) msg.textContent = '发布中…';
   const nick = ($('#wallNick').value.trim()) || '匿名访客';
-  // 登录态留言关联 user_id（guestbook.user_id），个人中心「我的留言」据此汇总
-  const payload = parseJwt(getToken());
-  const row = { content, nickname: nick };
-  if (payload && payload.sub) row.user_id = payload.sub;
-  const { ok, status } = await supabaseReq(
-    `/rest/v1/${CONFIG.supabase.table}`,
-    { method: 'POST', body: JSON.stringify(row) });
-  if (msg) msg.textContent = ok ? '已发布，感谢留言！' : ('发布失败（' + (status || '网络错误') + '），请稍后再试。');
+  // 安全通道：Edge Function wall-post（验 JWT + user_id 服务端提取 + 限流 + 敏感词），
+  // 不再允许前端 anon 直插 guestbook。需部署 supabase/functions/wall-post。
+  const token = getToken();
+  if (!token) {
+    // 登录态过期（例如 7 天有效期已过）：刷新门禁引导重新登录
+    if (msg) msg.textContent = '登录已过期，请重新登录后再留言。';
+    if (btn) btn.disabled = false;
+    renderWallComposer();
+    return;
+  }
+  let ok = false, hint = '';
+  try {
+    const res = await fetch(CONFIG.supabase.url + '/functions/v1/wall-post', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': CONFIG.supabase.anonKey,
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ content, nickname: nick })
+    });
+    const data = await res.json().catch(() => null);
+    ok = res.ok && !!(data && data.success);
+    if (!ok) hint = (data && data.error) || ('服务端返回 ' + res.status);
+    // 401：登录态失效，引导重新登录
+    if (res.status === 401) {
+      try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
+      renderAuth(); renderWallComposer();
+    }
+  } catch (e) {
+    hint = '网络请求失败，请检查网络后重试';
+  }
+  if (msg) msg.textContent = ok ? '已发布，感谢留言！' : ('发布失败：' + hint);
   if (btn) btn.disabled = false;
   if (ok) {
     const c = $('#wallContent'); if (c) c.value = '';
