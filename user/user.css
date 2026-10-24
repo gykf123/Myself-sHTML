@@ -333,3 +333,53 @@
   z-index: 99;
 }
 .user-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- QQ 绑定码弹窗 ---------- */
+.qq-modal-mask {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(10, 12, 24, .55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: qqMaskIn .2s var(--ease);
+}
+@keyframes qqMaskIn { from { opacity: 0; } to { opacity: 1; } }
+.qq-modal {
+  width: 100%; max-width: 360px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  padding: 26px 24px 22px;
+  text-align: center;
+  animation: qqModalIn .25s var(--ease);
+}
+@keyframes qqModalIn { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+.qq-modal h3 { margin: 0 0 16px; font-size: 17px; color: var(--text); }
+.qq-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 34px; font-weight: 700; letter-spacing: .18em;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 14px 10px;
+  user-select: all;
+  -webkit-user-select: all;
+}
+.qq-code.expired { color: var(--text-dim); text-decoration: line-through; }
+.qq-modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
+.qq-code-timer { margin: 14px 0 0; font-size: 13px; color: var(--text-dim); }
+.qq-code-timer b { color: var(--text); font-variant-numeric: tabular-nums; }
+.qq-code-tip {
+  margin: 10px 0 0; font-size: 12px; line-height: 1.7;
+  color: var(--text-dim);
+  border-top: 1px dashed var(--border);
+  padding-top: 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qq-modal-mask, .qq-modal { animation: none; }
+}

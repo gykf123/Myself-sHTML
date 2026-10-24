@@ -319,22 +319,28 @@ async function loadAccountDetail(uid) {
   renderBindCard(row);
 }
 
-/* ---------- 账号绑定卡（GitHub + QQ） ---------- */
+/* ---------- 账号绑定卡（GitHub + QQ，两区解耦） ---------- */
+/* 说明：GitHub 关联依赖 Edge Function account（含 secret 交换）；QQ 绑定不依赖它——
+   QQ 号保存走 PATCH REST（RLS 兜底只能改自己行），绑定码走 qq-bind 函数（已部署）。
+   所以 account 未上线时，QQ 区照常可用，只有 GitHub 区显示暂不可用。 */
 function renderBindCard(row) {
   const card = $('#bindCard'), box = $('#bindBox');
   if (!card || !box) return;
   card.hidden = false;
 
-  // 降级模式：account 函数未部署（row 来自 anon 直读，不含绑定列）——明确提示，不渲染假绑定态
-  if (!row || !('github_id' in row)) {
-    box.innerHTML = '<div class="mywall-empty">账号绑定服务尚未部署（Edge Function <b>account</b> 未上线），<br>GitHub / QQ 关联暂不可用，基础资料不受影响。</div>';
-    return;
-  }
-
+  // account 函数是否可用（row 来自 account profile 时含 github_id 字段；降级直读则不含）
+  const accountReady = !!(row && 'github_id' in row);
   const ghLinked = !!(row && row.github_id);
-  const qq = row && row.qq ? String(row.qq) : '';
+  const qq = row && ('qq' in row) && row.qq ? String(row.qq) : '';
 
-  const ghRow = ghLinked
+  const ghRow = !accountReady
+    ? '<div class="bind-row">' +
+        '<div class="bind-info">' +
+          '<span class="bind-avatar bind-avatar-fallback" aria-hidden="true">GH</span>' +
+          '<div class="bind-text"><b>GitHub</b><span class="dim">关联服务暂未部署（Edge Function account 未上线），QQ 绑定不受影响</span></div>' +
+        '</div>' +
+      '</div>'
+    : ghLinked
     ? '<div class="bind-row">' +
         '<div class="bind-info">' +
           (row.github_avatar_url
@@ -355,20 +361,21 @@ function renderBindCard(row) {
       '</div>';
 
   const qqRow =
-    '<form class="bind-row bind-qq" id="qqForm">' +
+    '<div class="bind-row bind-qq">' +
       '<div class="bind-info">' +
         '<span class="bind-avatar bind-avatar-fallback" aria-hidden="true">Q</span>' +
-        '<div class="bind-text"><b>QQ</b><span class="dim">' + (qq ? '已绑定 ' + escapeHtml(qq) : '未绑定') + '</span></div>' +
+        '<div class="bind-text"><b>QQ</b><span class="dim" id="qqState">' + (qq ? '已绑定 ' + escapeHtml(qq) : '未绑定') + '</span></div>' +
       '</div>' +
       '<div class="bind-edit">' +
         '<input id="qqInput" class="bind-input" type="text" inputmode="numeric" maxlength="12" placeholder="' + (qq ? '更换 QQ 号' : '输入 QQ 号') + '" />' +
-        '<button class="act-btn small" id="qqSave" type="submit">保存</button>' +
+        '<button class="act-btn small" id="qqSave" type="button">保存</button>' +
+        '<button class="act-btn small ghost" id="qqCodeBtn" type="button">生成 QQ 绑定码</button>' +
       '</div>' +
-    '</form>';
+    '</div>';
 
   box.innerHTML =
     '<div class="bind-list">' + ghRow + qqRow + '</div>' +
-    '<p class="bind-tip">GitHub 关联使用官方 OAuth 授权，本站只读取你的公开资料（ID / 登录名 / 头像），不会获取任何仓库权限。</p>';
+    '<p class="bind-tip">QQ 绑定流程：填好 QQ 号保存 → 点「生成 QQ 绑定码」→ 把 8 位码发给 QQ 机器人（/绑定 &lt;绑定码&gt;），两边号码一致即绑定成功。GitHub 关联使用官方 OAuth 授权，本站只读取你的公开资料（ID / 登录名 / 头像），不会获取任何仓库权限。</p>';
 
   const ghLink = $('#ghLink');
   if (ghLink) ghLink.addEventListener('click', linkGithub);
@@ -388,31 +395,166 @@ function renderBindCard(row) {
       ghUnlink.textContent = '解除绑定';
     }
   });
-  const qqForm = $('#qqForm');
-  if (qqForm) qqForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const input = $('#qqInput'), btn = $('#qqSave');
-    const qqVal = input.value.trim();
-    if (qqVal && !/^\d{5,12}$/.test(qqVal)) { showToast('QQ 号格式不正确（5-12 位数字）'); return; }
-    btn.disabled = true;
-    btn.textContent = '保存中…';
-    const { ok, data } = await accountCall('update-profile', { qq: qqVal });
+
+  // QQ 保存：PATCH 直连（RLS 限制只能改自己行的 qq 列）
+  const qqSave = $('#qqSave');
+  if (qqSave) qqSave.addEventListener('click', saveQQ);
+  // 生成绑定码：qq-bind 函数 action=create
+  const qqCodeBtn = $('#qqCodeBtn');
+  if (qqCodeBtn) qqCodeBtn.addEventListener('click', genQQCode);
+
+  // 降级路径的 row 不含 qq 列（单独查一次，失败不影响其他展示）
+  if (row && !('qq' in row)) {
+    (async () => {
+      try {
+        const payload = parseJwt(getToken());
+        if (!payload || !payload.sub) return;
+        const { ok, data } = await sbGet('/rest/v1/users?select=qq&id=eq.' + encodeURIComponent(payload.sub) + '&limit=1');
+        if (ok && Array.isArray(data) && data.length && data[0].qq) updateQQDisplay(String(data[0].qq));
+      } catch (e) {}
+    })();
+  }
+}
+
+/* 刷新 QQ 行文案与输入框 placeholder */
+function updateQQDisplay(qqVal) {
+  const state = $('#qqState'), input = $('#qqInput');
+  if (state) state.textContent = qqVal ? '已绑定 ' + qqVal : '未绑定';
+  if (input) input.placeholder = qqVal ? '更换 QQ 号' : '输入 QQ 号';
+}
+
+/* 保存 QQ 号：PATCH users?id=eq.{JWT.sub}（uid 只信 JWT，不信任何前端自造值） */
+async function saveQQ() {
+  const input = $('#qqInput'), btn = $('#qqSave');
+  if (!input || !btn) return;
+  const qqVal = input.value.trim();
+  if (qqVal && !/^[0-9]{5,12}$/.test(qqVal)) { showToast('QQ 号格式不正确（5-12 位纯数字）'); return; }
+  const payload = parseJwt(getToken());
+  if (!payload || !payload.sub) { handleAuthLost('登录态异常，请重新登录'); return; }
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/users?id=eq.' + encodeURIComponent(payload.sub), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': ANON_KEY,
+        'Authorization': 'Bearer ' + getToken(),
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ qq: qqVal || null })
+    });
+    if (res.status === 401) { handleAuthLost('登录已过期，请重新登录'); return; }
+    if (res.status === 204) {
+      showToast(qqVal ? 'QQ 已更新' : 'QQ 已清除');
+      updateQQDisplay(qqVal);
+      input.value = '';
+      return;
+    }
+    const data = await res.json().catch(() => null);
+    if (data && data.code === '23514') { showToast('QQ 号格式不正确（5-12 位纯数字）'); return; }
+    showToast((data && data.message) || '保存失败，请稍后再试');
+  } catch (e) {
+    showToast('网络异常，请稍后再试');
+  } finally {
     btn.disabled = false;
     btn.textContent = '保存';
-    if (ok && data && data.success) {
-      showToast(qqVal ? 'QQ 已更新' : 'QQ 已清除');
-      const fresh = await fetchProfile();
-      if (fresh) {
-        renderBindCard(fresh);
-        const bio = document.getElementById('bioText');
-        if (bio && (fresh.bio || fresh.reason)) bio.textContent = fresh.bio || fresh.reason;
-      } else {
-        showToast('保存成功，但资料刷新失败，请手动刷新页面');
-      }
-    } else {
-      showToast((data && data.error) || '保存失败，请稍后再试');
+  }
+}
+
+/* 生成 QQ 绑定码：POST functions/v1/qq-bind {action:'create'} → 8 位码 + 10 分钟有效期 */
+async function genQQCode() {
+  const btn = $('#qqCodeBtn');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = '生成中…';
+  try {
+    const res = await fetch(FUNCTIONS_BASE + '/qq-bind', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': ANON_KEY,
+        'Authorization': 'Bearer ' + getToken()
+      },
+      body: JSON.stringify({ action: 'create' })
+    });
+    if (res.status === 401) {
+      const data = await res.json().catch(() => null);
+      handleAuthLost((data && data.msg) || '登录已过期，请重新登录');
+      return;
     }
+    const data = await res.json().catch(() => null);
+    if (res.ok && data && data.ok && data.code) {
+      openQQCodeModal(String(data.code), Number(data.expires_in) || 600);
+    } else {
+      showToast((data && data.msg) || '生成失败，请稍后再试');
+    }
+  } catch (e) {
+    showToast('网络异常，请稍后再试');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '生成 QQ 绑定码';
+  }
+}
+
+/* ---------- QQ 绑定码弹窗（8 位码 + 倒计时 + 一键复制） ---------- */
+let qqCodeTimer = null;
+function closeQQCodeModal() {
+  if (qqCodeTimer) { clearInterval(qqCodeTimer); qqCodeTimer = null; }
+  const m = $('#qqCodeModal');
+  if (m) m.remove();
+}
+function openQQCodeModal(code, expiresIn) {
+  closeQQCodeModal();
+  const wrap = document.createElement('div');
+  wrap.className = 'qq-modal-mask';
+  wrap.id = 'qqCodeModal';
+  wrap.innerHTML =
+    '<div class="qq-modal" role="dialog" aria-modal="true" aria-label="QQ 绑定码">' +
+      '<h3>QQ 绑定码</h3>' +
+      '<div class="qq-code" id="qqCodeText">' + escapeHtml(code) + '</div>' +
+      '<div class="qq-modal-actions">' +
+        '<button class="act-btn small primary" id="qqCodeCopy" type="button">复制绑定码</button>' +
+      '</div>' +
+      '<p class="qq-code-timer">有效期倒计时 <b id="qqCodeTimer">--:--</b></p>' +
+      '<p class="qq-code-tip">把这个 8 位绑定码发给 QQ 机器人（/绑定 &lt;绑定码&gt;），两边 QQ 号一致即绑定成功。</p>' +
+      '<div class="qq-modal-actions">' +
+        '<button class="act-btn small" id="qqCodeClose" type="button">关闭</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(wrap);
+
+  $('#qqCodeCopy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(code); showToast('已复制到剪贴板'); }
+    catch (e) { showToast('复制失败，请手动选择复制'); }
   });
+  $('#qqCodeClose').addEventListener('click', closeQQCodeModal);
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) closeQQCodeModal(); });
+
+  const deadline = Date.now() + expiresIn * 1000;
+  const tick = () => {
+    const el = $('#qqCodeTimer');
+    if (!el) { if (qqCodeTimer) { clearInterval(qqCodeTimer); qqCodeTimer = null; } return; }
+    const left = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+    const mm = String(Math.floor(left / 60)).padStart(2, '0');
+    const ss = String(left % 60).padStart(2, '0');
+    el.textContent = mm + ':' + ss;
+    if (left <= 0) {
+      if (qqCodeTimer) { clearInterval(qqCodeTimer); qqCodeTimer = null; }
+      const codeEl = $('#qqCodeText');
+      if (codeEl) { codeEl.textContent = '已过期'; codeEl.classList.add('expired'); }
+      showToast('绑定码已过期，请重新生成');
+    }
+  };
+  tick();
+  qqCodeTimer = setInterval(tick, 1000);
+}
+
+/* 登录态失效统一处理：清 token + 回未登录引导态 */
+function handleAuthLost(msg) {
+  clearToken();
+  if (msg) showToast(msg);
+  renderGuide(false);
 }
 
 async function fetchProfile() {
