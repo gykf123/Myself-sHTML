@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bot 唤醒台 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="FeSui Bot 唤醒台：手动唤醒托管于 orkestr 的 QQ 机器人，支持自动保活与状态检测" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261024b" />
+  <link rel="stylesheet" href="../user/user.css?v=20261024b" />
+  <link rel="stylesheet" href="./reopenai.css?v=20261024b" />
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../user/">个人中心</a>
+        <a href="./" class="active" aria-current="page">Bot 唤醒台</a>
+      </nav>
+    </header>
+
+    <main class="user-main">
+      <!-- 页头 -->
+      <section class="user-card rw-head">
+        <h1>🤖 FeSui Bot 唤醒台</h1>
+        <p>机器人托管在 orkestr（EU 免费层），空闲会自动休眠。手动点一下激活，或开启自动保活（定时 POST 唤醒，对抗空闲休眠）。</p>
+      </section>
+
+      <!-- 唤醒与检测 -->
+      <section class="user-card">
+        <h2><span class="card-ico" aria-hidden="true">⚡</span>唤醒与检测</h2>
+        <label class="rw-label" for="url">机器人 URL（orkestr 地址）</label>
+        <input id="url" class="rw-input" type="text" value="https://fesui-qqbot.orkestr.run" placeholder="https://xxx.orkestr.run" spellcheck="false" />
+        <div class="rw-actions">
+          <button id="wake" class="act-btn primary" type="button">手动激活</button>
+          <button id="check" class="act-btn" type="button">检测状态</button>
+        </div>
+        <div class="rw-status-row"><span id="status" class="rw-status"></span></div>
+      </section>
+
+      <!-- 自动保活 -->
+      <section class="user-card">
+        <h2><span class="card-ico" aria-hidden="true">🔁</span>自动保活</h2>
+        <div class="rw-auto-row">
+          <label class="rw-check">
+            <input type="checkbox" id="auto" /> <span>开启自动保活</span>
+          </label>
+          <label class="rw-interval">
+            <span>间隔（秒）</span>
+            <input id="interval" class="rw-input rw-input-num" type="number" value="300" min="10" />
+          </label>
+        </div>
+        <p class="rw-tip">开启后页面需保持打开。本页由 GitHub Pages 永久托管；关掉页面也不怕，后台还有 GitHub Actions 定时保活兜底。</p>
+      </section>
+
+      <!-- 日志 -->
+      <section class="user-card">
+        <h2><span class="card-ico" aria-hidden="true">📜</span>运行日志</h2>
+        <div id="log" class="rw-log"></div>
+      </section>
+    </main>
+
+    <footer class="user-foot">
+      <span>© <span id="footYear"></span> FeSui</span>
+      <span class="user-foot-sep">·</span>
+      <a href="../">返回主页</a>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      // 主题跟随主站（localStorage.theme → html.theme-glass）
+      try { document.documentElement.classList.toggle('theme-glass', (localStorage.getItem('theme') || 'glass') === 'glass'); } catch (e) {}
+      var y = document.getElementById('footYear');
+      if (y) y.textContent = new Date().getFullYear();
+
+      var $ = function (s) { return document.querySelector(s); };
+      var log = function (m) {
+        var d = document.createElement('div');
+        d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + m;
+        $('#log').prepend(d);
+      };
+
+      function botUrl() {
+        return ($('#url').value || '').trim().replace(/\/+$/, '');
+      }
+
+      async function ping() {
+        var u = botUrl();
+        if (!u) { log('请先填写机器人 URL'); return false; }
+        try {
+          // no-cors：请求会真正到达 orkestr 服务（刷新其休眠计时），但拿不到响应体，足够保活
+          await fetch(u, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wake: true, t: Date.now() })
+          });
+          log('已 POST → ' + u);
+          return true;
+        } catch (e) {
+          log('POST 失败：' + e);
+          return false;
+        }
+      }
+
+      async function check() {
+        var u = botUrl();
+        if (!u) { log('请先填写机器人 URL'); return; }
+        $('#status').textContent = '检测中…';
+        try {
+          var r = await fetch(u, { cache: 'no-store' });
+          var j = await r.json().catch(function () { return null; });
+          if (r.ok && j && j.status === 'ok') {
+            $('#status').innerHTML = '<span class="rw-ok">● 在线</span>（HTTP 200, status=ok）';
+            log('状态：在线');
+          } else {
+            $('#status').textContent = '异常 HTTP ' + r.status;
+            log('状态异常：HTTP ' + r.status);
+          }
+        } catch (e) {
+          $('#status').textContent = '无响应（可能休眠中，点“手动激活”唤醒）';
+          log('检测失败：' + e);
+        }
+      }
+
+      $('#wake').onclick = ping;
+      $('#check').onclick = check;
+
+      var timer = null;
+      $('#auto').onchange = function (e) {
+        if (e.target.checked) {
+          var sec = Math.max(10, parseInt($('#interval').value, 10) || 300);
+          timer = setInterval(ping, sec * 1000);
+          log('自动保活已开启，每 ' + sec + ' 秒一次');
+          ping();
+        } else {
+          clearInterval(timer); timer = null;
+          log('自动保活已关闭');
+        }
+      };
+
+      log('就绪。机器人地址已预填，可直接点“手动激活”或“检测状态”。');
+    })();
+  </script>
+</body>
+</html>

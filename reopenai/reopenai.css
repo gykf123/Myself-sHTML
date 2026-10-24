@@ -1,0 +1,60 @@
+/* ============================================================
+   Bot 唤醒台（reopenai/）独立样式
+   骨架与令牌全部继承自主站 style.css（液态玻璃 / 标准 / 深浅色），
+   此处只放唤醒台特有的增量：输入框、状态行、日志区、自动保活行。
+   ============================================================ */
+
+/* ---------- 页头 ---------- */
+.rw-head h1 { margin: 0 0 8px; font-size: 21px; color: var(--text); }
+.rw-head p { margin: 0; font-size: 14px; color: var(--text-dim); line-height: 1.8; }
+
+/* ---------- 输入框 ---------- */
+.rw-label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+.rw-input {
+  width: 100%; padding: 11px 14px; border-radius: 12px;
+  font-size: 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text); outline: none;
+  transition: border-color .2s, background .2s;
+}
+.rw-input:focus { border-color: var(--accent); background: var(--surface); }
+.rw-input::placeholder { color: var(--text-dim); opacity: .7; }
+.rw-input-num { width: 90px; font-family: inherit; text-align: center; padding: 8px 10px; }
+
+/* ---------- 动作区 ---------- */
+.rw-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.rw-actions .act-btn { min-width: 120px; justify-content: center; }
+
+/* ---------- 状态行 ---------- */
+.rw-status-row { margin-top: 14px; min-height: 20px; }
+.rw-status { font-size: 13px; color: var(--text-dim); }
+.rw-ok { color: #37c871; font-weight: 700; }
+
+/* ---------- 自动保活行 ---------- */
+.rw-auto-row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.rw-check {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 14px; color: var(--text); cursor: pointer; user-select: none;
+}
+.rw-check input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.rw-interval { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); }
+.rw-tip { font-size: 12px; color: var(--text-dim); margin-top: 12px; line-height: 1.8; }
+
+/* ---------- 日志区 ---------- */
+.rw-log {
+  margin-top: 4px;
+  font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  max-height: 220px; overflow-y: auto;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  line-height: 1.7;
+}
+.rw-log div { padding: 2px 0; color: var(--text-dim); }
+.rw-log div:first-child { color: var(--text); }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 560px) {
+  .rw-actions .act-btn { flex: 1; }
+  .rw-auto-row { gap: 12px; }
+}

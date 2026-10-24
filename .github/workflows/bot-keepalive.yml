@@ -1,0 +1,28 @@
+name: Bot 保活
+
+# 唤醒台 reopenai/index.html 的「后台兜底」：orkestr 免费层空闲约 15-30 分钟
+# 会休眠，这里每 10 分钟 POST 一次刷新休眠计时。网页端的「自动保活」
+# 只是锦上添花（页面关闭即停），真正扛事的是这个 workflow。
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # UTC 每 10 分钟；GitHub 偶尔会延迟几分钟，无碍
+  workflow_dispatch:          # 允许在 Actions 页面手动触发（立即唤醒）
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST 唤醒 fesui-qqbot
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"wake":true,"source":"gh-actions-cron","t":"'"$(date +%s)"'"}' \
+            https://fesui-qqbot.orkestr.run || echo "000")
+          echo "orkestr 响应: $code"
+          # no-cors 语义下拿不到响应体，只要请求到达即刷新休眠计时；
+          # 失败不挂任务（出口网络波动常见），下一次 cron 会补上
+          if [ "$code" = "000" ]; then
+            echo "::warning::唤醒请求未送达（网络波动），等下一轮 cron"
+          fi
