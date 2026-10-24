@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitHub 关联 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261024" />
+  <link rel="stylesheet" href="./user.css?v=20261024" />
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="./">个人中心</a>
+      </nav>
+    </header>
+
+    <main class="user-main">
+      <section class="user-card guide-card" id="resultCard">
+        <div class="guide-ico" aria-hidden="true">🔗</div>
+        <h1 id="resultTitle">正在关联 GitHub…</h1>
+        <p id="resultText">授权码交换中，请稍候。</p>
+        <div class="guide-actions" id="resultActions" hidden>
+          <a class="act-btn primary" href="./">返回个人中心</a>
+          <a class="act-btn" href="../">返回主页</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (async function () {
+      // 主题跟随主站
+      try { document.documentElement.classList.toggle('theme-glass', (localStorage.getItem('theme') || 'glass') === 'glass'); } catch (e) {}
+
+      const SUPABASE_URL = 'https://yowwyasttkywyqgseuqz.supabase.co';
+      const ANON_KEY = 'sb_publishable_j4rpi2ejPTMGxo79uaaX3g_kQYrinS4';
+      const title = document.getElementById('resultTitle');
+      const text = document.getElementById('resultText');
+      const ico = document.querySelector('.guide-ico');
+      const actions = document.getElementById('resultActions');
+
+      function fail(msg) {
+        ico.textContent = '😵';
+        title.textContent = '关联失败';
+        text.textContent = msg;
+        actions.hidden = false;
+      }
+      function ok(login) {
+        ico.textContent = '🎉';
+        title.textContent = '关联成功';
+        text.textContent = login ? ('已绑定 GitHub 账号 @' + login + '，正在返回个人中心…') : '已绑定 GitHub 账号，正在返回个人中心…';
+        setTimeout(() => { location.href = './?linked=github'; }, 1600);
+      }
+
+      const qs = new URLSearchParams(location.search);
+      // GitHub 侧错误（用户拒绝授权等）：?error=access_denied
+      if (qs.get('error')) {
+        fail(qs.get('error') === 'access_denied' ? '你取消了 GitHub 授权，可以重新再试。' : 'GitHub 返回错误：' + qs.get('error'));
+        return;
+      }
+      const code = qs.get('code');
+      const state = qs.get('state');
+      const savedState = sessionStorage.getItem('gh_oauth_state');
+      if (!code || !state) { fail('回调参数不完整（缺少 code / state）。'); return; }
+      if (!savedState || savedState !== state) {
+        fail('安全校验未通过（state 不匹配）。这通常是跨站请求伪造防护生效，请从个人中心重新发起关联。');
+        return;
+      }
+      let token = '';
+      try { token = localStorage.getItem('fe_token') || ''; } catch (e) {}
+      if (!token) { fail('本地登录态缺失，请先登录再关联。'); return; }
+
+      try {
+        const r = await fetch(SUPABASE_URL + '/functions/v1/account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ action: 'callback', code })
+        });
+        const data = await r.json().catch(() => null);
+        sessionStorage.removeItem('gh_oauth_state');
+        if (r.ok && data && data.success) {
+          ok(data.github && data.github.login);
+        } else {
+          fail((data && data.error) || ('服务端返回 ' + r.status));
+        }
+      } catch (e) {
+        fail('网络请求失败，请稍后重试。');
+      }
+    })();
+  </script>
+</body>
+</html>
