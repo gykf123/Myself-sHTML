@@ -29,7 +29,7 @@
       <!-- 页头 -->
       <section class="user-card rw-head">
         <h1>🤖 FeSui Bot 唤醒台</h1>
-        <p>机器人托管在 orkestr（EU 免费层），空闲会自动休眠。手动点一下激活，或开启自动保活（定时 POST 唤醒，对抗空闲休眠）。</p>
+        <p>机器人托管在 orkestr（EU 免费层），空闲会自动休眠。手动点一下激活，或开启自动保活（定时访问唤醒，对抗空闲休眠）。</p>
       </section>
 
       <!-- 唤醒与检测 -->
@@ -95,17 +95,13 @@
         var u = botUrl();
         if (!u) { log('请先填写机器人 URL'); return false; }
         try {
-          // no-cors：请求会真正到达 orkestr 服务（刷新其休眠计时），但拿不到响应体，足够保活
-          await fetch(u, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wake: true, t: Date.now() })
-          });
-          log('已 POST → ' + u);
+          // no-cors GET：请求会真正到达 orkestr 服务（刷新其休眠计时），但拿不到响应体，足够保活。
+          // 注意：实测该服务仅开放 GET，POST 会返 405，故唤醒必须用 GET。
+          await fetch(u, { mode: 'no-cors', cache: 'no-store' });
+          log('已发送唤醒请求 GET → ' + u);
           return true;
         } catch (e) {
-          log('POST 失败：' + e);
+          log('唤醒请求失败：' + e);
           return false;
         }
       }
@@ -114,19 +110,30 @@
         var u = botUrl();
         if (!u) { log('请先填写机器人 URL'); return; }
         $('#status').textContent = '检测中…';
+        // 第一级：标准 CORS 请求——若服务端开放 CORS，可读到语义状态（status=ok）
         try {
           var r = await fetch(u, { cache: 'no-store' });
           var j = await r.json().catch(function () { return null; });
           if (r.ok && j && j.status === 'ok') {
             $('#status').innerHTML = '<span class="rw-ok">● 在线</span>（HTTP 200, status=ok）';
             log('状态：在线');
-          } else {
-            $('#status').textContent = '异常 HTTP ' + r.status;
-            log('状态异常：HTTP ' + r.status);
+            return;
           }
+          $('#status').textContent = '异常 HTTP ' + r.status;
+          log('状态异常：HTTP ' + r.status);
+          return;
         } catch (e) {
+          // 被浏览器 CORS 策略拦截（orkestr 未返回 CORS 头）或网络错误——降级到第二级
+          log('语义检测不可用（CORS 拦截或网络错误），降级为连通性探测');
+        }
+        // 第二级：no-cors 连通性探测——opaque 响应，能 resolve 说明服务有响应（已唤醒），读不到状态码/响应体
+        try {
+          await fetch(u, { mode: 'no-cors', cache: 'no-store' });
+          $('#status').innerHTML = '<span class="rw-ok">● 可连通</span>（服务有响应；目标站未开放 CORS，无法读取详细状态）';
+          log('连通性：服务有响应（视为已唤醒）');
+        } catch (e2) {
           $('#status').textContent = '无响应（可能休眠中，点“手动激活”唤醒）';
-          log('检测失败：' + e);
+          log('连通性探测失败：' + e2);
         }
       }
 

@@ -1,28 +1,72 @@
 name: Bot 保活
 
-# 唤醒台 reopenai/index.html 的「后台兜底」：orkestr 免费层空闲约 15-30 分钟
-# 会休眠，这里每 10 分钟 POST 一次刷新休眠计时。网页端的「自动保活」
-# 只是锦上添花（页面关闭即停），真正扛事的是这个 workflow。
+# 唤醒台 reopenai/index.html 的「后台兜底」：orkestr 免费层长期不活动有被
+# 回收的风险，这里按「约 36 小时一次」的节奏 GET 唤醒。
+#
+# 实现说明：GitHub Actions 的 cron 是 POSIX 语法，写不了「每 36 小时」
+# （hour 字段最大 23，*/36 会被归一化成每天 0 点）。所以采用：
+#   · cron 每 6 小时跑一次做「检查哨」
+#   · 距上次成功唤醒不足 36 小时 → 跳过（no-op，不产生任何外发请求）
+#   · 满 36 小时 → GET 唤醒，并把时间戳 commit 回仓库，跨轮次持久化
+#   · workflow_dispatch 手动触发 → 立即强制唤醒（都手动点了就是想唤醒）
+#
+# 方法选择：orkestr 服务（uvicorn）实测仅开放 GET，POST 返 405——与页面
+# 「手动激活」保持一致用 GET，请求到达即刷新空闲休眠计时。
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # UTC 每 10 分钟；GitHub 偶尔会延迟几分钟，无碍
-  workflow_dispatch:          # 允许在 Actions 页面手动触发（立即唤醒）
+    - cron: "0 */6 * * *"   # UTC 每 6 小时的整点检查
+  workflow_dispatch:        # Actions 页面手动触发（立即唤醒）
+
+concurrency:
+  group: bot-keepalive
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
   wake:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: POST 唤醒 fesui-qqbot
+      - uses: actions/checkout@v4
+
+      - name: 门控判断（距上次 ≥36 小时才唤醒）
+        id: gate
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -X POST \
-            -H 'Content-Type: application/json' \
-            -d '{"wake":true,"source":"gh-actions-cron","t":"'"$(date +%s)"'"}' \
+          STATE=.keepalive-state
+          last=0
+          [ -f "$STATE" ] && last=$(tr -dc '0-9' < "$STATE" 2>/dev/null || echo 0)
+          now=$(date +%s)
+          age_h=$(( (now - ${last:-0}) / 3600 ))
+          echo "距上次唤醒 ${age_h} 小时"
+          if [ "$age_h" -ge 36 ]; then run=true; else run=false; fi
+          # 手动触发无视门控，立即唤醒
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then run=true; fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - name: GET 唤醒 fesui-qqbot
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
             https://fesui-qqbot.orkestr.run || echo "000")
           echo "orkestr 响应: $code"
-          # no-cors 语义下拿不到响应体，只要请求到达即刷新休眠计时；
-          # 失败不挂任务（出口网络波动常见），下一次 cron 会补上
           if [ "$code" = "000" ]; then
-            echo "::warning::唤醒请求未送达（网络波动），等下一轮 cron"
+            echo "::warning::唤醒请求未送达（网络波动），不记录时间戳，下轮重试"
+            exit 1
           fi
+          if [ "$code" != "200" ]; then
+            echo "::warning::服务可达但返回 $code（预期 200），仍视为已刷新计时"
+          fi
+
+      - name: 记录唤醒时间戳（回写仓库，跨轮次持久化）
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          date +%s > .keepalive-state
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .keepalive-state
+          git commit -m "chore: bot-keepalive $(date -u +%FT%TZ)" || echo "无变化可提交"
+          git pull --rebase origin main 2>/dev/null || true
+          git push || echo "::warning::时间戳推送失败（可能有并发提交），下轮重新计时"
