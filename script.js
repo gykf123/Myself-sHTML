@@ -277,14 +277,50 @@ function bindEgg() {
 const AUTH_KEY = 'fe_token';
 function getToken() { try { return localStorage.getItem(AUTH_KEY) || ''; } catch (e) { return ''; } }
 
+// 解析 JWT payload（不验签，仅读取账号快照；过期由 exp 字段判断）
+function parseJwt(token) {
+  try {
+    const parts = String(token).split('.');
+    if (parts.length !== 3) return null;
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const payload = JSON.parse(decodeURIComponent(escape(atob(b64))));
+    return (payload && typeof payload === 'object') ? payload : null;
+  } catch (e) { return null; }
+}
+
 // 解析登录回调 URL 中的 token（login 页跳回时携带 ?token=xxx）
 function consumeLoginReturn() {
   try {
-    const t = new URLSearchParams(location.search).get('token');
+    const qs = new URLSearchParams(location.search);
+    const t = qs.get('token');
     if (t) {
       localStorage.setItem(AUTH_KEY, t);
       const u = new URL(location.href); u.searchParams.delete('token');
       history.replaceState(null, '', u.pathname + u.search);
+    }
+    // login 页优先走一次性 ticket 换票（URL 上不落 JWT），此处负责 redeem 兑换
+    const ticket = qs.get('ticket');
+    if (ticket) {
+      const u = new URL(location.href); u.searchParams.delete('ticket');
+      history.replaceState(null, '', u.pathname + u.search);
+      redeemTicket(ticket);
+    }
+  } catch (e) {}
+}
+
+// 用一次性 ticket 兑换 JWT（对应 login 页 auth-exchange issue 的消费端）
+async function redeemTicket(ticket) {
+  try {
+    const r = await fetch(CONFIG.supabase.url + '/functions/v1/auth-exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.supabase.anonKey },
+      body: JSON.stringify({ action: 'redeem', ticket })
+    });
+    const data = await r.json().catch(() => null);
+    if (r.ok && data && data.token) {
+      try { localStorage.setItem(AUTH_KEY, data.token); } catch (e) {}
+      renderAuth(); renderWallComposer();
     }
   } catch (e) {}
 }
@@ -295,15 +331,17 @@ function loginHref() {
     encodeURIComponent(location.origin + '/') + '&redirect=' + encodeURIComponent(back);
 }
 
-// 侧栏登录状态区：未登录显示入口，已登录显示「已登录 + 退出」
+// 侧栏登录状态区：未登录显示入口，已登录显示「个人中心 + 退出」
 function renderAuth() {
   const box = $('#authArea');
   if (!box) return;
   if (getToken()) {
     box.innerHTML =
       '<div class="auth-in" title="已登录">' +
-        '<span class="ico" aria-hidden="true">✅</span>' +
-        '<span class="lbl">已登录</span>' +
+        '<a class="auth-profile" href="./user/" title="个人中心">' +
+          '<span class="ico" aria-hidden="true">🧑‍💻</span>' +
+          '<span class="lbl">个人中心</span>' +
+        '</a>' +
         '<button id="logoutBtn" class="auth-logout" type="button">退出</button>' +
       '</div>';
     const out = $('#logoutBtn');
@@ -412,9 +450,13 @@ async function submitWall(content) {
   if (btn) btn.disabled = true;
   if (msg) msg.textContent = '发布中…';
   const nick = ($('#wallNick').value.trim()) || '匿名访客';
+  // 登录态留言关联 user_id（guestbook.user_id），个人中心「我的留言」据此汇总
+  const payload = parseJwt(getToken());
+  const row = { content, nickname: nick };
+  if (payload && payload.sub) row.user_id = payload.sub;
   const { ok, status } = await supabaseReq(
     `/rest/v1/${CONFIG.supabase.table}`,
-    { method: 'POST', body: JSON.stringify({ content, nickname: nick }) });
+    { method: 'POST', body: JSON.stringify(row) });
   if (msg) msg.textContent = ok ? '已发布，感谢留言！' : ('发布失败（' + (status || '网络错误') + '），请稍后再试。');
   if (btn) btn.disabled = false;
   if (ok) {

@@ -560,6 +560,12 @@ html.theme-glass .sidebar {
 .auth-in .lbl { font-size: 14px; font-weight: 600; }
 .auth-logout { margin-left: auto; border: 0; background: transparent; color: var(--text-dim); cursor: pointer; font-size: 13px; text-decoration: underline; }
 .auth-logout:hover { color: var(--accent); }
+/* 已登录态的个人中心入口（./user/） */
+.auth-profile { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); border-radius: 8px; padding: 2px 6px; transition: background .2s; }
+.auth-profile:hover { background: var(--accent-soft); }
+.auth-profile .ico { font-size: 16px; }
+.auth-profile .lbl { font-size: 14px; font-weight: 600; }
+.sidebar.collapsed .auth-profile .lbl { display: none; }
 .sidebar.collapsed .auth-area .lbl { display: none; }
 .sidebar.collapsed .login-link,
 .sidebar.collapsed .auth-in { justify-content: center; padding: 9px 0; }

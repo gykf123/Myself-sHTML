@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>个人中心 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="FeSui 账号个人中心：资料、登录会话与我的留言" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261019" />
+  <link rel="stylesheet" href="./user.css?v=20261019" />
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../#wall">留言墙</a>
+        <a href="./" class="active" aria-current="page">个人中心</a>
+      </nav>
+    </header>
+
+    <main class="user-main" id="userMain" aria-live="polite">
+      <div class="user-loading">加载中…</div>
+    </main>
+
+    <footer class="user-foot">
+      <span>© <span id="footYear"></span> FeSui</span>
+      <span class="user-foot-sep">·</span>
+      <a href="../">返回主页</a>
+    </footer>
+  </div>
+
+  <script src="./user.js?v=20261019" defer></script>
+</body>
+</html>
