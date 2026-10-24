@@ -17,7 +17,7 @@ const AUTH_KEY = 'fe_token';
 
 // GitHub OAuth App 的 Client ID（公开信息，可安全内嵌于前端授权 URL）。
 // 部署 OAuth App 后把 Client ID 填到这里；留空时「关联 GitHub」按钮呈未配置态。
-const GH_CLIENT_ID = '';
+const GH_CLIENT_ID = 'Ov23liK00mp7JPFFJ8PX';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -300,7 +300,10 @@ async function loadAccountDetail(uid) {
   // （github_* / qq 列在 account-bind.sql 执行前不存在，带上会导致整笔查询 400）
   if (!row) {
     try {
-      const fields = 'id,username,nickname,role,status,created_at,avatar_url,bio,reason,active_value,last_login_date';
+      // 注意：不带 reason（线上库已对该列做 anon 列级收紧，带上整笔 401）、
+      // 不带 github_*（account-bind.sql 未执行时列不存在，带上整笔 400）；
+      // 函数上线后统一走 account 函数主路径，此降级仅为过渡。
+      const fields = 'id,username,nickname,role,status,created_at,avatar_url,bio,active_value,last_login_date';
       const { ok, data } = await sbGet('/rest/v1/users?select=' + fields + '&id=eq.' + encodeURIComponent(uid) + '&limit=1');
       if (ok && Array.isArray(data) && data.length) row = data[0];
     } catch (e) {}
