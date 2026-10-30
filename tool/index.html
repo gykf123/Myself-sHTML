@@ -41,6 +41,20 @@
   .占位卡 .图标{opacity:.5}
   footer{border-top:1px solid var(--边线);padding:14px 18px;text-align:center;
     color:var(--暗淡);font-size:12px}
+  .工具条{display:flex;flex-direction:column;gap:12px;margin-bottom:22px}
+  .搜索框{width:100%;padding:11px 14px;border-radius:10px;background:var(--面板);
+    border:1px solid var(--边线);color:var(--文字);font:inherit;font-size:14px;
+    transition:border-color .15s,box-shadow .15s}
+  .搜索框::placeholder{color:var(--暗淡);opacity:.8}
+  .搜索框:focus{outline:none;border-color:var(--高亮);
+    box-shadow:0 0 0 3px rgba(88,166,255,.18)}
+  .分类组{display:flex;gap:8px;flex-wrap:wrap}
+  .分类钮{font-size:13px;padding:6px 14px;border-radius:20px;cursor:pointer;
+    background:var(--面板);border:1px solid var(--边线);color:var(--暗淡);
+    transition:all .15s;user-select:none}
+  .分类钮:hover{color:var(--文字);border-color:var(--高亮)}
+  .分类钮.激活{background:var(--高亮);border-color:var(--高亮);color:#06121f;font-weight:600}
+  .空提示{grid-column:1/-1;text-align:center;color:var(--暗淡);font-size:13px;padding:28px 0}
   @media (max-width:520px){
     main{padding:24px 14px 36px}
     .工具网格{grid-template-columns:1fr}
@@ -59,6 +73,10 @@
 </header>
 <main>
   <p class="简介">这里放着一些自包含的小工具——无需联网、无需服务端，打开就能用。</p>
+  <div class="工具条">
+    <input id="搜索" class="搜索框" type="search" placeholder="搜索工具名称或描述…" aria-label="搜索工具" spellcheck="false" />
+    <div class="分类组" id="分类组" role="tablist" aria-label="工具分类"></div>
+  </div>
   <div class="工具网格">
     <a class="工具卡" href="./ore-finder.html">
       <span class="图标" aria-hidden="true">⛏️</span>
@@ -152,5 +170,64 @@
   </div>
 </main>
 <footer>© 2026 FeSui · 不执拗的同学 · <a href="../index.html" style="color:var(--高亮)">返回主页</a></footer>
+<script>
+(function(){
+  // 工具 → 分类映射（href → 分类键）
+  var CAT = {
+    './ore-finder.html':'mc', './minecraft-search/index.html':'mc',
+    './timestamp.html':'daily', './json.html':'dev', './password.html':'dev',
+    './base64.html':'dev', './text.html':'text', './color.html':'daily',
+    './convert.html':'daily', './cron.html':'dev', './regex.html':'dev',
+    './markdown.html':'text', './datediff.html':'daily', './hash.html':'dev'
+  };
+  var CATS = [['all','全部'],['mc','🎮 Minecraft'],['dev','🛠️ 开发'],['text','📝 文本'],['daily','📐 日常']];
+
+  var grid = document.querySelector('.工具网格');
+  var cards = Array.prototype.slice.call(grid.querySelectorAll('.工具卡'));
+  var 占位 = grid.querySelector('.占位卡');
+  var box = document.getElementById('搜索');
+  var group = document.getElementById('分类组');
+  var cur = 'all', kw = '';
+
+  // 标记每张卡的搜索词（名称+描述+图标）
+  cards.forEach(function(c){
+    c.dataset.cat = CAT[c.getAttribute('href')] || 'daily';
+    c.dataset.kw = c.textContent.replace(/\s+/g,' ').toLowerCase();
+  });
+
+  // 生成分类按钮
+  CATS.forEach(function(p){
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = '分类钮' + (p[0]==='all'?' 激活':'');
+    b.textContent = p[1]; b.dataset.cat = p[0];
+    b.setAttribute('role','tab');
+    b.onclick = function(){
+      cur = p[0];
+      Array.prototype.forEach.call(group.children, function(x){ x.classList.toggle('激活', x===b); });
+      apply();
+    };
+    group.appendChild(b);
+  });
+
+  function apply(){
+    var 空 = true;
+    cards.forEach(function(c){
+      var okCat = cur==='all' || c.dataset.cat===cur;
+      var okKw = !kw || c.dataset.kw.indexOf(kw) > -1;
+      var show = okCat && okKw;
+      c.style.display = show ? '' : 'none';
+      if (show) 空 = false;
+    });
+    if (占位) 占位.style.display = (cur==='all' && !kw) ? '' : 'none';
+    var tip = grid.querySelector('.空提示');
+    if (空 && (cur!=='all' || kw)){
+      if (!tip){ tip = document.createElement('div'); tip.className='空提示'; grid.appendChild(tip); }
+      tip.textContent = '没有匹配的工具，换个关键词或分类试试。';
+    } else if (tip){ tip.remove(); }
+  }
+
+  box.addEventListener('input', function(){ kw = box.value.trim().toLowerCase(); apply(); });
+})();
+</script>
 </body>
 </html>
