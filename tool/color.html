@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>颜色工具 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="HEX/RGB/HSL 颜色互转、取色器、调色板生成，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">🎨 颜色工具</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">输入 HEX / RGB / HSL 任一格式，实时互转；可用取色器选色。所有转换在本地完成。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🖌️</span>输入颜色</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="hexIn">HEX（如 #4f7cff 或 4f7cff）</label>
+        <input class="tk-input" id="hexIn" type="text" placeholder="#4f7cff" />
+      </div>
+      <div class="tk-col" style="flex:0 0 64px">
+        <label class="tk-label">取色器</label>
+        <input id="picker" type="color" value="#4f7cff" style="width:100%; height:38px; border:1px solid var(--border); border-radius:9px; background:var(--panel2); cursor:pointer; padding:2px;" />
+      </div>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <div class="tk-col">
+        <label class="tk-label" for="rgbIn">RGB（如 rgb(79,124,255)）</label>
+        <input class="tk-input" id="rgbIn" type="text" placeholder="rgb(79,124,255)" />
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="hslIn">HSL（如 hsl(220,100%,65%)）</label>
+        <input class="tk-input" id="hslIn" type="text" placeholder="hsl(220,100%,65%)" />
+      </div>
+    </div>
+    <div class="tk-result" id="status" style="margin-top:12px">—</div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🟦</span>预览</h2>
+    <div id="preview" style="height:120px; border-radius:10px; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; gap:40px; font-weight:700; font-size:20px;">
+      <span style="color:#000">黑字示例 Aa</span>
+      <span style="color:#fff">白字示例 Aa</span>
+    </div>
+    <p class="tk-help">上图展示在该背景上黑字 / 白字的可读性，便于判断前景色选择。</p>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🎯</span>调色板（点击复制 HEX）</h2>
+    <p class="tk-help">基于当前颜色生成相近色与互补色，点击色块即可复制其 HEX。</p>
+    <div class="tk-swatches" id="swatches"></div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+  function copyText(t){ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});} else {var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);} }
+
+  // ---- 解析 ----
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  function parseHex(s){
+    s = s.trim().replace(/^#/,"");
+    if (/^[0-9a-fA-F]{3}$/.test(s)){ s = s.split("").map(function(c){return c+c;}).join(""); }
+    if (!/^[0-9a-fA-F]{6}$/.test(s)) return null;
+    return { r:parseInt(s.slice(0,2),16), g:parseInt(s.slice(2,4),16), b:parseInt(s.slice(4,6),16) };
+  }
+  function parseRgb(s){
+    var m = s.match(/rgb\s*\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)/i);
+    if (!m) return null;
+    var r=+m[1],g=+m[2],b=+m[3];
+    if (r>255||g>255||b>255) return null;
+    return {r:r,g:g,b:b};
+  }
+  function parseHsl(s){
+    var m = s.match(/hsl\s*\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*\)/i);
+    if (!m) return null;
+    return hslToRgb(+m[1], +m[2], +m[3]);
+  }
+
+  // ---- 转换 ----
+  function toHex(rgb){ return "#"+[rgb.r,rgb.g,rgb.b].map(function(v){return clamp(Math.round(v),0,255).toString(16).padStart(2,"0");}).join(""); }
+  function toRgbStr(rgb){ return "rgb("+Math.round(rgb.r)+","+Math.round(rgb.g)+","+Math.round(rgb.b)+")"; }
+  function rgbToHsl(rgb){
+    var r=rgb.r/255, g=rgb.g/255, b=rgb.b/255;
+    var max=Math.max(r,g,b), min=Math.min(r,g,b);
+    var h,s,l=(max+min)/2;
+    if (max===min){ h=0; s=0; }
+    else {
+      var d=max-min;
+      s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      if (max===r) h=(g-b)/d + (g<b?6:0);
+      else if (max===g) h=(b-r)/d + 2;
+      else h=(r-g)/d + 4;
+      h/=6;
+    }
+    return { h:Math.round(h*360), s:Math.round(s*100), l:Math.round(l*100) };
+  }
+  function toHslStr(rgb){ var h=rgbToHsl(rgb); return "hsl("+h.h+","+h.s+"%,"+h.l+"%)"; }
+  function hslToRgb(h,s,l){
+    h=((h%360)+360)%360/360; s=clamp(s,0,100)/100; l=clamp(l,0,100)/100;
+    var r,g,b;
+    if (s===0){ r=g=b=l; }
+    else {
+      var hue2rgb=function(p,q,t){
+        if(t<0)t+=1; if(t>1)t-=1;
+        if(t<1/6)return p+(q-p)*6*t;
+        if(t<1/2)return q;
+        if(t<2/3)return p+(q-p)*(2/3-t)*6;
+        return p;
+      };
+      var q = l<0.5 ? l*(1+s) : l+s-l*s;
+      var p = 2*l-q;
+      r=hue2rgb(p,q,h+1/3); g=hue2rgb(p,q,h); b=hue2rgb(p,q,h-1/3);
+    }
+    return { r:Math.round(r*255), g:Math.round(g*255), b:Math.round(b*255) };
+  }
+
+  // ---- 状态 ----
+  var current = null;
+  function setStatus(ok, msg){ $("status").innerHTML = ok ? '<span class="tk-ok">✓ '+msg+'</span>' : '<span class="tk-err">✗ '+msg+'</span>'; }
+
+  function apply(rgb, source){
+    if (!rgb){ setStatus(false, "无法识别颜色格式，请检查输入"); return; }
+    current = rgb;
+    var hex = toHex(rgb);
+    if (source !== "hex") $("hexIn").value = hex;
+    if (source !== "rgb") $("rgbIn").value = toRgbStr(rgb);
+    if (source !== "hsl") $("hslIn").value = toHslStr(rgb);
+    $("picker").value = hex;
+    $("preview").style.background = hex;
+    setStatus(true, "已识别：" + hex + " / " + toRgbStr(rgb) + " / " + toHslStr(rgb));
+    buildPalette(rgb);
+  }
+
+  // ---- 调色板 ----
+  function buildPalette(rgb){
+    var hsl = rgbToHsl(rgb);
+    var list = [
+      {label:"原色", c:rgb},
+      {label:"变亮", c:hslToRgb(hsl.h, hsl.s, clamp(hsl.l+15,0,100))},
+      {label:"变暗", c:hslToRgb(hsl.h, hsl.s, clamp(hsl.l-15,0,100))},
+      {label:"更饱和", c:hslToRgb(hsl.h, clamp(hsl.s+20,0,100), hsl.l)},
+      {label:"降饱和", c:hslToRgb(hsl.h, clamp(hsl.s-20,0,100), hsl.l)},
+      {label:"互补色", c:hslToRgb(hsl.h+180, hsl.s, hsl.l)},
+      {label:"相邻 +30", c:hslToRgb(hsl.h+30, hsl.s, hsl.l)},
+      {label:"相邻 -30", c:hslToRgb(hsl.h-30, hsl.s, hsl.l)}
+    ];
+    var box = $("swatches"); box.innerHTML = "";
+    list.forEach(function(item){
+      var sw = document.createElement("div");
+      sw.className = "tk-swatch"; sw.title = item.label + " " + toHex(item.c);
+      sw.style.background = toHex(item.c);
+      sw.addEventListener("click", function(){ copyText(toHex(item.c)); showToast("已复制 "+toHex(item.c)); });
+      box.appendChild(sw);
+    });
+  }
+
+  // ---- 事件 ----
+  $("hexIn").addEventListener("input", function(){ var c=parseHex(this.value); if(c) apply(c,"hex"); });
+  $("rgbIn").addEventListener("input", function(){ var c=parseRgb(this.value); if(c) apply(c,"rgb"); });
+  $("hslIn").addEventListener("input", function(){ var c=parseHsl(this.value); if(c) apply(c,"hsl"); });
+  $("picker").addEventListener("input", function(){ apply(parseHex(this.value),"picker"); });
+
+  // 初始
+  apply(parseHex("#4f7cff"),"hex");
+})();
+</script>
+</body>
+</html>

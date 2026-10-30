@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日期差 / 倒计时 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="两个时间相差多少天，或实时倒计时，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">📆 日期差 / 倒计时</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">算两个时间相差多久，或设置一个目标时间做实时倒计时。结果随输入即时更新。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🔀</span>模式</h2>
+    <div>
+      <span class="tk-tag" id="tagDiff" style="cursor:pointer">日期差</span>
+      <span class="tk-tag" id="tagCount" style="cursor:pointer">倒计时</span>
+    </div>
+  </section>
+
+  <!-- 日期差 -->
+  <section class="tk-card" id="diffPane">
+    <h2 class="tk-card-h"><span class="ico">📐</span>日期差</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="start">开始时间</label>
+        <input class="tk-input" id="start" type="datetime-local" />
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="end">结束时间</label>
+        <input class="tk-input" id="end" type="datetime-local" />
+      </div>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn sm" id="nowStart">开始=现在</button>
+      <button class="tk-btn sm" id="nowEnd">结束=现在</button>
+      <button class="tk-btn sm ghost" id="addDay">结束+1天</button>
+    </div>
+
+    <div class="tk-grid c4" style="margin-top:14px">
+      <div class="tk-cell"><div class="k">天</div><div class="v" id="d">—</div></div>
+      <div class="tk-cell"><div class="k">小时</div><div class="v" id="h">—</div></div>
+      <div class="tk-cell"><div class="k">分钟</div><div class="v" id="m">—</div></div>
+      <div class="tk-cell"><div class="k">秒</div><div class="v" id="s">—</div></div>
+    </div>
+    <div class="tk-result" id="diffText" style="margin-top:12px">—</div>
+    <p class="tk-help" id="diffHelp"></p>
+  </section>
+
+  <!-- 倒计时 -->
+  <section class="tk-card" id="countPane" style="display:none">
+    <h2 class="tk-card-h"><span class="ico">⏳</span>倒计时</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="target">目标时间</label>
+        <input class="tk-input" id="target" type="datetime-local" />
+      </div>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn sm" id="t1m">+1 分钟</button>
+      <button class="tk-btn sm" id="t1h">+1 小时</button>
+      <button class="tk-btn sm" id="t1d">+1 天</button>
+      <button class="tk-btn sm ghost" id="tStop">暂停计时</button>
+    </div>
+
+    <div class="tk-grid c4" style="margin-top:14px">
+      <div class="tk-cell"><div class="k">天</div><div class="v" id="cd">—</div></div>
+      <div class="tk-cell"><div class="k">时</div><div class="v" id="ch">—</div></div>
+      <div class="tk-cell"><div class="k">分</div><div class="v" id="cm">—</div></div>
+      <div class="tk-cell"><div class="k">秒</div><div class="v" id="cs">—</div></div>
+    </div>
+    <div class="tk-result" id="countText" style="margin-top:12px">—</div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+
+  function toLocalInput(d){
+    var p = function(n){ return (n<10?"0":"")+n; };
+    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
+  }
+  function parse(v){ if (!v) return null; var t = new Date(v).getTime(); return isNaN(t) ? null : t; }
+
+  /* ---------- 日期差 ---------- */
+  function diff(){
+    var a = parse($("start").value), b = parse($("end").value);
+    if (a==null || b==null){ ["d","h","m","s"].forEach(function(k){ $(k).textContent="—"; });
+      $("diffText").innerHTML='<span class="tk-muted">请选择开始和结束时间</span>'; $("diffHelp").textContent=""; return; }
+    var ms = b - a;
+    var neg = ms < 0; if (neg) ms = -ms;
+    var sec = Math.floor(ms/1000);
+    var dd = Math.floor(sec/86400); sec -= dd*86400;
+    var hh = Math.floor(sec/3600); sec -= hh*3600;
+    var mm = Math.floor(sec/60); var ss = sec - mm*60;
+    $("d").textContent = dd; $("h").textContent = hh; $("m").textContent = mm; $("s").textContent = ss;
+
+    var nat = "相差 "+dd+" 天 "+hh+" 小时 "+mm+" 分"+ss+" 秒";
+    if (neg) nat = "结束早于开始，" + nat.replace("相差","相差(取绝对值)");
+    $("diffText").innerHTML = '<span class="tk-ok">'+(neg?'⚠ ':'')+nat+'</span>';
+
+    var totalDays = (b-a)/86400000;
+    var totalHours = (b-a)/3600000;
+    var ymd = ymdDiff(new Date(a), new Date(b));
+    $("diffHelp").textContent = "总天数（含小数）："+totalDays.toFixed(4)+" 天　|　总小时数："+totalHours.toFixed(2)+" 小时"+
+      (ymd.y>0||ymd.m>0 ? "　|　按日历约 "+ymd.y+" 年 "+ymd.m+" 月 "+ymd.d+" 天" : "");
+  }
+  // 按日历计算 年/月/日（忽略时分秒差异，作为自然语言补充）
+  function ymdDiff(d1, d2){
+    if (d2 < d1){ var t=d1; d1=d2; d2=t; }
+    var y = d2.getFullYear()-d1.getFullYear();
+    var mo = d2.getMonth()-d1.getMonth();
+    var day = d2.getDate()-d1.getDate();
+    if (day < 0){ mo--; day += new Date(d2.getFullYear(), d2.getMonth(), 0).getDate(); }
+    if (mo < 0){ y--; mo += 12; }
+    return {y:y, m:mo, d:day};
+  }
+
+  ["start","end"].forEach(function(id){ $(id).addEventListener("input", diff); });
+  $("nowStart").addEventListener("click", function(){ $("start").value = toLocalInput(new Date()); diff(); });
+  $("nowEnd").addEventListener("click", function(){ $("end").value = toLocalInput(new Date()); diff(); });
+  $("addDay").addEventListener("click", function(){
+    var a = parse($("start").value) || Date.now();
+    $("end").value = toLocalInput(new Date(a + 86400000)); diff();
+  });
+
+  /* ---------- 倒计时 ---------- */
+  var timer = null;
+  function stopTimer(){ if (timer){ clearInterval(timer); timer = null; } }
+  function fmtParts(ms){
+    var neg = ms < 0; if (neg) ms = -ms;
+    var sec = Math.floor(ms/1000);
+    var d = Math.floor(sec/86400); sec -= d*86400;
+    var h = Math.floor(sec/3600); sec -= h*3600;
+    var m = Math.floor(sec/60); var s = sec - m*60;
+    return {neg:neg, d:d, h:h, m:m, s:s};
+  }
+  function tick(){
+    var t = parse($("target").value);
+    if (t==null){ ["cd","ch","cm","cs"].forEach(function(k){ $(k).textContent="—"; });
+      $("countText").innerHTML='<span class="tk-muted">请选择目标时间</span>'; return; }
+    var p = fmtParts(t - Date.now());
+    $("cd").textContent=p.d; $("ch").textContent=p.h; $("cm").textContent=p.m; $("cs").textContent=p.s;
+    if (p.neg){
+      $("countText").innerHTML='<span class="tk-err">⏰ 已超时，已过去 '+p.d+' 天 '+p.h+' 时 '+p.m+' 分 '+p.s+' 秒</span>';
+    } else {
+      $("countText").innerHTML='<span class="tk-ok">⏳ 距目标还有 '+p.d+' 天 '+p.h+' 时 '+p.m+' 分 '+p.s+' 秒</span>';
+    }
+  }
+  function startTimer(){ stopTimer(); if (parse($("target").value)!=null){ tick(); timer = setInterval(tick, 1000); } }
+  $("target").addEventListener("input", startTimer);
+  $("t1m").addEventListener("click", function(){ var b=parse($("target").value)||Date.now(); $("target").value=toLocalInput(new Date(b+60000)); startTimer(); });
+  $("t1h").addEventListener("click", function(){ var b=parse($("target").value)||Date.now(); $("target").value=toLocalInput(new Date(b+3600000)); startTimer(); });
+  $("t1d").addEventListener("click", function(){ var b=parse($("target").value)||Date.now(); $("target").value=toLocalInput(new Date(b+86400000)); startTimer(); });
+  $("tStop").addEventListener("click", function(){ stopTimer(); showToast("已暂停计时"); });
+
+  /* ---------- 模式切换 ---------- */
+  function setMode(mode){
+    var diffMode = mode==="diff";
+    $("diffPane").style.display = diffMode ? "" : "none";
+    $("countPane").style.display = diffMode ? "none" : "";
+    $("tagDiff").style.color = diffMode ? "var(--text)" : "";
+    $("tagDiff").style.borderColor = diffMode ? "var(--accent)" : "";
+    $("tagCount").style.color = diffMode ? "" : "var(--text)";
+    $("tagCount").style.borderColor = diffMode ? "" : "var(--accent)";
+    if (diffMode){ stopTimer(); diff(); }
+    else { startTimer(); }
+  }
+  $("tagDiff").addEventListener("click", function(){ setMode("diff"); });
+  $("tagCount").addEventListener("click", function(){ setMode("count"); });
+
+  setMode("diff");
+})();
+</script>
+</body>
+</html>

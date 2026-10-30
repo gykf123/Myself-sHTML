@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>正则测试 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="正则表达式实时测试：高亮匹配、显示位置与捕获组，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">🔍 正则测试</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">输入正则与测试文本，实时高亮所有匹配，并列出每处匹配的位置与捕获组。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">⚙</span>规则</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="pat">正则表达式 /pattern/</label>
+        <input class="tk-input" id="pat" type="text" placeholder="\b\w+@\w+\.\w+\b" value="\b\w+@\w+\.\w+\b" spellcheck="false" />
+      </div>
+      <div class="tk-col" style="flex:0 0 140px">
+        <label class="tk-label" for="flags">修饰符 flags</label>
+        <input class="tk-input" id="flags" type="text" placeholder="gi" value="gi" spellcheck="false" />
+      </div>
+    </div>
+    <div class="tk-result" id="status" style="margin-top:12px">—</div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">📄</span>测试文本</h2>
+    <textarea class="tk-textarea" id="text" spellcheck="false" placeholder="在此粘贴或输入待匹配文本…">联系：alice@example.com 或 bob@test.org
+无效：foo@bar 或 plain-text</textarea>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🖍</span>高亮结果</h2>
+    <div class="tk-out">
+      <button class="tk-copy" id="copyHl">复制高亮文本</button>
+      <pre id="hlOut"></pre>
+    </div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">📊</span>匹配详情</h2>
+    <div class="tk-row" style="margin-bottom:10px">
+      <button class="tk-btn sm" id="copyMatch">复制所有匹配文本</button>
+    </div>
+    <div class="tk-result" id="detail" aria-live="polite">—</div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+  function copyText(t){ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});} else {var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);} }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, function(c){
+      return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c];
+    });
+  }
+
+  function setStatus(ok, msg){ $("status").innerHTML = ok ? '<span class="tk-ok">✓ '+msg+'</span>' : '<span class="tk-err">✗ '+msg+'</span>'; }
+
+  var lastMatches = []; // 供复制使用
+
+  function run(){
+    var pat = $("pat").value;
+    var flags = $("flags").value.trim();
+    var text = $("text").value;
+    lastMatches = [];
+
+    if (pat === ""){ setStatus(false,"请输入正则表达式"); $("hlOut").textContent=""; $("detail").innerHTML="—"; return; }
+    if (!/^[gimsuy]*$/.test(flags)){ setStatus(false,"修饰符含非法字符，仅允许 g/i/m/s/u/y"); $("hlOut").textContent=""; $("detail").innerHTML="—"; return; }
+
+    var scanRe;
+    try {
+      // matchAll 需要 g 修饰符，扫描时强制追加 g（不影响展示）
+      var scanFlags = flags.indexOf("g") > -1 ? flags : flags + "g";
+      scanRe = new RegExp(pat, scanFlags);
+    } catch(e){
+      setStatus(false, "正则语法错误：" + e.message);
+      $("hlOut").textContent = ""; $("detail").innerHTML = "—";
+      return;
+    }
+
+    if (text === ""){ setStatus(true,"正则有效，请输入测试文本"); $("hlOut").textContent=""; $("detail").innerHTML="—"; return; }
+
+    // 收集匹配（带空匹配保护，避免死循环）
+    var matches = [];
+    try {
+      var iter = text.matchAll(scanRe);
+      var guard = 0, prevEnd = -1;
+      var m;
+      while ((m = iter.next().value) !== undefined){
+        matches.push(m);
+        if (++guard > 200000) break;
+        if (m[0] === "" && m.index <= prevEnd){ /* 让 matchAll 自行推进 lastIndex，仅保护 */ }
+        prevEnd = m.index;
+      }
+    } catch(e){
+      setStatus(false, "匹配过程出错：" + e.message);
+      return;
+    }
+    lastMatches = matches;
+
+    // 高亮：先转义再包裹 <mark>
+    var html = "", last = 0;
+    matches.forEach(function(m){
+      var start = m.index, end = start + m[0].length;
+      if (start < last) return;
+      html += escapeHtml(text.slice(last, start));
+      html += "<mark>" + escapeHtml(text.slice(start, end)) + "</mark>";
+      last = end;
+    });
+    html += escapeHtml(text.slice(last));
+    $("hlOut").innerHTML = html || '<span class="tk-muted">（无匹配）</span>';
+
+    if (matches.length === 0){
+      setStatus(true, "正则有效，但未匹配到任何内容");
+      $("detail").innerHTML = '<span class="tk-muted">共 0 处匹配</span>';
+      return;
+    }
+    setStatus(true, "正则有效，共 " + matches.length + " 处匹配");
+
+    var lines = ["共 " + matches.length + " 处匹配："];
+    matches.forEach(function(m, i){
+      var groups = m.slice(1);
+      var gStr = groups.length
+        ? groups.map(function(g, gi){ return "组"+(gi+1)+": "+(g===undefined?"(未捕获)":JSON.stringify(g)); }).join("，")
+        : "无捕获组";
+      lines.push("#"+(i+1)+"　位置 "+m.index+"–"+(m.index+m[0].length)+"　匹配 "+JSON.stringify(m[0])+"　"+gStr);
+    });
+    $("detail").textContent = lines.join("\n");
+  }
+
+  ["pat","flags","text"].forEach(function(id){ $(id).addEventListener("input", run); });
+
+  $("copyHl").addEventListener("click", function(){
+    if (!lastMatches.length){ showToast("暂无可复制内容"); return; }
+    copyText(lastMatches.map(function(m){ return m[0]; }).join("\n"));
+    showToast("已复制匹配文本");
+  });
+  $("copyMatch").addEventListener("click", function(){
+    if (!lastMatches.length){ showToast("暂无可复制内容"); return; }
+    copyText(lastMatches.map(function(m){ return m[0]; }).join("\n"));
+    showToast("已复制匹配文本");
+  });
+
+  run();
+})();
+</script>
+</body>
+</html>

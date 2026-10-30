@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Base64 编解码 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="文本与 Base64 互转，UTF-8 中文安全，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">🔡 Base64 编解码</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">文本与 Base64 互转。采用 UTF-8 安全编码，中文不会出错，可放心用于接口调试、数据粘贴。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">➡️</span>文本 → Base64（编码）</h2>
+    <div class="tk-col">
+      <label class="tk-label" for="encIn">输入文本（支持中文）</label>
+      <textarea class="tk-textarea" id="encIn" spellcheck="false" placeholder="在这里输入要编码的文本，例如：你好，世界"></textarea>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn primary" id="encBtn">编码</button>
+      <button class="tk-btn ghost" id="encClear">清空</button>
+    </div>
+    <div class="tk-out" style="margin-top:12px">
+      <button class="tk-copy" id="encCopy">复制</button>
+      <pre id="encOut">（编码结果会显示在这里）</pre>
+    </div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">⬅️</span>Base64 → 文本（解码）</h2>
+    <div class="tk-col">
+      <label class="tk-label" for="decIn">输入 Base64</label>
+      <textarea class="tk-textarea" id="decIn" spellcheck="false" placeholder="粘贴 Base64 字符串，例如：5L2g5aW977yM5LiW55WM"></textarea>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn primary" id="decBtn">解码</button>
+      <button class="tk-btn ghost" id="decClear">清空</button>
+    </div>
+    <div class="tk-out" style="margin-top:12px">
+      <button class="tk-copy" id="decCopy">复制</button>
+      <pre id="decOut">（解码结果会显示在这里）</pre>
+    </div>
+    <div class="tk-result" id="decStatus" style="margin-top:12px">—</div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+  function copyText(t){ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});} else {var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);} }
+
+  // UTF-8 安全编码：中文也能正确转 Base64
+  function utf8ToB64(str){
+    // 用 TextEncoder 得到 UTF-8 字节，再转成二进制串给 btoa
+    var bytes = new TextEncoder().encode(str);
+    var bin = "";
+    for (var i=0;i<bytes.length;i++){ bin += String.fromCharCode(bytes[i]); }
+    return btoa(bin);
+  }
+  function b64ToUtf8(b64){
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i=0;i<bin.length;i++){ bytes[i] = bin.charCodeAt(i); }
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
+  // 校验 Base64 合法性（长度/字符集）
+  var B64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
+  function isValidB64(s){
+    if (s.length % 4 !== 0) return false;
+    return B64_RE.test(s);
+  }
+
+  function doEncode(){
+    var text = $("encIn").value;
+    if (!text){ $("encOut").textContent = "（编码结果会显示在这里）"; showToast("请输入文本"); return; }
+    try {
+      var out = utf8ToB64(text);
+      $("encOut").textContent = out;
+      showToast("已编码");
+    } catch(e){
+      $("encOut").textContent = "（编码失败）";
+      showToast("编码失败");
+    }
+  }
+
+  function doDecode(){
+    var raw = $("decIn").value.trim();
+    if (!raw){ $("decOut").textContent = "（解码结果会显示在这里）"; $("decStatus").innerHTML = '<span class="tk-muted">—</span>'; return; }
+    // 容错：去掉空白
+    var clean = raw.replace(/\s+/g, "");
+    if (!isValidB64(clean)){
+      $("decOut").textContent = "（无法解码）";
+      $("decStatus").innerHTML = '<span class="tk-err">✗ 不是合法的 Base64：需为 A-Za-z0-9+/ 与 =，且长度为 4 的倍数</span>';
+      return;
+    }
+    try {
+      var out = b64ToUtf8(clean);
+      $("decOut").textContent = out;
+      $("decStatus").innerHTML = '<span class="tk-ok">✓ 解码成功，共 '+out.length+' 个字符</span>';
+      showToast("已解码");
+    } catch(e){
+      $("decOut").textContent = "（无法解码）";
+      $("decStatus").innerHTML = '<span class="tk-err">✗ 解码失败：内容可能非 UTF-8 文本</span>';
+    }
+  }
+
+  $("encBtn").addEventListener("click", doEncode);
+  $("decBtn").addEventListener("click", doDecode);
+  $("encClear").addEventListener("click", function(){ $("encIn").value=""; $("encOut").textContent="（编码结果会显示在这里）"; });
+  $("decClear").addEventListener("click", function(){ $("decIn").value=""; $("decOut").textContent="（解码结果会显示在这里）"; $("decStatus").innerHTML='<span class="tk-muted">—</span>'; });
+  $("encCopy").addEventListener("click", function(){ var t=$("encOut").textContent; if(!t||t.indexOf("（编码结果")===0){showToast("没有可复制的内容");return;} copyText(t); showToast("已复制"); });
+  $("decCopy").addEventListener("click", function(){ var t=$("decOut").textContent; if(!t||t.indexOf("（解码结果")===0){showToast("没有可复制的内容");return;} copyText(t); showToast("已复制"); });
+})();
+</script>
+</body>
+</html>

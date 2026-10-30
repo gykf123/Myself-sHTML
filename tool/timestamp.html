@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>时间戳转换 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="Unix 时间戳与日期互转，支持时区选择与时间实时显示，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">⏱ 时间戳转换</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">Unix 时间戳（秒）与日期互转，可选时区。常见场景：看日志时间、算过期、约群活动。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🔁</span>时间戳 → 日期</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="tsInput">Unix 时间戳（秒）</label>
+        <input class="tk-input" id="tsInput" type="text" inputmode="numeric" placeholder="例如 1761878400" />
+      </div>
+      <div class="tk-col" style="flex:0 0 160px">
+        <label class="tk-label" for="tzSelect">时区</label>
+        <select class="tk-select" id="tzSelect"></select>
+      </div>
+    </div>
+    <div class="tk-result" id="tsOut" aria-live="polite">—</div>
+    <p class="tk-help">毫秒级时间戳（13 位）也会自动识别，无需手动换算。</p>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">📅</span>日期 → 时间戳</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="dateInput">日期时间</label>
+        <input class="tk-input" id="dateInput" type="datetime-local" />
+      </div>
+      <div class="tk-col" style="flex:0 0 160px">
+        <label class="tk-label" for="tzSelect2">时区</label>
+        <select class="tk-select" id="tzSelect2"></select>
+      </div>
+    </div>
+    <div class="tk-row" style="margin-top:10px">
+      <button class="tk-btn sm" id="useNow">用当前时间</button>
+      <button class="tk-btn sm ghost" id="copyDateTs">复制秒级</button>
+    </div>
+    <div class="tk-result" id="dateOut" aria-live="polite">—</div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🕐</span>当前时间（实时）</h2>
+    <div class="tk-grid c3" id="nowGrid"></div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(msg){
+    toast.textContent = msg; toast.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ toast.classList.remove("show"); }, 1600);
+  }
+
+  // 常用时区（含 UTC 偏移近似，便于浏览器 Date 转换）
+  var TZS = [
+    {id:"local", label:"本地时区"},
+    {id:"UTC", label:"UTC (GMT+0)"},
+    {id:"Asia/Shanghai", label:"北京/上海 (GMT+8)"},
+    {id:"Asia/Tokyo", label:"东京 (GMT+9)"},
+    {id:"Asia/Hong_Kong", label:"香港 (GMT+8)"},
+    {id:"Asia/Singapore", label:"新加坡 (GMT+8)"},
+    {id:"Asia/Kolkata", label:"孟买 (GMT+5:30)"},
+    {id:"Europe/London", label:"伦敦 (GMT+0/+1)"},
+    {id:"Europe/Paris", label:"巴黎 (GMT+1/+2)"},
+    {id:"America/New_York", label:"纽约 (GMT-5/-4)"},
+    {id:"America/Los_Angeles", label:"洛杉矶 (GMT-8/-7)"}
+  ];
+  function fillTz(sel){
+    TZS.forEach(function(t){
+      var o = document.createElement("option"); o.value = t.id; o.textContent = t.label; sel.appendChild(o);
+    });
+  }
+  fillTz($("tzSelect")); fillTz($("tzSelect2"));
+  $("tzSelect").value = "Asia/Shanghai"; $("tzSelect2").value = "Asia/Shanghai";
+
+  function fmtInZone(ms, tz){
+    if (tz === "local") {
+      var d = new Date(ms);
+      var p = function(n){ return (n<10?"0":"")+n; };
+      return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds());
+    }
+    try {
+      return new Intl.DateTimeFormat("zh-CN", {
+        timeZone: tz, year:"numeric", month:"2-digit", day:"2-digit",
+        hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false
+      }).format(new Date(ms));
+    } catch(e){ return new Date(ms).toISOString().replace("T"," ").slice(0,19)+" (UTC)"; }
+  }
+
+  // 1) 时间戳 -> 日期
+  function tsToDate(){
+    var raw = $("tsInput").value.trim();
+    if (!raw){ $("tsOut").textContent = "—"; return; }
+    var n = Number(raw);
+    if (!isFinite(n)){ $("tsOut").innerHTML = '<span class="tk-err">无效的时间戳</span>'; return; }
+    // 13 位当毫秒，10 位当秒
+    var ms = raw.length >= 13 ? n : n * 1000;
+    var tz = $("tzSelect").value;
+    var iso = fmtInZone(ms, tz);
+    var week = ["日","一","二","三","四","五","六"][new Date(ms).getDay()];
+    $("tsOut").innerHTML = '<span class="tk-ok">'+iso+'</span>　星期'+week+
+      '　（输入 '+raw.length+' 位，按'+(raw.length>=13?"毫秒":"秒")+'解析）';
+  }
+  $("tsInput").addEventListener("input", tsToDate);
+  $("tzSelect").addEventListener("change", tsToDate);
+
+  // 2) 日期 -> 时间戳
+  function dateToTs(){
+    var v = $("dateInput").value;
+    if (!v){ $("dateOut").textContent = "—"; return; }
+    var tz = $("tzSelect2").value;
+    var ms;
+    if (tz === "local") {
+      ms = new Date(v).getTime();
+    } else {
+      // 用 Intl 反推：先按本地解析，再减去时区偏移差
+      var local = new Date(v);
+      try {
+        var parts = new Intl.DateTimeFormat("en-US",{timeZone:tz, hour12:false,
+          year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"})
+          .formatToParts(local).reduce(function(a,p){ a[p.type]=p.value; return a; },{});
+        var asTz = new Date(parts.year+"-"+parts.month+"-"+parts.day+" "+parts.hour+":"+parts.minute+":"+parts.second);
+        ms = asTz.getTime(); // UTC 基准
+      } catch(e){ ms = local.getTime(); }
+    }
+    if (isNaN(ms)){ $("dateOut").innerHTML = '<span class="tk-err">无效的日期</span>'; return; }
+    var sec = Math.floor(ms/1000);
+    $("dateOut").innerHTML = '秒级 <b>'+sec+'</b>　毫秒级 <b>'+ms+'</b>';
+    $("dateOut").dataset.sec = sec;
+  }
+  $("dateInput").addEventListener("input", dateToTs);
+  $("tzSelect2").addEventListener("change", dateToTs);
+  $("useNow").addEventListener("click", function(){ $("dateInput").value = toLocalInput(new Date()); dateToTs(); });
+  $("copyDateTs").addEventListener("click", function(){
+    var s = $("dateOut").dataset.sec; if (!s){ showToast("先选个时间"); return; }
+    copyText(String(s)); showToast("已复制秒级时间戳");
+  });
+
+  function toLocalInput(d){
+    var p = function(n){ return (n<10?"0":"")+n; };
+    return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes());
+  }
+
+  function copyText(t){
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).catch(function(){}); }
+    else {
+      var ta = document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand("copy"); }catch(e){} document.body.removeChild(ta);
+    }
+  }
+
+  // 3) 实时当前时间
+  var nowGrid = $("nowGrid");
+  var NOW_TZ = [["本地", "local"], ["UTC", "UTC"], ["北京", "Asia/Shanghai"]];
+  NOW_TZ.forEach(function(t){ var c=document.createElement("div"); c.className="tk-cell"; c.innerHTML='<div class="k">'+t[0]+'</div><div class="v" data-tz="'+t[1]+'">—</div>'; nowGrid.appendChild(c); });
+  function tick(){
+    NOW_TZ.forEach(function(t){
+      var cell = nowGrid.querySelector('[data-tz="'+t[1]+'"]');
+      if (cell) cell.textContent = fmtInZone(Date.now(), t[1]) + "  " + Math.floor(Date.now()/1000);
+    });
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

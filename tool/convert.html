@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>单位换算 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="长度、重量、温度、数据、速度、时间双向实时单位换算，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">🔄 单位换算</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">选择类别与单位，输入任意一侧数值，另一侧实时换算。改任一输入框或单位都会立即重算。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">📐</span>换算</h2>
+    <div class="tk-row">
+      <div class="tk-col" style="flex:0 0 180px">
+        <label class="tk-label" for="cat">类别</label>
+        <select class="tk-select" id="cat">
+          <option value="length">长度</option>
+          <option value="weight">重量</option>
+          <option value="temperature">温度</option>
+          <option value="data">数据（存储）</option>
+          <option value="speed">速度</option>
+          <option value="time">时间</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="tk-row" style="margin-top:12px; align-items:stretch">
+      <div class="tk-col">
+        <label class="tk-label" for="lVal">数值（输入）</label>
+        <input class="tk-input" id="lVal" type="text" inputmode="decimal" placeholder="输入数值" />
+      </div>
+      <div class="tk-col" style="flex:0 0 130px">
+        <label class="tk-label" for="lUnit">单位</label>
+        <select class="tk-select" id="lUnit"></select>
+      </div>
+      <div class="tk-col" style="flex:0 0 44px; justify-content:center; align-items:center">
+        <span class="tk-label" style="visibility:hidden">↔</span>
+        <div style="font-size:20px; text-align:center; color:var(--accent)">⇄</div>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="rVal">结果（只读）</label>
+        <input class="tk-input" id="rVal" type="text" readonly placeholder="—" />
+      </div>
+      <div class="tk-col" style="flex:0 0 130px">
+        <label class="tk-label" for="rUnit">单位</label>
+        <select class="tk-select" id="rUnit"></select>
+      </div>
+    </div>
+
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn sm" id="copy">复制结果</button>
+      <button class="tk-btn sm ghost" id="swap">交换单位</button>
+      <button class="tk-btn sm ghost" id="clear">清空</button>
+    </div>
+    <div class="tk-result" id="status" style="margin-top:12px">—</div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+  function copyText(t){ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});} else {var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);} }
+
+  // 换算表：统一到基准单位，value * factor = 基准值
+  var CATS = {
+    length: { def:["mm","cm","m","km","in","ft","yd","mi"],
+      f:{ mm:0.001, cm:0.01, m:1, km:1000, in:0.0254, ft:0.3048, yd:0.9144, mi:1609.344 } },
+    weight: { def:["mg","g","kg","t","oz","lb"],
+      f:{ mg:1e-6, g:1e-3, kg:1, t:1000, oz:0.028349523125, lb:0.45359237 } },
+    data: { def:["B","KB","MB","GB","TB"],
+      f:{ B:1, KB:1024, MB:1048576, GB:1073741824, TB:1099511627776 } },
+    speed: { def:["m/s","km/h","mph"],
+      f:{ "m/s":1, "km/h":1000/3600, "mph":0.44704 } },
+    time: { def:["秒","分","时","天","周"],
+      f:{ "秒":1, "分":60, "时":3600, "天":86400, "周":604800 } },
+    temperature: { special:true, def:["℃","℉","K"] }
+  };
+
+  function convertTemp(v, from, to){
+    if (from === to) return v;
+    var c; // 转成摄氏度
+    if (from === "℃") c = v;
+    else if (from === "℉") c = (v-32)*5/9;
+    else c = v - 273.15; // K
+    if (to === "℃") return c;
+    if (to === "℉") return c*9/5 + 32;
+    return c + 273.15; // K
+  }
+
+  function convert(cat, v, from, to){
+    if (cat === "temperature") return convertTemp(v, from, to);
+    var f = CATS[cat].f;
+    var base = v * f[from];
+    return base / f[to];
+  }
+
+  function fmtNum(n){
+    if (!isFinite(n)) return "";
+    if (n === 0) return "0";
+    var r = Math.round(n * 1e10) / 1e10;
+    // 去掉浮点尾零
+    var s = r.toString();
+    return s;
+  }
+
+  function fillUnits(){
+    var cat = $("cat").value;
+    var def = CATS[cat].def;
+    var lu = $("lUnit"), ru = $("rUnit");
+    lu.innerHTML = ""; ru.innerHTML = "";
+    def.forEach(function(u){
+      var o1=document.createElement("option"); o1.value=u; o1.textContent=u; lu.appendChild(o1);
+      var o2=document.createElement("option"); o2.value=u; o2.textContent=u; ru.appendChild(o2);
+    });
+    // 默认左右不同单位，便于演示
+    lu.value = def[0];
+    ru.value = def[Math.min(1, def.length-1)];
+  }
+
+  function setStatus(ok, msg){ $("status").innerHTML = ok ? '<span class="tk-ok">'+msg+'</span>' : '<span class="tk-err">'+msg+'</span>'; }
+
+  function recompute(side){
+    var cat = $("cat").value;
+    var lU = $("lUnit").value, rU = $("rUnit").value;
+    if (side === "left"){
+      var raw = $("lVal").value.trim();
+      if (raw === ""){ $("rVal").value=""; setStatus(true,"—"); return; }
+      var v = Number(raw);
+      if (!isFinite(v)){ $("rVal").value=""; setStatus(false,"请输入有效数值"); return; }
+      var res = convert(cat, v, lU, rU);
+      $("rVal").value = fmtNum(res);
+      setStatus(true, v+" "+lU+" = "+fmtNum(res)+" "+rU);
+    } else {
+      var raw2 = $("rVal").value.trim();
+      if (raw2 === ""){ $("lVal").value=""; setStatus(true,"—"); return; }
+      var v2 = Number(raw2);
+      if (!isFinite(v2)){ $("lVal").value=""; setStatus(false,"结果栏数值无效"); return; }
+      var res2 = convert(cat, v2, rU, lU);
+      $("lVal").value = fmtNum(res2);
+      setStatus(true, v2+" "+rU+" = "+fmtNum(res2)+" "+lU);
+    }
+  }
+
+  $("cat").addEventListener("change", function(){ fillUnits(); recompute("left"); });
+  $("lVal").addEventListener("input", function(){ recompute("left"); });
+  $("rVal").addEventListener("input", function(){ recompute("right"); });
+  $("lUnit").addEventListener("change", function(){ recompute("left"); });
+  $("rUnit").addEventListener("change", function(){ recompute("right"); });
+
+  $("copy").addEventListener("click", function(){
+    var t = $("rVal").value;
+    if (!t){ showToast("暂无可复制的结果"); return; }
+    copyText(t + " " + $("rUnit").value); showToast("已复制结果");
+  });
+  $("swap").addEventListener("click", function(){
+    var a=$("lUnit").value; $("lUnit").value=$("rUnit").value; $("rUnit").value=a; recompute("left");
+  });
+  $("clear").addEventListener("click", function(){ $("lVal").value=""; $("rVal").value=""; setStatus(true,"—"); });
+
+  // 初始
+  fillUnits();
+  $("lVal").value = "1";
+  recompute("left");
+})();
+</script>
+</body>
+</html>

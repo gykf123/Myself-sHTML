@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>哈希计算 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="使用浏览器原生 crypto.subtle 计算 SHA-1/256/384/512 哈希，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">🔐 哈希计算</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">使用浏览器原生 <code>crypto.subtle</code> 计算 SHA 系列哈希（SHA-1 / 256 / 384 / 512）。<b>不支持 MD5</b>——浏览器标准接口未提供 MD5，请勿在需要 MD5 的场景使用本工具。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">⚙️</span>设置</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="algo">算法</label>
+        <select class="tk-select" id="algo">
+          <option value="SHA-1">SHA-1</option>
+          <option value="SHA-256" selected>SHA-256</option>
+          <option value="SHA-384">SHA-384</option>
+          <option value="SHA-512">SHA-512</option>
+        </select>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label">输入来源</label>
+        <div>
+          <span class="tk-tag" id="tagText" style="cursor:pointer">文本</span>
+          <span class="tk-tag" id="tagFile" style="cursor:pointer">文件</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 文本输入 -->
+  <section class="tk-card" id="textPane">
+    <h2 class="tk-card-h"><span class="ico">📝</span>输入文本</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="in">待哈希的文本</label>
+        <textarea class="tk-textarea" id="in" spellcheck="false" placeholder="输入或粘贴任意文本…"></textarea>
+      </div>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn primary" id="calc">计算哈希</button>
+      <button class="tk-btn ghost" id="clear">清空</button>
+    </div>
+    <p class="tk-help">短文本输入即实时计算；长文本建议点“计算哈希”。</p>
+  </section>
+
+  <!-- 文件输入 -->
+  <section class="tk-card" id="filePane" style="display:none">
+    <h2 class="tk-card-h"><span class="ico">📁</span>选择文件</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="file">文件（按字节计算哈希）</label>
+        <input class="tk-input" id="file" type="file" />
+      </div>
+    </div>
+    <div class="tk-result" id="fileInfo" style="margin-top:12px">—</div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">📤</span>结果</h2>
+    <div class="tk-out">
+      <button class="tk-copy" id="copy">复制</button>
+      <pre id="out">（哈希结果会显示在这里）</pre>
+    </div>
+    <div class="tk-result" id="meta" style="margin-top:12px">—</div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+  function copyText(t){ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});} else {var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);} }
+
+  // 安全上下文检查：crypto.subtle 仅在 https / localhost 可用
+  var hasSubtle = !!(window.crypto && window.crypto.subtle);
+  if (!hasSubtle){
+    $("out").textContent = "当前环境不支持 crypto.subtle（非安全上下文）。\n请在 https 环境下使用（如 GitHub Pages、localhost）。";
+    $("meta").innerHTML = '<span class="tk-err">✗ 无法计算哈希：请在 https 环境下使用</span>';
+    ["calc","copy","clear"].forEach(function(id){ $(id).disabled = true; });
+    $("in").disabled = true; $("file").disabled = true;
+    return;
+  }
+
+  function bufToHex(buf){
+    var b = new Uint8Array(buf), s = "";
+    for (var i=0;i<b.length;i++){ s += ("0"+(b[i].toString(16))).slice(-2); }
+    return s;
+  }
+
+  function digest(algo, buf){
+    return crypto.subtle.digest(algo, buf).then(function(h){ return bufToHex(h); });
+  }
+
+  function showResult(hex, info){
+    $("out").textContent = hex;
+    $("meta").innerHTML = '<span class="tk-ok">✓ '+info+'</span>';
+  }
+
+  /* ---------- 文本模式 ---------- */
+  var debounceTimer = null;
+  function calcTextNow(){
+    var text = $("in").value;
+    var algo = $("algo").value;
+    if (!text){ $("out").textContent="（哈希结果会显示在这里）"; $("meta").innerHTML='<span class="tk-muted">请输入文本</span>'; return; }
+    var bytes = new TextEncoder().encode(text);
+    digest(algo, bytes).then(function(hex){
+      showResult(hex, algo+" 计算完成，输入 "+text.length+" 字符 / "+bytes.length+" 字节");
+    }).catch(function(e){ $("meta").innerHTML='<span class="tk-err">✗ 计算失败：'+e.message+'</span>'; });
+  }
+  $("calc").addEventListener("click", calcTextNow);
+  $("clear").addEventListener("click", function(){ $("in").value=""; $("out").textContent="（哈希结果会显示在这里）"; $("meta").innerHTML="—"; });
+  $("in").addEventListener("input", function(){
+    clearTimeout(debounceTimer);
+    if ($("in").value.length > 2000){ return; } // 长文本不实时，避免卡顿
+    debounceTimer = setTimeout(calcTextNow, 250);
+  });
+  $("algo").addEventListener("change", function(){ if ($("in").value) calcTextNow(); });
+
+  /* ---------- 文件模式 ---------- */
+  $("file").addEventListener("change", function(){
+    var f = $("file").files && $("file").files[0];
+    if (!f){ $("fileInfo").innerHTML='<span class="tk-muted">未选择文件</span>'; return; }
+    $("fileInfo").innerHTML = '已选择：'+f.name+'（'+(f.size>=1048576?(f.size/1048576).toFixed(2)+" MB":f.size>=1024?(f.size/1024).toFixed(2)+" KB":f.size+" 字节")+'）';
+    var algo = $("algo").value;
+    f.arrayBuffer().then(function(buf){
+      return digest(algo, buf);
+    }).then(function(hex){
+      showResult(hex, algo+" 计算完成："+f.name);
+    }).catch(function(e){ $("meta").innerHTML='<span class="tk-err">✗ 读取/计算失败：'+e.message+'</span>'; });
+  });
+  $("algo").addEventListener("change", function(){
+    if ($("filePane").style.display!=="none" && $("file").files && $("file").files[0]){ $("file").dispatchEvent(new Event("change")); }
+  });
+
+  /* ---------- 输入来源切换 ---------- */
+  function setSrc(src){
+    var isText = src==="text";
+    $("textPane").style.display = isText ? "" : "none";
+    $("filePane").style.display = isText ? "none" : "";
+    $("tagText").style.color = isText ? "var(--text)" : "";
+    $("tagText").style.borderColor = isText ? "var(--accent)" : "";
+    $("tagFile").style.color = isText ? "" : "var(--text)";
+    $("tagFile").style.borderColor = isText ? "" : "var(--accent)";
+  }
+  $("tagText").addEventListener("click", function(){ setSrc("text"); });
+  $("tagFile").addEventListener("click", function(){ setSrc("file"); });
+
+  $("copy").addEventListener("click", function(){
+    var t = $("out").textContent;
+    if (!t || t.indexOf("（哈希结果会显示")===0 || t.indexOf("当前环境不支持")===0){ showToast("没有可复制的内容"); return; }
+    copyText(t); showToast("已复制哈希值");
+  });
+
+  setSrc("text");
+})();
+</script>
+</body>
+</html>

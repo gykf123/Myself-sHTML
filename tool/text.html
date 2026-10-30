@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文本批量处理 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="文本去重、排序、大小写转换、去空行、统计等批量处理，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">📝 文本批量处理</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">对多行文本做批量整理：去重、去空行、排序、大小写、去首尾空白、合并空行、统计、编号前缀。处理在本地完成。</p>
+
+  <section class="tk-card">
+    <div class="tk-grid c2" style="align-items:stretch">
+      <div class="tk-col">
+        <label class="tk-label" for="in">输入（每行一条）</label>
+        <textarea class="tk-textarea" id="in" spellcheck="false" placeholder="粘贴要处理的文本，一行一条"></textarea>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label">输出</label>
+        <div class="tk-out" style="flex:1; display:flex; flex-direction:column">
+          <button class="tk-copy" id="copy">复制</button>
+          <pre id="out" style="flex:1">（处理结果会显示在这里）</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="tk-row" style="margin-top:14px">
+      <span class="tk-label" style="flex-basis:100%">整理操作</span>
+      <button class="tk-btn sm" data-act="dedup">行去重</button>
+      <button class="tk-btn sm" data-act="dropBlank">删除空行</button>
+      <button class="tk-btn sm" data-act="trim">去首尾空白</button>
+      <button class="tk-btn sm" data-act="collapse">合并空行</button>
+      <button class="tk-btn sm" data-act="number">编号前缀</button>
+    </div>
+    <div class="tk-row" style="margin-top:6px">
+      <span class="tk-label" style="flex-basis:100%">排序</span>
+      <button class="tk-btn sm" data-act="sortAsc">升序</button>
+      <button class="tk-btn sm" data-act="sortDesc">降序</button>
+      <button class="tk-btn sm" data-act="sortLen">按长度</button>
+    </div>
+    <div class="tk-row" style="margin-top:6px">
+      <span class="tk-label" style="flex-basis:100%">大小写</span>
+      <button class="tk-btn sm" data-act="upper">全大写</button>
+      <button class="tk-btn sm" data-act="lower">全小写</button>
+      <button class="tk-btn sm" data-act="title">首字母大写</button>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn ghost sm" id="reset">重置输出</button>
+    </div>
+
+    <div class="tk-result" id="stat" style="margin-top:12px">—</div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+  function copyText(t){ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});} else {var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);} }
+
+  function getLines(){ return $("in").value.split("\n"); }
+  function setOut(lines){ $("out").textContent = lines.length ? lines.join("\n") : ""; updateStat(lines); }
+
+  function updateStat(lines){
+    var text = lines.join("\n");
+    var nonEmpty = lines.filter(function(l){ return l.trim().length>0; }).length;
+    var chars = text.length;
+    var wordCount = (text.match(/[一-龥]|[A-Za-z0-9]+/g) || []).length;
+    $("stat").innerHTML = '<span class="tk-tag">总行数 '+lines.length+'</span>'+
+      '<span class="tk-tag">非空行 '+nonEmpty+'</span>'+
+      '<span class="tk-tag">字符数 '+chars+'</span>'+
+      '<span class="tk-tag">词/字数 '+wordCount+'</span>';
+  }
+
+  var ACTS = {
+    dedup: function(lines){
+      var seen={}, out=[];
+      lines.forEach(function(l){ if(!seen.hasOwnProperty(l)){ seen[l]=1; out.push(l); } });
+      return out;
+    },
+    dropBlank: function(lines){ return lines.filter(function(l){ return l.trim().length>0; }); },
+    trim: function(lines){ return lines.map(function(l){ return l.trim(); }); },
+    collapse: function(lines){
+      var out=[], blank=false;
+      lines.forEach(function(l){
+        if (l.trim().length===0){ if(!blank){ out.push(""); blank=true; } }
+        else { out.push(l); blank=false; }
+      });
+      // 去掉首尾空行
+      while(out.length && out[0].trim()==="") out.shift();
+      while(out.length && out[out.length-1].trim()==="") out.pop();
+      return out;
+    },
+    number: function(lines){
+      var w = String(lines.length).length;
+      return lines.map(function(l,i){ return (i+1)+". "+l; });
+    },
+    sortAsc: function(lines){ return lines.slice().sort(); },
+    sortDesc: function(lines){ return lines.slice().sort().reverse(); },
+    sortLen: function(lines){ return lines.slice().sort(function(a,b){ return a.length-b.length; }); },
+    upper: function(lines){ return lines.map(function(l){ return l.toUpperCase(); }); },
+    lower: function(lines){ return lines.map(function(l){ return l.toLowerCase(); }); },
+    title: function(lines){
+      return lines.map(function(l){
+        return l.replace(/(^|\s)([a-z\u4e00-\u9fa5])/g, function(_,sp,c){ return sp+c.toUpperCase(); });
+      });
+    }
+  };
+
+  document.querySelectorAll("[data-act]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var lines = getLines();
+      if (lines.length===1 && lines[0]===""){ showToast("请先输入文本"); return; }
+      var act = btn.getAttribute("data-act");
+      var out = ACTS[act](lines);
+      setOut(out);
+      var names = {dedup:"已去重",dropBlank:"已删除空行",trim:"已去首尾空白",collapse:"已合并空行",number:"已加编号",sortAsc:"已升序排列",sortDesc:"已降序排列",sortLen:"已按长度排列",upper:"已转大写",lower:"已转小写",title:"已首字母大写"};
+      showToast(names[act]||"已处理");
+    });
+  });
+
+  $("reset").addEventListener("click", function(){ $("out").textContent="（处理结果会显示在这里）"; $("stat").innerHTML="—"; });
+  $("copy").addEventListener("click", function(){
+    var t=$("out").textContent;
+    if(!t||t.indexOf("（处理结果")===0){ showToast("没有可复制的内容"); return; }
+    copyText(t); showToast("已复制");
+  });
+
+  // 初始统计（输入即更新）
+  $("in").addEventListener("input", function(){ updateStat(getLines()); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON 格式化 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="JSON 格式化、压缩与校验，错误精确定位到行号，纯前端离线可用">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">🔧 JSON 格式化</h1>
+  <span class="tk-badge">纯前端 · 离线可用</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">粘贴 JSON，一键格式化 / 压缩 / 校验。出错会精确定位到位置，方便改接口返回、调配置。</p>
+
+  <section class="tk-card">
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="in">输入 JSON</label>
+        <textarea class="tk-textarea" id="in" spellcheck="false" placeholder='{"name":"FeSui","v":1,"ok":true}'></textarea>
+      </div>
+    </div>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn primary" id="fmt">格式化 (2 空格)</button>
+      <button class="tk-btn" id="min">压缩成一行</button>
+      <button class="tk-btn ghost" id="check">仅校验</button>
+      <button class="tk-btn ghost" id="clear">清空</button>
+    </div>
+    <div class="tk-result" id="status" style="margin-top:12px">—</div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">📤</span>输出</h2>
+    <div class="tk-out">
+      <button class="tk-copy" id="copy">复制</button>
+      <pre id="out">（结果会显示在这里）</pre>
+    </div>
+  </section>
+</main>
+<div class="tk-toast" id="toast"></div>
+<footer class="tk-foot">© 2026 FeSui · <a href="./index.html">返回工具箱</a></footer>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var toast = $("toast"), toastTimer;
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(function(){toast.classList.remove("show");},1600); }
+  function copyText(t){ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});} else {var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");}catch(e){}document.body.removeChild(ta);} }
+
+  function locateError(text, pos){
+    if (pos==null) return null;
+    var line = 1, col = 1;
+    for (var i=0; i<pos && i<text.length; i++){
+      if (text[i] === "\n"){ line++; col = 1; } else { col++; }
+    }
+    return { line: line, col: col, around: text.slice(Math.max(0,pos-20), pos+20) };
+  }
+
+  function parsePos(msg){
+    var m = msg.match(/position (\d+)/);
+    if (m) return parseInt(m[1], 10);
+    var m2 = msg.match(/line (\d+) column (\d+)/);
+    if (m2) return null; // 已有行列信息但难以换算，降级
+    return null;
+  }
+
+  function setStatus(ok, msg){
+    $("status").innerHTML = ok ? '<span class="tk-ok">✓ '+msg+'</span>' : '<span class="tk-err">✗ '+msg+'</span>';
+  }
+
+  function doFormat(){
+    var text = $("in").value;
+    if (!text.trim()){ setStatus(false, "输入为空"); return; }
+    try {
+      var obj = JSON.parse(text);
+      var out = JSON.stringify(obj, null, 2);
+      $("out").textContent = out;
+      setStatus(true, "格式化成功，共 "+countKeys(obj)+" 个顶层键");
+    } catch(e){
+      var pos = parsePos(e.message);
+      var loc = pos!=null ? locateError(text, pos) : null;
+      var extra = loc ? "（约第 "+loc.line+" 行第 "+loc.col+" 列，附近："+loc.around.replace(/\n/g,"⏎")+"）" : "";
+      setStatus(false, "JSON 语法错误：" + e.message + " " + extra);
+    }
+  }
+  function countKeys(o){ try{ return Object.keys(o).length; }catch(e){ return "?"; } }
+
+  function doMin(){
+    var text = $("in").value;
+    if (!text.trim()){ setStatus(false, "输入为空"); return; }
+    try {
+      var obj = JSON.parse(text);
+      $("out").textContent = JSON.stringify(obj);
+      setStatus(true, "压缩成功");
+    } catch(e){ doFormat(); }
+  }
+
+  function doCheck(){
+    var text = $("in").value;
+    if (!text.trim()){ setStatus(false, "输入为空"); return; }
+    try { JSON.parse(text); setStatus(true, "JSON 合法 ✓"); }
+    catch(e){ doFormat(); }
+  }
+
+  $("fmt").addEventListener("click", doFormat);
+  $("min").addEventListener("click", doMin);
+  $("check").addEventListener("click", doCheck);
+  $("clear").addEventListener("click", function(){ $("in").value=""; $("out").textContent="（结果会显示在这里）"; setStatus(false,"—"); });
+  $("copy").addEventListener("click", function(){
+    var t = $("out").textContent;
+    if (!t || t.indexOf("（结果会显示")===0){ showToast("没有可复制的内容"); return; }
+    copyText(t); showToast("已复制");
+  });
+})();
+</script>
+</body>
+</html>
