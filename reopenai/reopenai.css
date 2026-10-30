@@ -53,8 +53,29 @@
 .rw-log div { padding: 2px 0; color: var(--text-dim); }
 .rw-log div:first-child { color: var(--text); }
 
+/* ---------- QQ Bot 状态卡 ---------- */
+.rw-qq-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.rw-qq-head .rw-status { flex: 1; min-width: 180px; }
+.rw-qq-head .act-btn { min-width: 100px; }
+.rw-qq-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-top: 14px;
+}
+.rw-qq-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 4px;
+  min-width: 0;
+}
+.rw-qq-k { font-size: 12px; color: var(--text-dim); }
+.rw-qq-v { font-size: 13px; font-weight: 600; color: var(--text); word-break: break-all; }
+.rw-status a { color: var(--accent); }
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 560px) {
   .rw-actions .act-btn { flex: 1; }
   .rw-auto-row { gap: 12px; }
+  .rw-qq-grid { grid-template-columns: 1fr; }
 }

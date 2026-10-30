@@ -9,7 +9,7 @@
   <link rel="icon" href="../favicon.png" />
   <link rel="stylesheet" href="../style.css?v=20261024b" />
   <link rel="stylesheet" href="../user/user.css?v=20261024b" />
-  <link rel="stylesheet" href="./reopenai.css?v=20261024b" />
+  <link rel="stylesheet" href="./reopenai.css?v=20261030" />
 </head>
 <body>
   <div class="user-page">
@@ -42,6 +42,22 @@
           <button id="check" class="act-btn" type="button">检测状态</button>
         </div>
         <div class="rw-status-row"><span id="status" class="rw-status"></span></div>
+      </section>
+
+      <!-- QQ Bot 状态（/status 接口） -->
+      <section class="user-card">
+        <h2><span class="card-ico" aria-hidden="true">📊</span>QQ Bot 状态</h2>
+        <p class="rw-tip" style="margin-top:0">读取机器人 <code>/status</code> 接口。目标服务未开放 CORS 时只能探测连通性，详细数据可<a href="https://fesui-qqbot.orkestr.run/dashboard" target="_blank" rel="noopener">打开状态面板 ↗</a> 查看。</p>
+        <div class="rw-qq-head">
+          <span id="qqState" class="rw-status">未检测</span>
+          <button id="qqRefresh" class="act-btn" type="button">刷新状态</button>
+        </div>
+        <div id="qqGrid" class="rw-qq-grid" hidden>
+          <div class="rw-qq-item"><span class="rw-qq-k">运行时长</span><span class="rw-qq-v" id="qqUptime">—</span></div>
+          <div class="rw-qq-item"><span class="rw-qq-k">累计消息</span><span class="rw-qq-v" id="qqMsgs">—</span></div>
+          <div class="rw-qq-item"><span class="rw-qq-k">最后发言</span><span class="rw-qq-v" id="qqLastChat">—</span></div>
+          <div class="rw-qq-item"><span class="rw-qq-k">数据落盘</span><span class="rw-qq-v" id="qqSaved">—</span></div>
+        </div>
       </section>
 
       <!-- 自动保活 -->
@@ -114,8 +130,8 @@
         try {
           var r = await fetch(u, { cache: 'no-store' });
           var j = await r.json().catch(function () { return null; });
-          if (r.ok && j && j.status === 'ok') {
-            $('#status').innerHTML = '<span class="rw-ok">● 在线</span>（HTTP 200, status=ok）';
+          if (r.ok && j && (j.status === 'ok' || j.online === true)) {
+            $('#status').innerHTML = '<span class="rw-ok">● 在线</span>（HTTP 200, ' + (j.online !== undefined ? 'online=true' : 'status=ok') + '）';
             log('状态：在线');
             return;
           }
@@ -139,6 +155,68 @@
 
       $('#wake').onclick = ping;
       $('#check').onclick = check;
+
+      // ---- QQ Bot 状态卡（/status 接口）----
+      function fmtDur(sec) {
+        sec = Math.max(0, Math.floor(sec || 0));
+        var d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+        if (d > 0) return d + ' 天 ' + h + ' 小时';
+        if (h > 0) return h + ' 小时 ' + m + ' 分钟';
+        if (m > 0) return m + ' 分钟';
+        return sec + ' 秒';
+      }
+      function fmtWhen(iso) {
+        if (!iso) return '—';
+        var t = new Date(String(iso).replace(' ', 'T') + (/[Zz+]/.test(iso) ? '' : 'Z'));
+        if (isNaN(t.getTime())) return String(iso);
+        var ago = Math.floor((Date.now() - t.getTime()) / 1000);
+        if (ago < 60) return '刚刚';
+        if (ago < 3600) return Math.floor(ago / 60) + ' 分钟前';
+        if (ago < 86400) return Math.floor(ago / 3600) + ' 小时前';
+        return t.toLocaleDateString() + ' ' + t.toLocaleTimeString();
+      }
+      async function qqCheck() {
+        var u = botUrl();
+        if (!u) { $('#qqState').textContent = '请先填写机器人 URL'; return; }
+        $('#qqState').textContent = '检测中…';
+        // 第一级：标准 CORS fetch——服务端开放 CORS 后可读到完整状态数据
+        try {
+          var r = await fetch(u + '/status', { cache: 'no-store' });
+          var j = await r.json().catch(function () { return null; });
+          if (r.ok && j && typeof j.online === 'boolean') {
+            if (j.online) {
+              $('#qqState').innerHTML = '<span class="rw-ok">● 在线</span>';
+              $('#qqUptime').textContent = fmtDur(j.uptime_seconds) + '（' + (j.started_at || '—') + ' 启动）';
+              $('#qqMsgs').textContent = (j.total_messages != null ? j.total_messages : '—') + ' 条 / ' + (j.sessions != null ? j.sessions : '—') + ' 个会话';
+              $('#qqLastChat').textContent = fmtWhen(j.last_chat_at);
+              $('#qqSaved').textContent = fmtWhen(j.last_saved_at);
+            } else {
+              $('#qqState').textContent = '● 休眠中（接口有响应，online=false）';
+            }
+            $('#qqGrid').hidden = false;
+            log('QQ Bot 状态已更新（语义级）');
+            return;
+          }
+          $('#qqState').textContent = '接口异常 HTTP ' + r.status;
+          log('QQ Bot /status 异常：HTTP ' + r.status);
+          return;
+        } catch (e) {
+          log('QQ Bot 语义状态不可读（CORS 拦截或网络错误），降级为连通性探测');
+        }
+        // 第二级：no-cors 连通性探测（该服务未返回 CORS 头时走这里）
+        try {
+          await fetch(u + '/status', { mode: 'no-cors', cache: 'no-store' });
+          $('#qqState').innerHTML = '<span class="rw-ok">● 可连通</span>（服务有响应；未开放 CORS 读不到详情，<a href="' + u + '/dashboard" target="_blank" rel="noopener">打开状态面板 ↗</a>）';
+          $('#qqGrid').hidden = true;
+          log('QQ Bot 连通性：服务有响应（视为已唤醒）');
+        } catch (e2) {
+          $('#qqState').textContent = '无响应（可能休眠中，点上方“手动激活”唤醒）';
+          $('#qqGrid').hidden = true;
+          log('QQ Bot 连通性探测失败：' + e2);
+        }
+      }
+      $('#qqRefresh').onclick = qqCheck;
+      qqCheck();
 
       var timer = null;
       $('#auto').onchange = function (e) {
