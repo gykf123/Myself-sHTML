@@ -39,7 +39,8 @@ const CONFIG = {
   // 友链（大卡片，参考 blym.top 的友链网格样式；favicon 取站点自身，加载失败回退为站点首字）
   friendLinks: [
     { name: '白鹿原嚒', url: 'https://blym.top/', desc: '技术博客与开源项目分享，Minecraft 玩家的自留地。', favicon: 'https://blym.top/favicon.ico' },
-    { name: 'MCJS', url: 'https://mcjs.link', desc: '网页版 Minecraft 最佳中文版，无需下载即可在浏览器里游玩。', favicon: 'https://mcjs.link/favicon.ico' }
+    { name: 'MCJS', url: 'https://mcjs.link', desc: '网页版 Minecraft 最佳中文版，无需下载即可在浏览器里游玩。', favicon: 'https://mcjs.link/favicon.ico' },
+    { name: 'DJI 虚拟飞行模拟器', url: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/', desc: '网页版无人机飞行模拟器：自由飞行、天气操控与联机约飞广场。', favicon: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/favicon.ico' }
   ],
   // 彩蛋按钮预设链接：点击随机跳转（"精神污染"/鬼畜整活向，链接均来自权威来源真实存在）
   eggLinks: [
