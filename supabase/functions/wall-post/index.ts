@@ -41,8 +41,10 @@ async function hmacSha256(key: string, msg: string): Promise<string> {
   const cryptoKey = await crypto.subtle.importKey(
     'raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
   )
-  const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(msg))
-  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(msg)))
+  // JWT 签名段是 base64url（无 padding），必须与 login/_shared/jwt.ts 的 b64urlEncode 一致
+  return btoa(String.fromCharCode(...sig))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 function b64urlDecode(s: string): string {
@@ -67,9 +69,7 @@ async function verifySiteJwt(token: string): Promise<{ sub: string; username: st
         return { sub: payload.sub, username: payload.username || '' }
       }
     }
-    // 降级：签名不匹配任何候选 secret 时，确认用户在表中存在
-    const { data } = await db.from('users').select('id').eq('id', payload.sub).limit(1)
-    if (data && data.length) return { sub: payload.sub, username: payload.username || '' }
+    // 签名不匹配一律拒绝，绝不降级（uid 可从公开资料页取得，降级 = 身份可伪造）
     return null
   } catch {
     return null

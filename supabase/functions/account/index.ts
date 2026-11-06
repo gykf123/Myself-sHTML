@@ -44,8 +44,10 @@ async function hmacSha256(key: string, msg: string): Promise<string> {
   const cryptoKey = await crypto.subtle.importKey(
     'raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
   )
-  const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(msg))
-  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(msg)))
+  // JWT 签名段是 base64url（无 padding），必须与 login/_shared/jwt.ts 的 b64urlEncode 一致
+  return btoa(String.fromCharCode(...sig))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 function b64urlDecode(s: string): string {
@@ -54,11 +56,11 @@ function b64urlDecode(s: string): string {
   return atob(b64)
 }
 
-// 返回 { sub, username } 或 null（过期/格式错一律拒绝）
-// 验签 secret 候选：login 接口签发 JWT 所用 secret 的确切环境变量名未知，
-// 按 JWT_SECRET → SUPABASE_JWT_SECRET → SERVICE_ROLE_KEY 顺序逐一尝试；
-// 三者均不匹配时降级为「结构解析 + exp 校验 + users 表确认 sub 存在」，
-// 保证功能可用（生产环境建议显式配置 JWT_SECRET 获得完整验签）。
+// 返回 { sub, username } 或 null（过期/格式错/签名不匹配一律拒绝）
+// 验签 secret 候选：JWT_SECRET → SUPABASE_JWT_SECRET → SERVICE_ROLE_KEY。
+// 2026-11-07 修正：早期版本把 btoa() 标准 base64 直接拿来比对 base64url 签名段，
+// 导致签名永远不匹配、全部落入「查 users 表确认 sub 存在」的降级路径——
+// 而 uid 是公开信息，等于任何人都能伪造他人身份，已删除该降级路径。
 async function verifySiteJwt(token: string): Promise<{ sub: string; username: string } | null> {
   try {
     const parts = token.split('.')
@@ -70,15 +72,12 @@ async function verifySiteJwt(token: string): Promise<{ sub: string; username: st
       Deno.env.get('SUPABASE_JWT_SECRET'),
       SERVICE_KEY,
     ].filter(Boolean) as string[]
-    const expected = await hmacSha256(candidates[0] ?? '', parts[0] + '.' + parts[1])
     for (const secret of candidates) {
       if ((await hmacSha256(secret, parts[0] + '.' + parts[1])) === parts[2]) {
         return { sub: payload.sub, username: payload.username || '' }
       }
     }
-    // 降级：签名不匹配任何候选 secret 时，确认该用户在表中存在
-    const { data } = await db.from('users').select('id').eq('id', payload.sub).limit(1)
-    if (data && data.length) return { sub: payload.sub, username: payload.username || '' }
+    // 签名不匹配一律拒绝，绝不降级（uid 可从公开资料页取得，降级 = 身份可伪造）
     return null
   } catch {
     return null
