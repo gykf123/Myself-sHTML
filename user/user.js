@@ -6,6 +6,10 @@
    - 数据源：JWT payload（账号快照）+ Edge Function account（详细资料代理读）
              + guestbook 表（按 user_id 查「我的留言」）
    - 账号绑定：GitHub OAuth（完整流程，secret 只在 Edge Function 侧）+ QQ 号
+   - 两种视图：
+       · 不带参数 或 ?me=1        → 自己的完整中心（需登录，含私密区块）
+       · ?username=xxx / ?uid=xxx → 他人公开名片（只读，无需登录，
+         走已部署的 profile 函数；不含会话/绑定/我的留言/退出登录）
    ============================================================ */
 'use strict';
 
@@ -600,10 +604,223 @@ async function loadMyWall(uid) {
     '</li>').join('') + '</ul>';
 }
 
+/* ============================================================
+   他人公开名片（只读视图，无需登录）
+   - 入口：?username=xxx 或 ?uid=xxx（聊天室点昵称跳过来）
+   - 数据源：已部署的 Edge Function profile（GET，公开只读）
+   - 严格只展示公开字段，绝不含会话 / 绑定 / 我的留言 / 退出登录
+   ============================================================ */
+function safeImgUrl(u) {
+  // 头像只放行 http/https，挡掉 javascript: / data: 等协议
+  try {
+    const s = String(u || '').trim();
+    if (!s) return '';
+    const parsed = new URL(s, location.href);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? parsed.href : '';
+  } catch (e) { return ''; }
+}
+
+function renderPublicLoading() {
+  $('#userMain').innerHTML = '<div class="user-loading">正在加载资料…</div>';
+}
+
+function renderPublicError(title, msg, showBack) {
+  $('#userMain').innerHTML =
+    '<section class="user-card guide-card">' +
+      '<div class="guide-ico" aria-hidden="true">' + (title === '用户不存在' ? '🔍' : '🌧️') + '</div>' +
+      '<h1>' + escapeHtml(title) + '</h1>' +
+      '<p>' + escapeHtml(msg) + '</p>' +
+      '<div class="guide-actions">' +
+        '<a class="act-btn" href="./">我的个人中心</a>' +
+        '<a class="act-btn" href="../chat/">去聊天室</a>' +
+        (showBack ? '<a class="act-btn" href="../">返回主页</a>' : '') +
+      '</div>' +
+    '</section>';
+}
+
+function pubBadge(role, status) {
+  const roleBadge = role === 'admin'
+    ? '<span class="badge badge-admin">管理员</span>'
+    : '<span class="badge">用户</span>';
+  const statusBadge = status === 'approved'
+    ? '<span class="badge badge-ok">账号正常</span>'
+    : '<span class="badge badge-warn">' + escapeHtml(status || '未知') + '</span>';
+  return roleBadge + statusBadge;
+}
+
+/* 最近动态列表（发言 / 文章 / 交易），统一做转义与空态 */
+function pubList(rows, kind) {
+  if (!Array.isArray(rows) || !rows.length) {
+    return '<p class="pub-empty">暂时还没有' + kind + '。</p>';
+  }
+  const items = rows.slice(0, 8).map(r => {
+    let main = '';
+    let sub = '';
+    if (kind === '文章') {
+      main = r.title || '（无标题）';
+      sub = r.created_at || r.date ? fmtRelative(r.created_at || r.date) : '';
+    } else if (kind === '交易') {
+      main = (r.item_name || '物品') + (r.price ? ' · ' + r.price : '');
+      sub = r.created_at ? fmtRelative(r.created_at) : '';
+    } else {
+      main = r.content || '';
+      sub = r.created_at ? fmtRelative(r.created_at) : '';
+    }
+    return '<li class="pub-item">' +
+      '<p class="pub-item-main">' + escapeHtml(main) + '</p>' +
+      (sub ? '<span class="pub-item-sub">' + escapeHtml(sub) + '</span>' : '') +
+    '</li>';
+  }).join('');
+  return '<ul class="pub-list">' + items + '</ul>';
+}
+
+async function renderPublicProfile(username) {
+  const main = $('#userMain');
+  let data = null;
+  try {
+    const res = await fetch(FUNCTIONS_BASE + '/profile?username=' + encodeURIComponent(username), {
+      headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
+    });
+    data = await res.json().catch(() => null);
+    if (res.status === 404 || (data && data.success === false)) {
+      renderPublicError('用户不存在', '没有找到 @' + username + ' 这个账号，检查一下链接是不是打错了。', true);
+      return;
+    }
+    if (!res.ok || !data || !data.profile) throw new Error('bad response');
+  } catch (e) {
+    // 降级：profile 函数暂不可用时，用 users 表公开列渲染一张基础名片
+    // （users 表 anon 可读基础列，reason/password_hash 已被收紧，绝不带这两列）
+    try {
+      const fields = 'id,username,nickname,role,status,created_at,avatar_url,bio';
+      const { ok, data: rows } = await sbGet('/rest/v1/users?select=' + fields +
+        '&username=eq.' + encodeURIComponent(username) + '&limit=1');
+      if (!ok || !Array.isArray(rows) || !rows.length) {
+        renderPublicError('用户不存在', '没有找到 @' + username + ' 这个账号。', true);
+        return;
+      }
+      const r = rows[0];
+      renderPublicCard({
+        username: r.username || username,
+        nickname: r.nickname,
+        avatar_url: r.avatar_url,
+        role: r.role, status: r.status,
+        bio: r.bio, joined_at: r.created_at
+      }, null, [], [], [], true);
+      return;
+    } catch (e2) {
+      renderPublicError('资料加载失败', '暂时读不到这位用户的资料，稍后再来试试。', true);
+      return;
+    }
+  }
+
+  const p = data.profile || {};
+  const counts = data.counts || null;
+  renderPublicCard(p, counts, data.messages, data.stories, data.trades, false);
+}
+
+function renderPublicCard(p, counts, messages, stories, trades, basic) {
+  const main = $('#userMain');
+  const name = p.nickname || p.username || '用户';
+  const uname = p.username || '';
+  const avatar = safeImgUrl(p.avatar_url);
+  const initial = (name || 'U').trim().charAt(0).toUpperCase();
+  const joined = p.joined_at || p.created_at;
+
+  // 顶部导航：他人视图把「个人中心」换成回自己中心的链接
+  const nav = $('.user-topnav');
+  if (nav) {
+    nav.innerHTML =
+      '<a href="../">主页</a>' +
+      '<a href="../#wall">留言墙</a>' +
+      '<a href="../chat/">聊天室</a>' +
+      '<a href="./">我的个人中心</a>';
+  }
+
+  // 更新 title，方便分享/浏览器标签识别
+  try { document.title = escapeHtml(name) + ' · FeSui 用户资料'; } catch (e) {}
+
+  const statCard = counts
+    ? '<section class="user-card">' +
+        '<h2><span class="card-ico" aria-hidden="true">📊</span>站点活跃</h2>' +
+        '<div class="pub-stats">' +
+          '<div class="pub-stat"><b>' + escapeHtml(String(counts.messages ?? 0)) + '</b><span>发言</span></div>' +
+          '<div class="pub-stat"><b>' + escapeHtml(String(counts.stories ?? 0)) + '</b><span>文章</span></div>' +
+          '<div class="pub-stat"><b>' + escapeHtml(String(counts.trades ?? 0)) + '</b><span>交易</span></div>' +
+        '</div>' +
+      '</section>'
+    : '';
+
+  const dynamicCards = !basic
+    ? '<section class="user-card">' +
+        '<h2><span class="card-ico" aria-hidden="true">💬</span>最近发言</h2>' + pubList(messages, '发言') +
+      '</section>' +
+      '<section class="user-card">' +
+        '<h2><span class="card-ico" aria-hidden="true">📖</span>发表的文章</h2>' + pubList(stories, '文章') +
+      '</section>' +
+      '<section class="user-card">' +
+        '<h2><span class="card-ico" aria-hidden="true">🛒</span>在售物品</h2>' + pubList(trades, '交易') +
+      '</section>'
+    : '';
+
+  main.innerHTML =
+    '<div class="pub-notice">这是 <b>@' + escapeHtml(uname) + '</b> 的公开资料页，仅展示公开信息。</div>' +
+    '<section class="user-card">' +
+      '<div class="profile-head">' +
+        (avatar
+          ? '<img class="profile-avatar" src="' + escapeHtml(avatar) + '" alt="头像" referrerpolicy="no-referrer" />'
+          : '<div class="profile-avatar" aria-hidden="true">' + escapeHtml(initial) + '</div>') +
+        '<div class="profile-id">' +
+          '<h1 class="profile-name">' + escapeHtml(name) +
+            '<span class="profile-at">@' + escapeHtml(uname) + '</span></h1>' +
+          '<div class="profile-badges">' + pubBadge(p.role, p.status) + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="user-card">' +
+      '<h2><span class="card-ico" aria-hidden="true">🪪</span>公开资料</h2>' +
+      '<div class="info-grid">' +
+        '<div class="info-item"><div class="k">用户名</div><div class="v">' + escapeHtml(uname) + '</div></div>' +
+        '<div class="info-item"><div class="k">加入时间</div><div class="v dim">' +
+          (joined ? escapeHtml(fmtDateTime(joined)) : '—') + '</div></div>' +
+        '<div class="info-item" style="grid-column:1/-1"><div class="k">个人简介</div>' +
+          '<div class="v' + (p.bio ? '' : ' dim') + '">' + escapeHtml(p.bio || '这个人很懒，什么都没写。') + '</div></div>' +
+      '</div>' +
+    '</section>' +
+    statCard +
+    dynamicCards +
+    '<section class="user-card">' +
+      '<h2><span class="card-ico" aria-hidden="true">⚙️</span>操作</h2>' +
+      '<div class="user-actions">' +
+        '<a class="act-btn primary" href="../chat/">去聊天室聊聊</a>' +
+        '<a class="act-btn" href="./">我的个人中心</a>' +
+        '<a class="act-btn" href="../">返回主页</a>' +
+      '</div>' +
+    '</section>';
+}
+
 /* ---------- 启动 ---------- */
 (async function init() {
   const y = $('#footYear');
   if (y) y.textContent = new Date().getFullYear();
+
+  // 他人名片视图优先：带 ?username= 或 ?uid= 且不是 ?me=1
+  let qs = new URLSearchParams(location.search);
+  const wantOther = !qs.get('me') && (qs.get('username') || qs.get('uid'));
+  if (wantOther) {
+    let username = (qs.get('username') || '').trim();
+    const uid = (qs.get('uid') || '').trim();
+    renderPublicLoading();
+    // uid → username：users 表 id/username 匿名可读（仅这两个字段）
+    if (!username && uid) {
+      try {
+        const { ok, data } = await sbGet('/rest/v1/users?select=username&id=eq.' + encodeURIComponent(uid) + '&limit=1');
+        if (ok && Array.isArray(data) && data.length) username = data[0].username || '';
+      } catch (e) {}
+      if (!username) { renderPublicError('用户不存在', '这个用户 ID 没有对应的账号。', true); return; }
+    }
+    await renderPublicProfile(username);
+    return;
+  }
 
   const exchanged = await consumeTicket();
   const token = getToken();

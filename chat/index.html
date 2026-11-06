@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>聊天室 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="FeSui 聊天室：登录后和站点上的朋友聊两句，消息公开可见。" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261024b" />
+  <link rel="stylesheet" href="../user/user.css?v=20261106a" />
+  <link rel="stylesheet" href="./chat.css?v=20261106a" />
+  <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../#wall">留言墙</a>
+        <a href="../user/">个人中心</a>
+        <a href="./" class="active" aria-current="page">聊天室</a>
+      </nav>
+    </header>
+
+    <main class="user-main">
+      <section class="user-card chat-head-card">
+        <h1 class="chat-title">💬 聊天室</h1>
+        <p class="chat-sub">站点公共大厅，所有人都能看到消息。登录后即可发言，点昵称可以去看 TA 的资料。</p>
+        <div class="chat-status-row">
+          <span id="chatConn" class="chat-conn">连接中…</span>
+          <button id="chatRefresh" class="act-btn small" type="button">刷新</button>
+        </div>
+      </section>
+
+      <section class="user-card chat-room-card">
+        <div id="chatList" class="chat-list" aria-live="polite">
+          <div class="user-loading">正在加载消息…</div>
+        </div>
+      </section>
+
+      <section class="user-card chat-compose-card">
+        <div id="chatComposer"></div>
+      </section>
+    </main>
+
+    <footer class="user-foot">
+      <span>© <span id="footYear"></span> FeSui</span>
+      <span class="user-foot-sep">·</span>
+      <a href="../">返回主页</a>
+    </footer>
+  </div>
+
+  <script src="./chat.js?v=20261106a" defer></script>
+</body>
+</html>
