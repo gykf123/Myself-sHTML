@@ -170,12 +170,58 @@ html.theme-glass .sidebar {
 }
 .nav-item.active::before { transform: translateY(-50%) scaleY(1); }
 
+/* ---------- 站点功能分组（指向独立页面的入口） ----------
+   刻意不复用 .nav-item：bindNav() / switchView() 会对所有 .nav-item
+   绑定 SPA 切换并改 active 态，混用会让跳页前先闪回 info 视图。 */
+.nav-sep { height: 1px; margin: 14px 6px 10px; background: var(--border); }
+.nav-group-title {
+  padding: 0 12px 2px; font-size: 11px; font-weight: 700;
+  letter-spacing: 1.2px; color: var(--text-dim); opacity: .8;
+}
+.site-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 12px; text-decoration: none;
+  color: var(--text-dim); border: 1px solid transparent;
+  font-size: 14px; font-weight: 600;
+  transition: background .2s var(--ease), border-color .2s, color .2s, transform .15s var(--ease);
+}
+.site-link .ico { flex: none; font-size: 17px; line-height: 1; }
+.site-link .lbl { flex: 1 1 auto; min-width: 0; }
+.site-link .go { flex: none; font-size: 12px; opacity: .55; }
+.site-link:hover {
+  background: var(--surface-2); color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  transform: translateX(2px);
+}
+.site-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 工具箱视图：通往 ./tool/ 全量大厅的入口卡 */
+.tools-hub {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; margin-bottom: 16px; border-radius: var(--radius);
+  text-decoration: none; color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  transition: transform .18s var(--ease), border-color .2s, background .2s;
+}
+.tools-hub:hover { transform: translateY(-2px); border-color: var(--accent); background: var(--accent-soft); }
+.tools-hub .hub-ico { flex: none; font-size: 28px; line-height: 1; }
+.tools-hub .hub-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tools-hub .hub-text strong { font-size: 16px; }
+.tools-hub .hub-text small { font-size: 12px; color: var(--text-dim); }
+.tools-hub .hub-go { flex: none; font-size: 18px; color: var(--accent); }
+.tools-hub:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* 折叠为窄条：仅显示图标，仍可导航 */
 .sidebar.collapsed { width: var(--sidebar-w-collapsed); padding: 16px 8px; }
 .sidebar.collapsed .brand { display: none; }
 .sidebar.collapsed .nav { align-items: center; }
 .sidebar.collapsed .nav-item { justify-content: center; padding: 10px 0; }
 .sidebar.collapsed .nav-item .lbl { display: none; }
+.sidebar.collapsed .site-link { justify-content: center; padding: 9px 0; }
+.sidebar.collapsed .site-link .lbl,
+.sidebar.collapsed .site-link .go,
+.sidebar.collapsed .nav-group-title { display: none; }
+.sidebar.collapsed .nav-sep { margin: 10px 4px; }
 .sidebar.collapsed .sidebar-head { justify-content: center; }
 
 /* ---------- 主内容 ---------- */
@@ -760,6 +806,9 @@ html.theme-glass .scroll-progress {
   .sidebar.collapsed .nav { align-items: stretch; }
   .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 10px 12px; }
   .sidebar.collapsed .nav-item .lbl { display: inline; }
+  .sidebar.collapsed .site-link { justify-content: flex-start; padding: 9px 12px; }
+  .sidebar.collapsed .site-link .lbl { display: inline; }
+  .sidebar.collapsed .nav-group-title { display: block; }
   .content { margin-left: 0; padding: 20px 16px; padding-top: calc(var(--topbar-h) + 16px); }
   .sidebar.collapsed ~ .content { margin-left: 0; }
   .identity-grid { grid-template-columns: 1fr; }
@@ -778,7 +827,7 @@ html.theme-glass .scroll-progress {
   .icon-btn:hover, .nav-item:hover, .avatar-box:hover, .identity-card:hover,
   .github-link:hover, .egg-btn:hover, .proj-card:hover, .friend-card:hover,
   .chip:hover, .wall-submit:hover, .wall-item:hover, .wall-refresh:hover,
-  .mail-line:hover, .tool-btn:hover,
+  .mail-line:hover, .tool-btn:hover, .site-link:hover, .tools-hub:hover,
   .friend-card:hover .friend-logo img, .friend-card:hover .friend-name .go {
     transform: none;
   }

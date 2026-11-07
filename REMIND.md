@@ -182,3 +182,21 @@
 - **验收 `test_net_guard.py` 20/20 全过**：官方域完全不通时竞速切到反代并持久化 → 统计页经反代渲染 SVG、聊天室公共消息经反代读取 → **主域断开时完整跑通登录 `issue` + `redeem` 一次性票**（证明全局接管覆盖了 `login` 内联 `callFn` 与 `auth-ticket.js`，这是方案一最难覆盖的部分）→ 错误密码 401 只请求 1 次 → 全端点断开时 `record_visit` 与 `auth-exchange` 各只发 1 次 → `/auth/v1/recover` 正确回退官方域 → 调试接口可用 → 零 `pageerror`。`node --check net-guard.js` 通过。
 - **验收脚本自身的两个口径修正**（初版 17/20，非产品问题）：①聊天室公共消息首屏读的是 `/rest/v1/fs_chat_messages`，**不是** `/functions/v1/fs-chat`，原断言写错；②活跃端点已持久化为反代，`401` 时请求打反代是预期，真正要断言的是「不产生第二次请求、不触发端点切换」，不是「打官方域」。
 - **运维注意**：①反代是站外依赖，若它下线，网络层失败会自动切回官方域，行为退化成没装兜底时那样，不会整个站点挂掉；②`fs_net_active` 持久化后，官方域恢复也不会立刻切回（30 分钟冷却 + 竞速谁先 200 用谁），需要立刻裁决可在控制台 `FS_NET.reset()`；③探针依赖 anon 对 `users.id` 的 SELECT，**若将来收紧 users 表 RLS，需同步换探针路径**，否则两端都判失败但真实请求仍可用（不会误伤，只是失去自动优选）；④本层不缓存、不改业务代码、不动后端，纯前端兜底，**无任何 SQL / Edge Function 变更**。本条与代码同批提交。
+
+## 2026-11-07 ⑥ 主站补齐「一大堆功能」的入口（用户反馈找不到）
+
+- **用户原话**：「我发现聊天室，个人主页等一大堆功能在主站没有入口」。**核查结论属实，而且比看上去更严重**：
+  - 主站侧栏只有 5 个 `button.nav-item`（`data-view` 的 SPA 视图：个人信息 / 项目导航 / 工具箱 / 友链 / 留言墙）；
+  - **「工具箱」视图里只有 2 张精选卡**（矿石查找器、MC 搜索），而真正装着 19 个工具的 `./tool/` 大厅**反而没有入口**——用户点「工具箱」会以为全站只有 2 个工具；
+  - **个人中心 `./user/` 只在「已登录」时**由 `renderAuth()` 渲染进 `#authArea`，未登录访客完全看不到；
+  - footer 只有聊天室、访问统计、GitHub 三条小链接，且在 `main` 底部，侧栏折叠/移动端抽屉里根本看不见；
+  - `./reopenai/`（Bot 唤醒台）、`./admin/` 全站没有任何主站入口。
+- **历史成因**：前几轮每次加独立页面都按「只加静态链接、不碰主站 SPA 侧栏」的谨慎策略处理（当时怕弄坏 `switchView`），累积下来就成了可发现性欠账。这次必须动侧栏，但**要动得安全**。
+- **方案（三处一起补）**：①侧栏 `nav` 之后新增独立「站点功能」分组（工具箱大厅 / 聊天室 / 个人中心 / 访问统计 / Bot 唤醒台）；②工具箱视图顶部加一张 `.tools-hub` 静态入口卡「打开完整工具箱 · 19 个工具」；③footer 补成 6 条站点地图。
+- **本轮最关键的决策：新链接用 `.site-link`，绝不复用 `.nav-item`。** `bindNav()` 是 `querySelectorAll('.nav-item')` 全量绑 click → `switchView(btn.dataset.view)`，`switchView()` 又会遍历 `.nav-item` 改 `active` / `aria-current`。若把 `<a href="./chat/">` 也写成 `.nav-item`，点它会先 `switchView(undefined)` → 回退 `info` 视图（**跳页前闪一下**），还会把 active 态搞乱。独立 class 让两套导航彻底隔离，`script.js` 一行没改。
+- **管理后台 `./admin/` 有意不公开挂主导航**：它只在个人中心对管理员显示，公开摆出来既暴露后台地址、点进去又只能看到「无权限」。保持现状是有意的安全边界，不是遗漏。
+- 样式全部变量化：`.nav-sep` / `.nav-group-title` / `.site-link`（右侧 ↗ 表示「离开 SPA 去独立页面」）/ `.tools-hub`；补齐**折叠态**（只留图标、隐藏文字与分组标题）、**移动端抽屉**（`collapsed` 时仍显示文字）、**触屏 hover 降级**（无 hover 设备禁用位移）。`.sidebar` 本就 `overflow-y:auto`，多 5 条链接不会撑破。
+- **版本号**：`style.css` 是 11-07 当天第二次改，按铁律 `?v=20261107` → **`?v=20261107b`**，8 个引用页（404 / admin / chat / index / reopenai / stats / user/index / user/github-callback）统一同步并用脚本校验集合只剩 `{'20261107b'}`；`script.js` 没改所以版本不动，`net-guard.js` 仍是 `20261107`。
+- **验收 `test_nav_entries.py` 40/40 全过**：5 个 SPA 按钮与 5 个站点入口结构、href、未登录态个人中心可见；**隔离测试**（阻止默认跳转让 click 冒泡，断言视图没闪回 info、site-link 没被加 active）；hub 卡与原有 2 张精选卡共存；footer 6 条；5 个视图切换回归；主题切换；折叠态；移动端抽屉；真实点击跳转 `/stats/`；5 个目标页本地 200；版本号一致；零 `pageerror`。
+- **验收脚本自身的三个坑（沉淀，均非产品问题）**：①**别用 `route.abort()` 拦主文档导航来做「点击不跳转」断言**——Playwright 会把页面清成错误页，`#viewTitle` 直接消失导致 30s 超时；正确做法是 `addEventListener('click', e => e.preventDefault(), {capture:true, once:true})` 再 `.click()`，事件照常冒泡、只挡跳转。②**`switchView` 在桌面端点导航后会自动给侧栏加 `collapsed`**，所以测折叠态前要先读 `classList.contains('collapsed')`，盲目点 `#collapseBtn` 反而会展开（首轮 2 条假失败即此）。③**别用 `route.abort()` 掐 Supabase 请求来「加速」**——`stats.js` 等页面的 fetch 会抛未捕获的 `Failed to fetch`，制造假的 `pageerror`；验收一律走真实链路（与 `test_net_guard.py` 口径一致）。
+- **未做（边界说明）**：各子页（`chat/` / `user/` / `stats/` / `admin/` / `tool/` / `reopenai/`）仍保留各自零散的顶栏互链，但都有「返回主页」`../`，回主站即可看到完整导航；若以后要「任意子页直达任意功能」，应抽一个共享导航组件统一注入，别再逐页手补。本条与代码同批提交。

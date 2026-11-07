@@ -18,7 +18,7 @@
   <link rel="icon" type="image/png" href="./favicon.png" />
   <link rel="preconnect" href="https://yowwyasttkywyqgseuqz.supabase.co" crossorigin />
   <link rel="preconnect" href="https://api.fkd.xn--0iv.gay" crossorigin />
-  <link rel="stylesheet" href="./style.css?v=20261107" />
+  <link rel="stylesheet" href="./style.css?v=20261107b" />
   <!-- 结构化数据：便于搜索引擎理解「这是谁的站点」 -->
   <script type="application/ld+json">
   {
@@ -91,6 +91,28 @@
         <button class="nav-item" data-view="wall" title="留言墙">
           <span class="ico" aria-hidden="true">📝</span><span class="lbl">留言墙</span>
         </button>
+      </nav>
+
+      <!-- 站点功能：独立页面入口。刻意不复用 .nav-item —— bindNav()/switchView()
+           会给所有 .nav-item 绑 SPA 切换并改 active，混用会导致跳页前先闪回 info 视图 -->
+      <div class="nav-sep" aria-hidden="true"></div>
+      <nav class="nav site-nav" aria-label="站点功能">
+        <span class="nav-group-title">站点功能</span>
+        <a class="site-link" href="./tool/" title="工具箱大厅 · 19 个在线工具">
+          <span class="ico" aria-hidden="true">🧰</span><span class="lbl">工具箱大厅</span><span class="go" aria-hidden="true">↗</span>
+        </a>
+        <a class="site-link" href="./chat/" title="聊天室 · 公共大厅与私聊">
+          <span class="ico" aria-hidden="true">💬</span><span class="lbl">聊天室</span><span class="go" aria-hidden="true">↗</span>
+        </a>
+        <a class="site-link" href="./user/" title="个人中心 · 资料 / 账号绑定 / 我的留言">
+          <span class="ico" aria-hidden="true">🧑‍💻</span><span class="lbl">个人中心</span><span class="go" aria-hidden="true">↗</span>
+        </a>
+        <a class="site-link" href="./stats/" title="访问统计 · 公开聚合数据">
+          <span class="ico" aria-hidden="true">📊</span><span class="lbl">访问统计</span><span class="go" aria-hidden="true">↗</span>
+        </a>
+        <a class="site-link" href="./reopenai/" title="Bot 唤醒台 · QQ 机器人状态与保活">
+          <span class="ico" aria-hidden="true">🤖</span><span class="lbl">Bot 唤醒台</span><span class="go" aria-hidden="true">↗</span>
+        </a>
       </nav>
 
       <div id="authArea" class="auth-area" aria-live="polite"></div>
@@ -188,6 +210,15 @@
 
       <!-- 工具箱视图 -->
       <section class="view" data-view="tools" hidden aria-labelledby="viewTitle">
+        <!-- 下面两张是精选卡；完整的 19 个工具在 ./tool/ 大厅，这里给一个不会被漏掉的入口 -->
+        <a class="tools-hub glass" href="./tool/">
+          <span class="hub-ico" aria-hidden="true">🧰</span>
+          <span class="hub-text">
+            <strong>打开完整工具箱</strong>
+            <small>19 个在线工具 · 时间戳 / JSON / 正则 / 哈希 / 密码 / MC 查询…</small>
+          </span>
+          <span class="hub-go" aria-hidden="true">↗</span>
+        </a>
         <div id="toolCards" class="tool-cards"></div>
       </section>
 
@@ -213,8 +244,11 @@
       <footer class="site-footer">
         <span class="foot-copy">© <span id="footYear"></span> FeSui · 不执拗的同学</span>
         <span class="foot-meta">最后更新：<span id="footUpdated"></span></span>
+        <a class="foot-link" href="./tool/">工具箱 ↗</a>
         <a class="foot-link" href="./chat/">聊天室 ↗</a>
+        <a class="foot-link" href="./user/">个人中心 ↗</a>
         <a class="foot-link" href="./stats/">访问统计 ↗</a>
+        <a class="foot-link" href="./reopenai/">Bot 唤醒台 ↗</a>
         <a class="foot-link" href="https://github.com/gykf123" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
       </footer>
     </main>
