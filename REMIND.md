@@ -200,3 +200,26 @@
 - **验收 `test_nav_entries.py` 40/40 全过**：5 个 SPA 按钮与 5 个站点入口结构、href、未登录态个人中心可见；**隔离测试**（阻止默认跳转让 click 冒泡，断言视图没闪回 info、site-link 没被加 active）；hub 卡与原有 2 张精选卡共存；footer 6 条；5 个视图切换回归；主题切换；折叠态；移动端抽屉；真实点击跳转 `/stats/`；5 个目标页本地 200；版本号一致；零 `pageerror`。
 - **验收脚本自身的三个坑（沉淀，均非产品问题）**：①**别用 `route.abort()` 拦主文档导航来做「点击不跳转」断言**——Playwright 会把页面清成错误页，`#viewTitle` 直接消失导致 30s 超时；正确做法是 `addEventListener('click', e => e.preventDefault(), {capture:true, once:true})` 再 `.click()`，事件照常冒泡、只挡跳转。②**`switchView` 在桌面端点导航后会自动给侧栏加 `collapsed`**，所以测折叠态前要先读 `classList.contains('collapsed')`，盲目点 `#collapseBtn` 反而会展开（首轮 2 条假失败即此）。③**别用 `route.abort()` 掐 Supabase 请求来「加速」**——`stats.js` 等页面的 fetch 会抛未捕获的 `Failed to fetch`，制造假的 `pageerror`；验收一律走真实链路（与 `test_net_guard.py` 口径一致）。
 - **未做（边界说明）**：各子页（`chat/` / `user/` / `stats/` / `admin/` / `tool/` / `reopenai/`）仍保留各自零散的顶栏互链，但都有「返回主页」`../`，回主站即可看到完整导航；若以后要「任意子页直达任意功能」，应抽一个共享导航组件统一注入，别再逐页手补。本条与代码同批提交。
+
+## 2026-11-07 ⑦ 自主迭代：修好「留言墙根本发不出去」+ 结清全站导航欠账
+
+用户一句「自主迭代」，不指定范围，自己盘点后挑了两笔**真实欠账**做掉。
+
+### P0：`wall-post` 从未上线，留言墙一直是坏的（最严重）
+
+- **自主盘点发现**：`submitWall` 只 POST `/functions/v1/wall-post` 且**刻意不留降级路径**（2026-10-24 P0 安全决策），但 curl 实探官方域与反代**都返 404 `Requested function was not found`**（同法探 `fs-chat` 200，排除探测方式问题）。Management API 函数清单 11 个里也没有 `wall-post`。**结论：登录用户在留言墙点「发布」必然失败，这个功能是死的。**
+- **数据库侧同样只做了一半**：`pg_trigger` / `pg_proc` 查得 `guestbook_guard_trg`=0、`guestbook_guard()`=0、`guestbook_dup_idx`=0 —— `supabase/wall-security.sql` **从未在线执行**，anon 直插的洪泛/去重兜底也是缺的。表本身没问题（5 列 `id,content,nickname,user_id,created_at`，2 条 policy，1 条真实历史留言）。
+- **「源码改过 ≠ 线上跑着」第三次应验**（前两次：`fs-chat`、`account`）。11-07 修 JWT 越权漏洞时把三个函数的 `hmacSha256` 都改成 base64url、删了降级路径，但只部署了 `fs-chat`，后来补了 `account`，**`wall-post` 一直漏着**。以后凡「源码修过」的函数，交付前必须逐个对照线上函数清单核一遍。
+- **修复（全部用 PAT / Management API，代码零改动）**：①执行 `supabase/wall-security.sql`（幂等，**只建 trigger / 函数 / 索引，不动 RLS 与 GRANT**——App 端 adapp / iOS-app 仍依赖 anon insert，不能撤），复查 `trg=1 fn=1 idx=1`；②`npx supabase functions deploy wall-post --no-verify-jwt --use-api --yes`（`--no-verify-jwt` 必须，本站 JWT 是 login 自签 HS256，网关验不了）。Secrets 核对齐全：`JWT_SECRET` / `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_URL` 都在，无需新增。
+- **验收 `test_wall_deploy.py` 23/23**：真登录拿 token → 无 token 401 / **伪造签名 401**（越权漏洞确实堵住）/ 空内容·敏感词·超长内容·超长昵称 400 → **页面真实提交**（走前端 `submitWall`、不打 mock）显示「已发布」并读回渲染 → XSS 片段 `<img onerror>` 被 `escapeHtml` 转义（列表 0 个 img）→ REST 读回 `user_id === JWT sub`（服务端写入、前端不可伪造）→ 同用户 30s 第二条 429 → anon 直插同内容被 trigger 拦下（HTTP 400、未新增行）→ 未登录门禁回归 → `try/finally` 幂等清理测试数据，**原有 1 条真实留言未误删** → 零 `pageerror`。
+- **注意**：这两步是**线上状态变更**，仓库里 `wall-post/index.ts` 与 `wall-security.sql` 本来就在，所以 git diff 看不到后端改动；判断「有没有部署」只能查线上函数清单 / trigger，别看仓库文件。
+
+### P1：全站共享导航 `site-nav.js`，结清 ⑥ 留下的欠账
+
+- 纯静态站 38 个页面骨架各异（主站 SPA、`user/` 子页骨架、`tool/` 内联中文变量 CSS、MC 子站深层目录……），逐页手补顶栏既易漏又难维护。新建 `/site-nav.js`：ES5 零依赖、**自带 `.fs-nav-*` 前缀样式**（不依赖任何页面 CSS 变量）、链接用根相对 `/xxx/` 所以任意目录深度都指向同一处、DOM API 创建零 `innerHTML` 注入面、不 fetch、不写 localStorage、不碰业务 DOM。右下角一枚 46px 按钮，点开才展开 7 条链接；ESC / 点外部关闭、`aria-expanded` / `aria-current`、reduced-motion 降级、glass/standard 两套配色（`localStorage.theme` + `prefers-color-scheme`）。
+- **主站自动跳过**：首页已有 ⑥ 加的侧栏「站点功能」分组，不重复注入。**这里踩了一个自己写的坑**：跳过检测最初放在 IIFE 顶部，但脚本在 `<head>` 同步执行时侧栏还没解析，`querySelector('.site-link')` 必然返回 null，主站会被误判成「不是主站」而重复注入；**必须挪到 `boot()`（DOMContentLoaded 之后）**。沉淀：head 里同步脚本不能靠「查 DOM 元素」判断页面身份。
+- 管理后台 `/admin/` 与 `/404.html` 这类不在清单里的页面**不高亮任何入口**（早先版本会回退高亮首页，属于误导，已改）。管理后台依旧不公开挂导航，与 ⑥ 的安全边界一致。
+- **接入**：38/38 个 HTML 在 `net-guard.js` 之后紧接一行 `<script src="/site-nav.js?v=20261107"></script>`，脚本校验零顺序异常、版本集合唯一。**本轮没改 `style.css` / `script.js` / `user.css` 等任何已发布静态资源**，故它们的 `?v=` 全部不动；`site-nav.js` 是新建文件、首次发布、浏览器从未缓存过，所以直接用 `20261107` 而非字母后缀（铁律针对的是「已发布资源被再次修改」）。
+- **验收 `test_site_nav.py` 32/32**：主站 `root=0 style=0` 确认不重复；9 个不同深度/类型页面（含 `/tool/minecraft-search/tools/*.html` 三层目录、`/404.html`、`/admin/`）均注入且默认收起；7 条链接 href 顺序、外链 `noopener noreferrer`、`aria-expanded`；各页高亮正确（无匹配页不高亮）；ESC / 点外部关闭；两套主题配色实取 computed 值不同；**从三层深的工具页真实点击跳到 `/stats/`**；移动端 375px 面板不越界；38 页接入顺序；零 `pageerror`。
+- **顺手做的全站死链扫描**：174 条站内 `href`，**0 条真实断链**；3 条命中是 JS 模板字符串里的动态拼接（`href="' + u + '/dashboard"` 等）被正则误抓，非死链。
+- **仍未做、且不能自主做**：①App 端（adapp / iOS-app）留言墙接入登录后彻底撤 anon insert——涉及另外两个仓库，需用户排期；②体检报告 P1/P2 遗留（随笔/动态视图、PWA、CONFIG 拆 `data.json`）、`user.css` 抽 `page-kit.css`——属重构/产品决策，不擅自改。本条与代码同批提交。
