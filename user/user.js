@@ -2,7 +2,8 @@
    个人中心（user/）页面逻辑
    - 登录态来源：localStorage['fe_token']（JWT，HS256，7 天有效）
    - 登录回跳：login 页优先携带一次性 ticket（?ticket=，120 秒），
-     本页负责 redeem 兑换为 JWT 后落库并清理 URL 参数
+     本页负责 redeem 兑换为 JWT 后落库并清理 URL 参数；
+     换票接口异常时的 ?token= 降级通道同样兼容
    - 数据源：JWT payload（账号快照）+ Edge Function account（详细资料代理读）
              + guestbook 表（按 user_id 查「我的留言」）
    - 账号绑定：GitHub OAuth（完整流程，secret 只在 Edge Function 侧）+ QQ 号
@@ -57,17 +58,24 @@ function tokenExpired(payload) {
   return payload.exp * 1000 <= Date.now();
 }
 
-/* ---------- 登录回跳：兑换一次性 ticket ---------- */
+/* ---------- 登录回跳：兑换一次性 ticket（兼容 ?token= 降级） ---------- */
 async function consumeTicket() {
-  let ticket = null;
-  try { ticket = new URLSearchParams(location.search).get('ticket'); } catch (e) { return false; }
-  if (!ticket) return false;
+  let ticket = null, legacy = null;
+  try {
+    const qs = new URLSearchParams(location.search);
+    ticket = qs.get('ticket');
+    legacy = qs.get('token');
+  } catch (e) { return false; }
+  if (!ticket && !legacy) return false;
   // 先清参，避免刷新重复兑换（ticket 一次性，重复兑换必然失败）
   try {
     const u = new URL(location.href);
     u.searchParams.delete('ticket');
+    u.searchParams.delete('token');
     history.replaceState(null, '', u.pathname + u.search);
   } catch (e) {}
+  // login 页换票接口异常时会退回旧通道：URL 直接带 JWT，落库即可
+  if (!ticket) { setToken(legacy); return true; }
   try {
     const r = await fetch(FUNCTIONS_BASE + '/auth-exchange', {
       method: 'POST',

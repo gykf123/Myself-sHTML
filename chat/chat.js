@@ -571,6 +571,9 @@ function switchTab(tab) {
 
 /* ---------- 启动 ---------- */
 (async function init() {
+  // 登录回跳：先把一次性 ticket 换成 JWT，再渲染登录态
+  try { if (window.__fsTicketReady) await window.__fsTicketReady; } catch (e) {}
+
   const y = $('#footYear');
   if (y) y.textContent = new Date().getFullYear();
 

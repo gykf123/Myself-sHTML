@@ -341,6 +341,9 @@ async function doUnban(btn, s) {
 
 /* ---------- 启动 ---------- */
 async function boot() {
+  // 登录回跳：先把一次性 ticket 换成 JWT，再判定管理员权限
+  try { if (window.__fsTicketReady) await window.__fsTicketReady; } catch (e) {}
+
   const y = $('#footYear');
   if (y) y.textContent = String(new Date().getFullYear());
   const s = session();
