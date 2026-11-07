@@ -69,10 +69,10 @@
 <header>
   <a class="返回主页" href="../index.html">← FeSui 主页</a>
   <h1>🧰 工具箱</h1>
-  <span class="徽章" id="工具数">14 个工具</span>
+  <span class="徽章" id="工具数">19 个工具</span>
 </header>
 <main>
-  <p class="简介">这里放着一些自包含的小工具——无需联网、无需服务端，打开就能用。</p>
+  <p class="简介">这里放着一些自包含的小工具——绝大多数无需联网、无需服务端，打开就能用；标了「需联网」的只在你主动查询时请求公开接口。Minecraft 分类里有 MC 搜索子站的工具直达入口。</p>
   <div class="工具条">
     <input id="搜索" class="搜索框" type="search" placeholder="搜索工具名称或描述…" aria-label="搜索工具" spellcheck="false" />
     <div class="分类组" id="分类组" role="tablist" aria-label="工具分类"></div>
@@ -88,6 +88,36 @@
       <span class="图标" aria-hidden="true">🧭</span>
       <span class="名称">MC 搜索</span>
       <span class="描述">种子 / 矿石 / 结构 / 群系查找、附魔规划、命令生成、合成计算等 9 款工具，Java + 基岩双版。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./minecraft-search/tools/crafting-calculator.html">
+      <span class="图标" aria-hidden="true">🛠️</span>
+      <span class="名称">合成计算器</span>
+      <span class="描述">计算合成任意物品所需的原材料、熔炼步骤与堆叠数量，配方递归展开。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./minecraft-search/tools/enchantment-planner.html">
+      <span class="图标" aria-hidden="true">✨</span>
+      <span class="名称">附魔规划器</span>
+      <span class="描述">找出用铁砧合并附魔书与装备最省经验值的顺序，按原版附魔权重计算。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./minecraft-search/tools/seed-finder.html">
+      <span class="图标" aria-hidden="true">🌱</span>
+      <span class="名称">种子查找器</span>
+      <span class="描述">按结构或群系条件筛选，选一个游戏版本，复制符合条件的种子。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./minecraft-search/tools/biome-finder.html">
+      <span class="图标" aria-hidden="true">🌍</span>
+      <span class="名称">种子世界查看</span>
+      <span class="描述">按种子可视化群系地图，高亮任意群系（樱花树林到深暗之域），点击即得坐标。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./mc-server-status.html">
+      <span class="图标" aria-hidden="true">🖥️</span>
+      <span class="名称">MC 服务器状态</span>
+      <span class="描述">查询 Java 版服务器在线状态、版本、在线人数与 MOTD，需联网。</span>
       <span class="前往">打开 →</span>
     </a>
     <a class="工具卡" href="./timestamp.html">
@@ -175,6 +205,11 @@
   // 工具 → 分类映射（href → 分类键）
   var CAT = {
     './ore-finder.html':'mc', './minecraft-search/index.html':'mc',
+    './minecraft-search/tools/crafting-calculator.html':'mc',
+    './minecraft-search/tools/enchantment-planner.html':'mc',
+    './minecraft-search/tools/seed-finder.html':'mc',
+    './minecraft-search/tools/biome-finder.html':'mc',
+    './mc-server-status.html':'mc',
     './timestamp.html':'daily', './json.html':'dev', './password.html':'dev',
     './base64.html':'dev', './text.html':'text', './color.html':'daily',
     './convert.html':'daily', './cron.html':'dev', './regex.html':'dev',

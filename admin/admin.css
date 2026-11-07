@@ -1,0 +1,81 @@
+/* ============================================================
+   管理后台（admin/）增量样式
+   复用 ../user/user.css 的 .user-page / .user-card / .act-btn 骨架，
+   这里只定义 .ad-* 组件，全部走 CSS 变量，暗/浅自动适配。
+   ============================================================ */
+
+.ad-head-card { padding-bottom: 18px; }
+.ad-title { margin: 0 0 6px; font-size: 24px; font-weight: 700; color: var(--text); }
+.ad-sub { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.7; }
+.ad-who { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 5px 11px;
+  border-radius: 20px; font-size: 12px; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--border); }
+
+.ad-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.ad-card-head h2 { margin: 0; }
+.ad-note { margin: 0 0 12px; font-size: 12px; color: var(--text-dim); line-height: 1.7; }
+
+/* ---------- 访问概览 ---------- */
+.ad-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ad-stat { display: flex; flex-direction: column; gap: 5px; padding: 14px 12px;
+  border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.ad-stat b { font-size: 22px; color: var(--text); font-variant-numeric: tabular-nums; }
+.ad-stat span { font-size: 11.5px; color: var(--text-dim); }
+.ad-spark { display: flex; align-items: flex-end; gap: 4px; height: 46px; margin-top: 14px; }
+.ad-spark-col { flex: 1; min-width: 4px; border-radius: 3px 3px 0 0; background: var(--accent); opacity: .72; }
+.ad-spark-col:hover { opacity: 1; }
+
+/* ---------- 表单 ---------- */
+.ad-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ad-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ad-field.full { grid-column: 1 / -1; }
+.ad-label { font-size: 12px; color: var(--text-dim); }
+.ad-input {
+  width: 100%; box-sizing: border-box; padding: 9px 11px; font-size: 13.5px;
+  color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 9px; outline: none;
+  font-family: inherit;
+}
+.ad-input:focus { border-color: var(--accent); }
+.ad-input::placeholder { color: var(--text-dim); opacity: .75; }
+.ad-form-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ad-hint { font-size: 11.5px; color: var(--text-dim); line-height: 1.6; }
+.ad-danger-note { color: #e58a8a; }
+
+/* ---------- 封禁表格 ---------- */
+.ad-table-scroll { overflow-x: auto; }
+.ad-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 720px; }
+.ad-table th, .ad-table td { padding: 10px 10px; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--border); }
+.ad-table th { font-size: 11.5px; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
+.ad-table td { color: var(--text); }
+.ad-table tr:last-child td { border-bottom: 0; }
+.ad-user { font-weight: 600; }
+.ad-uid { display: block; font-size: 10.5px; color: var(--text-dim); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.ad-reason { max-width: 200px; word-break: break-word; white-space: pre-wrap; }
+.ad-nowrap { white-space: nowrap; }
+.ad-pill { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; white-space: nowrap; }
+.ad-pill.on { color: #ff9b9b; background: rgba(178, 38, 38, .16); border: 1px solid rgba(178, 38, 38, .35); }
+.ad-pill.off { color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border); }
+.ad-pill.site { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--border); }
+.ad-empty { padding: 22px 10px; text-align: center; font-size: 13px; color: var(--text-dim); }
+.ad-err { padding: 14px; border-radius: 9px; font-size: 13px; color: #ff9b9b;
+  background: rgba(178, 38, 38, .12); border: 1px solid rgba(178, 38, 38, .3); }
+
+/* ---------- 门禁 ---------- */
+.ad-gate { text-align: center; padding: 40px 16px; }
+.ad-gate-ico { font-size: 40px; line-height: 1; }
+.ad-gate h2 { margin: 14px 0 8px; font-size: 19px; color: var(--text); }
+.ad-gate p { margin: 0 auto 18px; max-width: 420px; font-size: 13px; line-height: 1.8; color: var(--text-dim); }
+
+/* ---------- 响应式 / 动效降级 ---------- */
+@media (max-width: 720px) {
+  .ad-form { grid-template-columns: 1fr; }
+  .ad-field.full, .ad-form-actions { grid-column: auto; }
+  .ad-stats { gap: 6px; }
+  .ad-stat b { font-size: 18px; }
+  .ad-title { font-size: 21px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ad-spark-col { transition: none; }
+}

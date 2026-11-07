@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MC 服务器状态查询 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer" />
+<meta name="description" content="查询 Minecraft Java 版服务器在线状态、版本、在线人数、MOTD 与玩家列表。" />
+<link rel="icon" href="../favicon.png" />
+<link rel="stylesheet" href="./toolkit.css?v=20261030" />
+<style>
+.mc-state{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.mc-dot{width:12px;height:12px;border-radius:50%;background:var(--dim);flex:none}
+.mc-dot.on{background:var(--accent2);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent2) 18%,transparent)}
+.mc-dot.off{background:var(--err);box-shadow:0 0 0 4px color-mix(in srgb,var(--err) 18%,transparent)}
+.mc-state-text{font-size:17px;font-weight:700}
+.mc-host{font-family:var(--mono);font-size:12.5px;color:var(--dim);word-break:break-all}
+.mc-icon{width:64px;height:64px;border-radius:10px;border:1px solid var(--border);image-rendering:pixelated;flex:none}
+.mc-motd{font-family:var(--mono);font-size:13.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word;
+  padding:10px 12px;border-radius:9px;background:var(--panel2);border:1px solid var(--border);margin:0 0 12px}
+.mc-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.mc-kv .cell{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:11px 12px}
+.mc-kv .k{font-size:11.5px;color:var(--dim)}
+.mc-kv .v{font-family:var(--mono);font-size:14px;margin-top:3px;word-break:break-all}
+.mc-players{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.mc-player{font-family:var(--mono);font-size:12px;padding:3px 9px;border-radius:7px;
+  background:var(--panel2);border:1px solid var(--border)}
+.mc-recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.mc-recent button{font-size:12px;padding:4px 10px;border-radius:16px;cursor:pointer;
+  background:var(--panel2);border:1px solid var(--border);color:var(--dim);font-family:var(--mono)}
+.mc-recent button:hover{color:var(--text);border-color:var(--accent)}
+.mc-raw{margin-top:12px}
+.mc-raw summary{cursor:pointer;font-size:12.5px;color:var(--dim);user-select:none}
+.mc-loading{display:inline-block;width:13px;height:13px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:mcspin .7s linear infinite;vertical-align:-2px}
+@keyframes mcspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.mc-loading{animation:none}}
+</style>
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./">← 工具箱</a>
+  <h1 class="tk-h1">🖥️ MC 服务器状态查询</h1>
+  <span class="tk-badge">需联网 · Java 版</span>
+</header>
+
+<main class="tk-main">
+  <p class="tk-intro">查一下服务器在不在线、什么版本、有多少人。只有点「查询」才会联网请求公开状态接口，服务器地址不会附带你的任何账号信息；页面本身离线也能打开。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico">🔎</span>输入服务器地址</h2>
+    <div class="tk-row">
+      <div class="tk-col">
+        <label class="tk-label" for="mcHost">域名或 IP（可带端口，如 <code>mc.example.com:25565</code>）</label>
+        <input class="tk-input" id="mcHost" type="text" maxlength="253" spellcheck="false"
+               autocomplete="off" placeholder="play.cubecraft.net" />
+      </div>
+      <button class="tk-btn primary" id="mcGo" type="button">查询状态</button>
+    </div>
+    <div class="tk-row">
+      <div class="tk-col">
+        <span class="tk-label">试试这些</span>
+        <div class="tk-recent" id="mcExamples"></div>
+      </div>
+    </div>
+    <div class="tk-row">
+      <div class="tk-col">
+        <span class="tk-label">最近查询（只存在本机浏览器）</span>
+        <div class="mc-recent" id="mcRecent"></div>
+      </div>
+    </div>
+    <p class="tk-help">状态来自公开接口 mcsrvstat.us，失败时自动回退 mcstatus.io。结果由第三方缓存，可能与实况有几分钟延迟。</p>
+  </section>
+
+  <section class="tk-card" id="mcResultCard" hidden>
+    <h2 class="tk-card-h"><span class="ico">📡</span>查询结果 <span class="tk-muted" id="mcCost" style="font-size:12px;font-weight:400"></span></h2>
+    <div id="mcResult"></div>
+  </section>
+</main>
+
+<footer class="tk-foot"><a href="./">← 返回工具箱</a> · 数据由公开状态接口提供，仅供参考</footer>
+<div class="tk-toast" id="mcToast" role="status"></div>
+<script src="/visit.js?v=20261107" defer></script>
+<script>
+(function(){
+  'use strict';
+  var $ = function(s){ return document.querySelector(s); };
+  var EXAMPLES = ['play.cubecraft.net','mc.hypixel.net','play.cubecraft.net:25565'];
+  var RECENT_KEY = 'fs_mc_status_recent';
+  var toastTimer;
+
+  function toast(msg){
+    var el = $('#mcToast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2400);
+  }
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function el(tag, cls, text){
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = String(text);
+    return n;
+  }
+  /* 只放行域名 / IPv4 + 可选端口，挡掉协议、路径、@、空格等 URL 注入 */
+  function parseHost(raw){
+    var s = String(raw || '').trim().toLowerCase();
+    if (!s || s.length > 253) return null;
+    var m = s.match(/^([a-z0-9][a-z0-9.\-]*)(?::(\d{1,5}))?$/);
+    if (!m) return null;
+    var host = m[1], port = m[2] ? Number(m[2]) : null;
+    if (host.indexOf('..') !== -1 || host.slice(-1) === '.' || host.slice(-1) === '-') return null;
+    if (port !== null && (port < 1 || port > 65535)) return null;
+    return { host: host, port: port, label: host + (port ? ':' + port : '') };
+  }
+  function getRecent(){
+    try {
+      var a = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+      return Array.isArray(a) ? a.filter(function(x){ return typeof x === 'string'; }).slice(0, 5) : [];
+    } catch(e){ return []; }
+  }
+  function pushRecent(label){
+    try {
+      var a = getRecent().filter(function(x){ return x !== label; });
+      a.unshift(label);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(a.slice(0, 5)));
+    } catch(e){}
+    renderRecent();
+  }
+  function renderRecent(){
+    var box = $('#mcRecent');
+    box.textContent = '';
+    var a = getRecent();
+    if (!a.length){ box.appendChild(el('span','tk-muted','暂无')); return; }
+    a.forEach(function(label){
+      var b = el('button','', label);
+      b.type = 'button';
+      b.addEventListener('click', function(){ $('#mcHost').value = label; query(); });
+      box.appendChild(b);
+    });
+  }
+  function renderExamples(){
+    var box = $('#mcExamples');
+    box.textContent = '';
+    EXAMPLES.forEach(function(h){
+      var b = el('button','', h);
+      b.type = 'button';
+      b.addEventListener('click', function(){ $('#mcHost').value = h; query(); });
+      box.appendChild(b);
+    });
+  }
+  function fetchJson(url, ms){
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function(){ ctrl.abort(); }, ms || 12000) : null;
+    var opt = { method:'GET', cache:'no-store' };
+    if (ctrl) opt.signal = ctrl.signal;
+    return fetch(url, opt).then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function(d){ if (timer) clearTimeout(timer); return d; },
+            function(e){ if (timer) clearTimeout(timer); throw e; });
+  }
+  /* 把两个接口的字段归一化，渲染层不用管来源 */
+  function normalize(d, source){
+    var out = { source: source, online: !!d.online, host: d.hostname || d.host || '',
+      ip: d.ip || d.ip_address || '', port: d.port || 25565,
+      version: '', motd: [], players: { online: 0, max: 0, list: [] },
+      icon: '', eula: !!d.eula_blocked, retrieved: d.retrieved_at || null };
+    if (source === 'mcsrvstat'){
+      out.version = typeof d.version === 'string' ? d.version : '';
+      var mo = d.motd && d.motd.clean;
+      out.motd = Array.isArray(mo) ? mo : (typeof mo === 'string' ? [mo] : []);
+      out.players.online = Number(d.players && d.players.online) || 0;
+      out.players.max = Number(d.players && d.players.max) || 0;
+      var pl = d.players && d.players.list;
+      out.players.list = Array.isArray(pl) ? pl.slice(0, 20).map(function(x){
+        return typeof x === 'string' ? x : String((x && (x.name_clean || x.name)) || '');
+      }).filter(Boolean) : [];
+      out.icon = typeof d.icon === 'string' && /^data:image\/(png|jpeg|gif);base64,[a-z0-9+/=]+$/i.test(d.icon) ? d.icon : '';
+    } else {
+      out.version = d.version && (d.version.name_clean || d.version.name_raw) ? String(d.version.name_clean || d.version.name_raw) : '';
+      var p = d.players || {};
+      out.players.online = Number(p.online) || 0;
+      out.players.max = Number(p.max) || 0;
+      out.players.list = Array.isArray(p.list) ? p.list.slice(0, 20).map(function(x){
+        return String((x && (x.name_clean || x.name_raw || x.name)) || '');
+      }).filter(Boolean) : [];
+      if (d.srv_record) out.host = d.host;
+    }
+    return out;
+  }
+  function render(info, costMs){
+    var card = $('#mcResultCard'), box = $('#mcResult');
+    card.hidden = false;
+    $('#mcCost').textContent = '· ' + costMs + ' ms · ' + (info.source === 'mcsrvstat' ? 'mcsrvstat.us' : 'mcstatus.io');
+    box.textContent = '';
+
+    var state = el('div','mc-state');
+    var dot = el('span','mc-dot ' + (info.online ? 'on' : 'off'));
+    var txt = el('span','mc-state-text', info.online ? '● 在线' : '○ 离线 / 无法连通');
+    if (!info.online) txt.style.color = 'var(--err)';
+    state.appendChild(dot); state.appendChild(txt);
+    if (info.icon){ var img = document.createElement('img'); img.className='mc-icon'; img.alt='服务器图标'; img.src=info.icon; state.appendChild(img); }
+    box.appendChild(state);
+    box.appendChild(el('div','mc-host', (info.host || '') + (info.ip ? '  →  ' + info.ip + ':' + info.port : '')));
+
+    if (info.motd.length){
+      var motd = el('pre','mc-motd', info.motd.join('\n'));
+      box.appendChild(motd);
+    }
+    var kv = el('div','mc-kv');
+    [
+      ['版本', info.version || '—'],
+      ['在线人数', info.players.online + ' / ' + (info.players.max || '—')],
+      ['地址', (info.ip || info.host || '—') + ':' + info.port],
+      ['状态来源', info.source === 'mcsrvstat' ? 'mcsrvstat.us' : 'mcstatus.io']
+    ].forEach(function(p){
+      var c = el('div','cell');
+      c.appendChild(el('div','k', p[0]));
+      c.appendChild(el('div','v', p[1]));
+      kv.appendChild(c);
+    });
+    box.appendChild(kv);
+
+    if (info.eula) box.appendChild(el('p','tk-help tk-err','该服务器被 Mojang EULA 拦截，状态可能不准确。'));
+    if (info.players.list.length){
+      box.appendChild(el('p','tk-help','在线玩家（最多显示 20 位）：'));
+      var pl = el('div','mc-players');
+      info.players.list.forEach(function(n){ pl.appendChild(el('span','mc-player', n)); });
+      box.appendChild(pl);
+    }
+    if (!info.online && !info.motd.length){
+      box.appendChild(el('p','tk-help','服务器没响应或已离线。也可能是地址写错、只开了基岩版，或第三方接口暂时查不到——换个地址再试试。'));
+    }
+
+    var det = el('details','mc-raw');
+    det.appendChild(el('summary','', '查看原始 JSON'));
+    var out = el('div','tk-out');
+    var pre = el('pre','', JSON.stringify(window.__mcRaw || {}, null, 2));
+    out.appendChild(pre);
+    var cp = el('button','tk-copy', '复制');
+    cp.type = 'button';
+    cp.addEventListener('click', function(){
+      try { navigator.clipboard.writeText(JSON.stringify(window.__mcRaw || {}, null, 2)); toast('已复制原始 JSON'); }
+      catch(e){ toast('复制失败，请手动选中'); }
+    });
+    out.appendChild(cp);
+    det.appendChild(out);
+    box.appendChild(det);
+  }
+  function renderError(msg){
+    var card = $('#mcResultCard'), box = $('#mcResult');
+    card.hidden = false;
+    $('#mcCost').textContent = '';
+    box.textContent = '';
+    box.appendChild(el('div','tk-err', '查询失败：' + msg));
+    box.appendChild(el('p','tk-help','两个公开状态接口都没能返回结果。检查网络后重试，或稍后再试（第三方服务偶发限流）。'));
+  }
+
+  var busy = false;
+  function query(){
+    if (busy) return;
+    var p = parseHost($('#mcHost').value);
+    if (!p){ toast('地址格式不对：只填域名或 IP，可加 :端口'); return; }
+    busy = true;
+    var btn = $('#mcGo');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="mc-loading"></span> 查询中…';
+    var t0 = Date.now();
+    var addr = p.host + (p.port ? ':' + p.port : '');
+    var primary = 'https://api.mcsrvstat.us/3/' + addr;
+    var fallback = 'https://api.mcstatus.io/v2/status/java/' + addr;
+
+    fetchJson(primary).then(function(d){
+      window.__mcRaw = d;
+      render(normalize(d, 'mcsrvstat'), Date.now() - t0);
+      pushRecent(p.label);
+    }).catch(function(){
+      return fetchJson(fallback).then(function(d){
+        window.__mcRaw = d;
+        render(normalize(d, 'mcstatus'), Date.now() - t0);
+        pushRecent(p.label);
+      });
+    }).catch(function(e){
+      renderError(e && e.message ? e.message : '网络异常');
+    }).then(function(){
+      busy = false;
+      btn.disabled = false;
+      btn.textContent = '查询状态';
+    });
+  }
+
+  $('#mcGo').addEventListener('click', query);
+  $('#mcHost').addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){ e.preventDefault(); query(); }
+  });
+  renderExamples();
+  renderRecent();
+})();
+</script>
+</body>
+</html>

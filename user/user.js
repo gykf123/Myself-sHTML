@@ -228,10 +228,20 @@ async function renderProfile(payload) {
       '<div id="mywallBox"><div class="user-loading" style="padding:18px 0">加载中…</div></div>' +
     '</section>' +
 
+    /* 我的访问记录（只查自己，服务端按 auth.uid() 过滤） */
+    '<section class="user-card">' +
+      '<h2><span class="card-ico" aria-hidden="true">👣</span>我的访问记录 <span class="badge" id="myvisitCount">…</span></h2>' +
+      '<p class="visit-tip">只记录你登录后的站点访问路径，数据保留 30 天。</p>' +
+      '<div id="myvisitBox"><div class="user-loading" style="padding:18px 0">加载中…</div></div>' +
+      '<div class="visit-actions"><button class="act-btn small" id="myvisitMore" type="button" hidden>查看更多</button></div>' +
+    '</section>' +
+
     /* 操作 */
     '<section class="user-card">' +
       '<h2><span class="card-ico" aria-hidden="true">⚙️</span>账号操作</h2>' +
       '<div class="user-actions">' +
+        (payload.app_role === 'admin' || payload.role === 'admin'
+          ? '<a class="act-btn" href="../admin/">管理后台</a>' : '') +
         '<a class="act-btn" href="../#wall">去留言墙</a>' +
         '<a class="act-btn" href="../">返回主页</a>' +
         '<button class="act-btn danger" id="logoutBtn" type="button">退出登录</button>' +
@@ -261,9 +271,10 @@ async function renderProfile(payload) {
     renderGuide(false);
   });
 
-  // 异步加载账号详情、绑定关系与我的留言
+  // 异步加载账号详情、绑定关系、我的留言与我的访问记录
   loadAccountDetail(uid);
   loadMyWall(uid);
+  loadMyVisits(20);
 
   // GitHub 关联成功跳回（github-callback.html → ./?linked=github）
   try {
@@ -602,6 +613,69 @@ async function loadMyWall(uid) {
       '<div class="mw-meta"><span>' + escapeHtml(r.nickname || '匿名访客') + '</span><span>' + fmtRelative(r.created_at) + '</span></div>' +
       '<p class="mw-text">' + escapeHtml(r.content || '') + '</p>' +
     '</li>').join('') + '</ul>';
+}
+
+/* ---------- 我的访问记录（my_visit_history，只查自己） ---------- */
+/* 身份完全由服务端按 auth.uid() 决定，前端不传 user_id；
+   业务错误走 HTTP 200 + {ok:false,msg}，必须看 ok 字段 */
+async function loadMyVisits(limit) {
+  const box = $('#myvisitBox'), count = $('#myvisitCount'), more = $('#myvisitMore');
+  const cap = Math.min(Math.max(Number(limit) || 20, 1), 200);
+  let list = [], errMsg = '';
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/my_visit_history', {
+      method: 'POST',
+      headers: {
+        'apikey': ANON_KEY,
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + getToken()
+      },
+      body: JSON.stringify({ p_site: 'fesui', p_limit: cap })
+    });
+    const d = await res.json().catch(() => null);
+    if (!res.ok || !d || d.ok !== true) errMsg = (d && (d.msg || d.message)) || ('请求失败（HTTP ' + res.status + '）');
+    else list = Array.isArray(d.list) ? d.list : [];
+  } catch (e) { errMsg = '网络异常，稍后再试'; }
+
+  if (count) count.textContent = errMsg ? '—' : (list.length + (list.length >= cap ? '+' : '') + ' 条');
+  if (!box) return;
+  if (errMsg) {
+    box.textContent = '';
+    const p = document.createElement('div');
+    p.className = 'mywall-empty';
+    p.textContent = errMsg;
+    box.appendChild(p);
+  } else if (!list.length) {
+    box.textContent = '';
+    const p = document.createElement('div');
+    p.className = 'mywall-empty';
+    p.textContent = '还没有访问记录，逛逛站点再回来看看。';
+    box.appendChild(p);
+  } else {
+    box.textContent = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'visit-list';
+    list.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'visit-item';
+      const path = document.createElement('span');
+      path.className = 'visit-path';
+      path.textContent = String((r && r.path) || '(未记录)');
+      path.title = path.textContent;
+      const time = document.createElement('span');
+      time.className = 'visit-time';
+      time.textContent = fmtRelative(r && r.visited_at);
+      time.title = fmtDateTime(r && r.visited_at);
+      row.appendChild(path);
+      row.appendChild(time);
+      wrap.appendChild(row);
+    });
+    box.appendChild(wrap);
+  }
+  if (more) {
+    more.hidden = !!errMsg || list.length < cap || cap >= 200;
+    more.onclick = () => loadMyVisits(cap + 20);
+  }
 }
 
 /* ============================================================

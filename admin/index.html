@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理后台 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261024b" />
+  <link rel="stylesheet" href="../user/user.css?v=20261107" />
+  <link rel="stylesheet" href="./admin.css?v=20261107" />
+  <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../user/">个人中心</a>
+        <a href="../stats/">访问统计</a>
+        <a href="./" class="active" aria-current="page">管理后台</a>
+      </nav>
+    </header>
+
+    <main class="user-main" id="adminMain" aria-live="polite">
+      <div class="user-loading">正在验证管理员权限…</div>
+    </main>
+
+    <footer class="user-foot">
+      <span>© <span id="footYear"></span> FeSui</span>
+      <span class="user-foot-sep">·</span>
+      <a href="../">返回主页</a>
+    </footer>
+  </div>
+
+  <script src="./admin.js?v=20261107b" defer></script>
+  <script src="/visit.js?v=20261107" defer></script>
+</body>
+</html>
