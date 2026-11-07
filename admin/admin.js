@@ -169,6 +169,67 @@ function renderShell(s) {
     '<section class="user-card">' +
       '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">📋</span>封禁记录 <span class="badge" id="adBanCount">…</span></h2></div>' +
       '<div class="ad-table-scroll" id="adBanBox"><div class="user-loading">加载中…</div></div>' +
+    '</section>' +
+
+    /* 项目公告：站内展示 + 邮件通道开通后自动群发订阅用户 */
+    '<section class="user-card">' +
+      '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">📢</span>项目公告</h2>' +
+        '<button class="act-btn small" id="adAnnRefresh" type="button">刷新</button></div>' +
+      '<p class="ad-note">发布后展示在主站「项目导航」与博客页；邮件通道开通时会同步群发给已订阅用户。</p>' +
+      '<div class="ad-status" id="adMailStatus">正在检查邮件通道…</div>' +
+      '<form class="ad-form" id="adAnnForm" autocomplete="off">' +
+        '<div class="ad-field">' +
+          '<label class="ad-label" for="adAnnTitle">标题</label>' +
+          '<input class="ad-input" id="adAnnTitle" type="text" maxlength="120" required placeholder="例如：v2.0 上线" />' +
+        '</div>' +
+        '<div class="ad-field">' +
+          '<label class="ad-label" for="adAnnBody">正文（纯文本，换行会保留）</label>' +
+          '<textarea class="ad-input ad-textarea" id="adAnnBody" rows="4" maxlength="5000" required placeholder="这次更新了什么…"></textarea>' +
+        '</div>' +
+        '<div class="ad-form-actions">' +
+          '<button class="act-btn primary" id="adAnnSubmit" type="submit">发布公告</button>' +
+          '<span class="ad-hint" id="adAnnHint"></span>' +
+        '</div>' +
+      '</form>' +
+      '<div class="ad-list" id="adAnnBox"><div class="user-loading">加载中…</div></div>' +
+    '</section>' +
+
+    /* 博客文章：管理端可写，前台 /blog/ 只读已发布文章 */
+    '<section class="user-card">' +
+      '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">✍️</span>博客文章</h2>' +
+        '<div class="ad-head-actions">' +
+          '<a class="act-btn small" href="../blog/" target="_blank" rel="noopener noreferrer">查看前台 ↗</a>' +
+          '<button class="act-btn small" id="adPostNew" type="button">新建</button>' +
+        '</div></div>' +
+      '<p class="ad-note">草稿只在这里可见；勾选「立即发布」后才会出现在 <code>/blog/</code>。正文支持 Markdown。</p>' +
+      '<form class="ad-form" id="adPostForm" autocomplete="off">' +
+        '<input type="hidden" id="adPostId" />' +
+        '<div class="ad-field">' +
+          '<label class="ad-label" for="adPostSlug">slug（URL 片段，小写字母/数字/连字符）</label>' +
+          '<input class="ad-input" id="adPostSlug" type="text" maxlength="80" required placeholder="my-first-post" />' +
+        '</div>' +
+        '<div class="ad-field">' +
+          '<label class="ad-label" for="adPostTitle">标题</label>' +
+          '<input class="ad-input" id="adPostTitle" type="text" maxlength="120" required placeholder="文章标题" />' +
+        '</div>' +
+        '<div class="ad-field">' +
+          '<label class="ad-label" for="adPostSummary">摘要（列表页显示）</label>' +
+          '<input class="ad-input" id="adPostSummary" type="text" maxlength="300" placeholder="一句话概括" />' +
+        '</div>' +
+        '<div class="ad-field">' +
+          '<label class="ad-label" for="adPostContent">正文（Markdown）</label>' +
+          '<textarea class="ad-input ad-textarea ad-post-content" id="adPostContent" rows="10" required placeholder="# 标题&#10;&#10;正文…"></textarea>' +
+        '</div>' +
+        '<div class="ad-field ad-check">' +
+          '<label><input type="checkbox" id="adPostPublished" /> 立即发布</label>' +
+        '</div>' +
+        '<div class="ad-form-actions">' +
+          '<button class="act-btn primary" id="adPostSubmit" type="submit">保存文章</button>' +
+          '<button class="act-btn small ghost" id="adPostCancel" type="button">取消编辑</button>' +
+          '<span class="ad-hint" id="adPostHint"></span>' +
+        '</div>' +
+      '</form>' +
+      '<div class="ad-list" id="adPostBox"><div class="user-loading">加载中…</div></div>' +
     '</section>';
 }
 
@@ -339,6 +400,231 @@ async function doUnban(btn, s) {
   }
 }
 
+/* ================= 内容管理：项目公告 / 博客文章 / 邮件通道 =================
+   后端：fs-notify（公告 + 订阅群发）、fs-blog（文章写）、REST 公开读。
+   所有写操作只带当前管理员自己的 JWT，服务端再验 users.role='admin'；
+   前端不放 service_role，也不留任何绕过路径。
+   ====================================================================== */
+async function contentCall(fn, action, extra, s) {
+  const res = await fetch(SUPABASE_URL + '/functions/v1/' + fn, {
+    method: 'POST',
+    headers: {
+      'apikey': ANON_KEY,
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + s.token
+    },
+    body: JSON.stringify(Object.assign({ action: action }, extra || {}))
+  });
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data: data || {} };
+}
+
+let mailConfigured = false;
+
+async function loadMailStatus() {
+  const el = $('#adMailStatus');
+  if (!el) return;
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/fs-notify', {
+      method: 'POST',
+      headers: { 'apikey': ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mail_status' })
+    });
+    const d = await res.json().catch(() => null);
+    if (!res.ok || !d || d.ok !== true) throw new Error('HTTP ' + res.status);
+    mailConfigured = !!d.configured;
+    el.className = 'ad-status ' + (mailConfigured ? 'ok' : 'wait');
+    el.textContent = mailConfigured
+      ? '✅ 邮件通道已开通 · 发布公告时会同步群发给已订阅用户（发信地址：' + String(d.from || '') + '）'
+      : '⏳ 邮件通道待开通 · 现在就能发布公告（站内可见）；配置 RESEND_API_KEY 后，发布会自动群发给订阅用户';
+  } catch (e) {
+    el.className = 'ad-status wait';
+    el.textContent = '⚠️ 暂时读不到邮件通道状态，公告仍可正常发布（站内可见）';
+  }
+}
+
+async function loadAnnouncements() {
+  const box = $('#adAnnBox');
+  if (!box) return;
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/fs_announcements' +
+      '?select=id,title,body,created_at,mailed_count,mailed_at&order=created_at.desc&limit=20', {
+      headers: { 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !Array.isArray(data)) {
+      box.innerHTML = '<div class="ad-err">读取失败（HTTP ' + res.status + '）</div>'; return;
+    }
+    if (!data.length) { box.innerHTML = '<div class="ad-empty">还没有公告，发第一条吧 📢</div>'; return; }
+    box.innerHTML = data.map(a =>
+      '<article class="ad-item">' +
+        '<div class="ad-item-top"><b>' + escapeHtml(a.title) + '</b>' +
+          '<time>' + escapeHtml(fmtDateTime(a.created_at)) + '</time></div>' +
+        '<div class="ad-item-body">' + escapeHtml(a.body).replace(/\n/g, '<br>') + '</div>' +
+        '<div class="ad-item-foot">' + (Number(a.mailed_count) > 0
+          ? '📧 已群发 ' + Number(a.mailed_count) + ' 位订阅用户'
+          : '📭 未发邮件' + (mailConfigured ? '' : '（邮件通道待开通）')) + '</div>' +
+      '</article>').join('');
+  } catch (e) {
+    box.innerHTML = '<div class="ad-err">网络异常，稍后再试</div>';
+  }
+}
+
+async function submitAnnouncement(e, s) {
+  e.preventDefault();
+  const title = ($('#adAnnTitle').value || '').trim();
+  const body = ($('#adAnnBody').value || '').trim();
+  const hint = $('#adAnnHint'), btn = $('#adAnnSubmit');
+  if (!title || !body) { showToast('标题和正文都要填'); return; }
+  if (!window.confirm('确认发布公告？\n标题：' + title + '\n' +
+      (mailConfigured ? '将同时群发给已订阅用户' : '仅站内发布（邮件通道待开通）'))) return;
+  btn.disabled = true; btn.textContent = '发布中…';
+  if (hint) hint.textContent = '';
+  try {
+    const { status, data } = await contentCall('fs-notify', 'announce', { title, body }, s);
+    if (status !== 200 || data.ok !== true) {
+      const msg = data.error || ('发布失败（HTTP ' + status + '）');
+      if (hint) hint.textContent = msg;
+      showToast(msg);
+      return;
+    }
+    $('#adAnnTitle').value = '';
+    $('#adAnnBody').value = '';
+    if (hint) hint.textContent = data.note || ('已发布 · 群发 ' + (Number(data.mailed) || 0) + ' 封');
+    showToast('公告已发布');
+    await loadAnnouncements();
+  } catch (err) {
+    showToast('网络异常，请稍后再试');
+  } finally {
+    btn.disabled = false; btn.textContent = '发布公告';
+  }
+}
+
+async function loadPosts(s) {
+  const box = $('#adPostBox');
+  if (!box) return;
+  try {
+    const { status, data } = await contentCall('fs-blog', 'post_list', {}, s);
+    if (status === 401) { box.innerHTML = '<div class="ad-err">登录态已过期，请重新登录</div>'; return; }
+    if (status !== 200 || data.ok !== true) {
+      box.innerHTML = '<div class="ad-err">' + escapeHtml(data.error || ('读取失败（HTTP ' + status + '）')) + '</div>';
+      return;
+    }
+    const posts = Array.isArray(data.posts) ? data.posts : [];
+    if (!posts.length) { box.innerHTML = '<div class="ad-empty">还没有文章，点「新建」写第一篇 ✍️</div>'; return; }
+    box.innerHTML = posts.map(p =>
+      '<article class="ad-item">' +
+        '<div class="ad-item-top"><b>' + escapeHtml(p.title) + '</b>' +
+          '<span class="ad-pill ' + (p.published ? 'pub' : 'off') + '">' +
+            (p.published ? '已发布' : '草稿') + '</span></div>' +
+        '<div class="ad-item-body">' + escapeHtml(p.summary || '（无摘要）') + '</div>' +
+        '<div class="ad-item-foot"><code>/blog/?p=' + escapeHtml(p.slug) + '</code> · ' +
+          escapeHtml(fmtDateTime(p.created_at)) + '</div>' +
+        '<div class="ad-item-actions">' +
+          '<button class="act-btn small ad-post-edit" type="button" data-id="' + escapeHtml(String(p.id)) + '">编辑</button>' +
+          (p.published
+            ? '<a class="act-btn small" href="../blog/?p=' + encodeURIComponent(p.slug) +
+              '" target="_blank" rel="noopener noreferrer">查看 ↗</a>'
+            : '') +
+          '<button class="act-btn small ghost ad-post-del" type="button" data-id="' +
+            escapeHtml(String(p.id)) + '" data-title="' + escapeHtml(p.title) + '">删除</button>' +
+        '</div>' +
+      '</article>').join('');
+  } catch (e) {
+    box.innerHTML = '<div class="ad-err">网络异常，稍后再试</div>';
+  }
+}
+
+async function submitPost(e, s) {
+  e.preventDefault();
+  const id = ($('#adPostId').value || '').trim();
+  const slug = ($('#adPostSlug').value || '').trim().toLowerCase();
+  const title = ($('#adPostTitle').value || '').trim();
+  const summary = ($('#adPostSummary').value || '').trim();
+  const content = $('#adPostContent').value || '';
+  const published = !!$('#adPostPublished').checked;
+  const hint = $('#adPostHint'), btn = $('#adPostSubmit');
+  if (!/^[a-z0-9][a-z0-9-]{0,79}$/.test(slug)) { showToast('slug 只允许小写字母 / 数字 / 连字符'); return; }
+  if (!title || !content) { showToast('标题和正文都要填'); return; }
+  const extra = { slug, title, summary, content, published };
+  if (id) extra.id = Number(id);
+  btn.disabled = true; btn.textContent = '保存中…';
+  if (hint) hint.textContent = '';
+  try {
+    const { status, data } = await contentCall('fs-blog', 'post_save', extra, s);
+    if (status !== 200 || data.ok !== true) {
+      const msg = data.error || ('保存失败（HTTP ' + status + '）');
+      if (hint) hint.textContent = msg;
+      showToast(msg);
+      return;
+    }
+    showToast(id ? '文章已更新' : '文章已创建');
+    resetPostForm();
+    await loadPosts(s);
+  } catch (err) {
+    showToast('网络异常，请稍后再试');
+  } finally {
+    btn.disabled = false; btn.textContent = '保存文章';
+  }
+}
+
+async function editPost(id, s) {
+  try {
+    const { status, data } = await contentCall('fs-blog', 'post_get', { id: Number(id) }, s);
+    if (status !== 200 || data.ok !== true || !data.post) { showToast(data.error || '读取失败'); return; }
+    const p = data.post;
+    $('#adPostId').value = String(p.id);
+    $('#adPostSlug').value = p.slug || '';
+    $('#adPostTitle').value = p.title || '';
+    $('#adPostSummary').value = p.summary || '';
+    $('#adPostContent').value = p.content || '';
+    $('#adPostPublished').checked = !!p.published;
+    $('#adPostSubmit').textContent = '更新文章';
+    const hint = $('#adPostHint');
+    if (hint) hint.textContent = '正在编辑 #' + p.id;
+    $('#adPostSlug').focus();
+    $('#adPostForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) { showToast('网络异常，请稍后再试'); }
+}
+
+async function deletePost(id, title, s) {
+  if (!window.confirm('确认删除文章「' + (title || id) + '」？删除后无法恢复。')) return;
+  try {
+    const { status, data } = await contentCall('fs-blog', 'post_delete', { id: Number(id) }, s);
+    if (status !== 200 || data.ok !== true) { showToast(data.error || '删除失败'); return; }
+    showToast('已删除');
+    await loadPosts(s);
+  } catch (e) { showToast('网络异常，请稍后再试'); }
+}
+
+function resetPostForm() {
+  const form = $('#adPostForm');
+  if (form) form.reset();
+  const id = $('#adPostId'); if (id) id.value = '';
+  const btn = $('#adPostSubmit'); if (btn) btn.textContent = '保存文章';
+  const hint = $('#adPostHint'); if (hint) hint.textContent = '';
+}
+
+function bindContentEvents(s) {
+  const annForm = $('#adAnnForm');
+  if (annForm) annForm.addEventListener('submit', e => submitAnnouncement(e, s));
+  const annRefresh = $('#adAnnRefresh');
+  if (annRefresh) annRefresh.addEventListener('click', () => loadAnnouncements());
+  const postForm = $('#adPostForm');
+  if (postForm) postForm.addEventListener('submit', e => submitPost(e, s));
+  const newBtn = $('#adPostNew'), cancelBtn = $('#adPostCancel');
+  if (newBtn) newBtn.addEventListener('click', resetPostForm);
+  if (cancelBtn) cancelBtn.addEventListener('click', resetPostForm);
+  const list = $('#adPostBox');
+  if (list) list.addEventListener('click', e => {
+    const t = e.target;
+    const btn = t && t.closest ? t.closest('button[data-id]') : null;
+    if (!btn) return;
+    if (btn.classList.contains('ad-post-edit')) editPost(btn.dataset.id, s);
+    else if (btn.classList.contains('ad-post-del')) deletePost(btn.dataset.id, btn.dataset.title, s);
+  });
+}
+
 /* ---------- 启动 ---------- */
 async function boot() {
   // 登录回跳：先把一次性 ticket 换成 JWT，再判定管理员权限
@@ -371,7 +657,7 @@ async function boot() {
   $('#adRefresh').addEventListener('click', async () => {
     const btn = $('#adRefresh');
     btn.disabled = true; btn.textContent = '加载中…';
-    await Promise.all([loadBans(s, false), loadStats(s)]);
+    await Promise.all([loadBans(s, false), loadStats(s), loadAnnouncements(), loadPosts(s)]);
     btn.disabled = false; btn.textContent = '刷新';
   });
   $('#adBanBox').addEventListener('click', e => {
@@ -379,6 +665,12 @@ async function boot() {
     const btn = t && t.closest ? t.closest('.ad-unban') : null;
     if (btn) doUnban(btn, s);
   });
+
+  // 项目公告 / 博客文章 / 邮件通道状态
+  bindContentEvents(s);
+  loadMailStatus();
+  loadAnnouncements();
+  loadPosts(s);
 }
 
 boot();

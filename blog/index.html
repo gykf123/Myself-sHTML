@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>博客 & 项目公告 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="FeSui 的项目公告与博客：站点更新记录、技术笔记与随笔。" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261107b" />
+  <link rel="stylesheet" href="../user/user.css?v=20261107b" />
+  <link rel="stylesheet" href="./blog.css?v=20261107" />
+  <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+  <script src="/net-guard.js?v=20261107"></script>
+  <script src="/site-nav.js?v=20261107b"></script>
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../chat/">聊天室</a>
+        <a href="../user/">个人中心</a>
+        <a href="../stats/">访问统计</a>
+        <a href="./" class="active" aria-current="page">博客</a>
+      </nav>
+    </header>
+
+    <main class="user-main">
+      <section class="user-card blog-head">
+        <h1 class="blog-title">📰 博客 &amp; 项目公告</h1>
+        <p class="blog-sub">站点更新、技术笔记和随笔都放这儿。公告由管理员发布，在<a href="../user/">个人中心绑定邮箱</a>即可订阅（邮件通道开通后自动发送）。</p>
+      </section>
+
+      <section class="user-card">
+        <div class="blog-card-head">
+          <h2>📢 项目公告</h2>
+          <a class="blog-head-link" href="../user/">绑定邮箱订阅 ↗</a>
+        </div>
+        <div id="annList" class="blog-ann-list"><div class="user-loading">加载中…</div></div>
+      </section>
+
+      <section class="user-card" id="listCard">
+        <div class="blog-card-head">
+          <h2>✍️ 文章</h2>
+          <span class="blog-count" id="postCount">…</span>
+        </div>
+        <div id="postList" class="blog-post-list"><div class="user-loading">加载中…</div></div>
+      </section>
+
+      <section class="user-card" id="postCard" hidden>
+        <a class="blog-back" href="./">← 返回文章列表</a>
+        <article id="postView"><div class="user-loading">加载中…</div></article>
+      </section>
+    </main>
+
+    <footer class="user-foot">
+      <span>© <span id="footYear"></span> FeSui</span>
+      <span class="user-foot-sep">·</span>
+      <a href="../">返回主页</a>
+    </footer>
+  </div>
+
+  <script src="./blog.js?v=20261107" defer></script>
+  <script src="/visit.js?v=20261107" defer></script>
+</body>
+</html>

@@ -223,3 +223,22 @@
 - **验收 `test_site_nav.py` 32/32**：主站 `root=0 style=0` 确认不重复；9 个不同深度/类型页面（含 `/tool/minecraft-search/tools/*.html` 三层目录、`/404.html`、`/admin/`）均注入且默认收起；7 条链接 href 顺序、外链 `noopener noreferrer`、`aria-expanded`；各页高亮正确（无匹配页不高亮）；ESC / 点外部关闭；两套主题配色实取 computed 值不同；**从三层深的工具页真实点击跳到 `/stats/`**；移动端 375px 面板不越界；38 页接入顺序；零 `pageerror`。
 - **顺手做的全站死链扫描**：174 条站内 `href`，**0 条真实断链**；3 条命中是 JS 模板字符串里的动态拼接（`href="' + u + '/dashboard"` 等）被正则误抓，非死链。
 - **仍未做、且不能自主做**：①App 端（adapp / iOS-app）留言墙接入登录后彻底撤 anon insert——涉及另外两个仓库，需用户排期；②体检报告 P1/P2 遗留（随笔/动态视图、PWA、CONFIG 拆 `data.json`）、`user.css` 抽 `page-kit.css`——属重构/产品决策，不擅自改。本条与代码同批提交。
+
+## 2026-11-07 ⑧ 绑定邮箱 / 项目公告 / 博客（用户「方案你随便选」）
+
+- **自选方案**：三张 `fs_` 新表 + 两个 Edge Function + 一个前台页，纯静态站零构建。`supabase/fs-content.sql` 已用 PAT 在线执行，`fs-notify` / `fs-blog` 已部署，均 `--no-verify-jwt --use-api`。**绝不 drop/alter 任何既有对象。**
+- **权限模型**：`fs_email_subscriptions` 完全私有（RLS 无 policy、`revoke all`），前端一条都读不到，读写只走 `fs-notify` 的 service_role；`fs_announcements` 公开读、`fs_posts` 只放行 `published=true`（草稿前端不可见）；写操作服务端验 `users.role='admin'`，`user_id`/`author_id` 只信 JWT `sub`。新表建完 `notify pgrst, 'reload schema'`。
+- **邮件通道只差一个 Key**：`fs-notify` 走 Resend HTTP API，`RESEND_API_KEY` 未配置时 `mail_status.configured=false`，公告照常站内发布、`mailed=0` 并如实返回 `note`，**不发信也不假装发过**。配置后 `announce` 自动按 100 封一批群发 `subscribed=true` 的用户并回填 `mailed_count`。`verified` 列是预留位（当前无验证码，群发不按它过滤），**邮箱真实性目前不校验，属已知边界**，已在交付说明里提醒用户。
+- **前端位置**：个人中心账号绑定卡加「邮箱 / 公告订阅」行（登记 / 退订 / 重订 / 解绑）；管理后台加「项目公告」「博客文章」两张卡（发布、列表、邮件通道状态、文章新建/编辑/发布/删除）；新建 `/blog/` 前台（公告 + 文章列表 + `?p=slug` 详情，自写 Markdown 渲染器：全文先 `escapeHtml` 再拼标签，链接白名单只放行 http/https 与站内相对路径，挡 `javascript:` / `data:` / `//` 协议相对地址）；主站侧栏 + footer + 共享导航三处补入口。
+- **版本号**：`user.css`/`admin.css`/`site-nav.js` 改后 → `20261107b`，`user.js`/`chat.js` → `20261107c`，`admin.js` → `20261107d`；新建 `blog.css`/`blog.js` 首次发布用 `20261107`；全站 **39 页**（原 38 + 新博客页）`net-guard.js` / `site-nav.js` 引用统一同步，`style.css` 本轮未改故保持 `20261107b`。
+- **验收**：`test_fs_content_api.py` **35/35**（真实 login 链路：中文昵称、越权 403/401、伪造签名 401、订阅表零权限、公告权限与换行、草稿不可见/发布可见、非法输入 400）+ `test_fs_content_ui.py` **49/49**（真实线上数据不打 mock：聊天室昵称、邮箱四态、后台公告/博客表单、博客 Markdown 渲染与 XSS 五连断言、共享导航 8 条、主站入口、零 `pageerror`），测试数据全部 `try/finally` 清理、探针账号 `role`/`nickname` 已恢复。
+- **本轮最大的验收踩坑（已沉淀）**：Management API `GET /v1/projects/{ref}/secrets` 返回的 **明文值与 Edge Function 运行时的环境变量不一致**（用其中 `JWT_SECRET` / `SERVICE_ROLE_KEY` 自签的 JWT 全部 401，但真实 `login` 签发的 token 全部 200；逐个比对 16 个 secret 及 JSON 子键、48 个变换候选均不匹配线上 token 签名）。**以后验收不要拿 secrets API 的值自签 token**，一律走真实 `login`；需要管理员态就「临时给探针账号提权 → 重新登录 → `finally` 恢复」，比自签更真实也更安全。函数自身的验签候选（`JWT_SECRET` / `SUPABASE_JWT_SECRET` / `SERVICE_ROLE_KEY`）没动，产品侧不受影响。
+
+## 2026-11-07 ⑨ 修复聊天室中文昵称乱码（用户截图报障）
+
+- **现象**：iPad Safari 截图里自己发的消息昵称是 `æ§æçåå¦` 之类 mojibake，底部「以 执拗的同学 的身份发言」却正常；用户随后在聊天室发「额，为啥我名字乱码」「明天修吧」。查库坐实 `fs_chat_messages.author_name` 存的就是 UTF-8 字节被按 Latin-1 解读的字符串。
+- **根因**：**后端** `b64urlDecode()` 只 `return atob(b64)`。`atob()` 返回的是「字节字符串」，JWT payload 里 UTF-8 编码的中文会被逐字节当成 U+0000–U+00FF 的 Latin-1 字符，`JSON.parse` 后就是乱码；`fs-chat` 又把这个 `nickname`/`username` 直接写进 `author_name`。**前端** `parseJwt()` 用的是 `decodeURIComponent(escape(atob(b64)))`，所以同一份 JWT 在页面底部显示正常——这正是「后端乱码、前端正常」的原因。验签比对的是原始 `parts[0]+'.'+parts[1]`，改解码不影响验签。
+- **修复**：仓库内 5 个自签 JWT 函数（`fs-chat` / `account` / `wall-post` / `fs-notify` / `fs-blog`）的 `b64urlDecode` 统一改成「`atob` → `Uint8Array` → `new TextDecoder().decode()`」，全部 `deno check` 通过并重新部署。**顺带扫了线上另 7 个旧函数**（`auth-exchange` / `qq-bind` / `ai-chat` / `admin-list` / `admin-review` / `apply` / `submit-story`）：`_shared/jwt.ts` 与 `qq-bind` 的解码函数本就返回 `Uint8Array` 再按 UTF-8 解，不受影响，故未改动它们。
+- **存量数据修复**：用 PAT 跑 PL/pgSQL `DO` 块逐行 `convert_from(convert_to(author_name,'LATIN1'),'UTF8')` 还原；正常中文无法编码成 LATIN1 会抛异常，靠 `exception when others then continue` 跳过，纯 ASCII 转换前后相同也不更新。**7 条历史消息昵称全部还原成「执拗的同学」**，未动消息内容、未删任何行。
+- **顺手修**：`chat.js` 轮询 `fetchMessages(true)` 时状态栏不更新计数，导致列表已 4 条、状态栏还写「3 条消息」；改成只要当前在公共大厅就刷新计数。
+- **教训（与 11-07 修 base64url 签名那次并列）**：JWT 有两条独立编码链——**签名段是 base64url 无 padding**，**payload 是 UTF-8 字节的 base64url**。`btoa/atob` 默认只处理字节字符串，任何「自己解析 JWT」的地方都必须同时正确处理这两件事；只测真实 token 能否通过验签，测不出 payload 里的中文被解错。负向测试要有：中文 payload 落库后读回比对、伪造签名 401。

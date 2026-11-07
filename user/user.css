@@ -312,6 +312,9 @@
   outline: none; transition: border-color .2s;
 }
 .bind-input:focus { border-color: var(--accent); }
+/* 邮箱 / 公告订阅行：地址较长，输入框放宽并允许按钮换行 */
+.bind-mail .bind-input { width: min(240px, 100%); }
+.bind-mail .bind-edit { flex-wrap: wrap; }
 .bind-tip { font-size: 12px; color: var(--text-dim); margin-top: 12px; line-height: 1.7; }
 
 .act-btn.small { padding: 7px 14px; font-size: 13px; }

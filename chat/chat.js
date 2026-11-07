@@ -214,7 +214,8 @@ async function fetchMessages(silent) {
     }));
     messages = server.concat(local).sort((a, b) => (a.id || 0) - (b.id || 0));
     renderMessages();
-    if (!silent && currentTab === 'public') {
+    // 轮询（silent）也要更新计数：否则后台已渲染出第 4 条，状态栏还停在「3 条消息」
+    if (currentTab === 'public') {
       setConn('ok', '● 已连接 · <b>' + server.length + '</b> 条消息' + (isLogged() ? '' : ' · 未登录'));
     }
   } catch (e) {

@@ -65,7 +65,14 @@ async function hmacSha256(key: string, msg: string): Promise<string> {
 function b64urlDecode(s: string): string {
   let b64 = s.replace(/-/g, '+').replace(/_/g, '/')
   while (b64.length % 4) b64 += '='
-  return atob(b64)
+  // atob() 返回的是「字节字符串」：JWT payload 里 UTF-8 编码的中文会被逐字节
+  // 当成 Latin-1 字符，直接 JSON.parse 就成了 mojibake（聊天室中文昵称乱码根因）。
+  // 必须先还原成字节数组再按 UTF-8 解码。验签比对的是原始 parts[0]/parts[1]，
+  // 不受此处影响。
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new TextDecoder().decode(bytes)
 }
 
 async function verifySiteJwt(token: string): Promise<Session | null> {

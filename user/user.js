@@ -396,9 +396,25 @@ function renderBindCard(row) {
       '</div>' +
     '</div>';
 
+  /* 邮箱 / 公告订阅：与项目公告共用 fs_email_subscriptions 一张表。
+     邮件通道未配置时仍可登记/退订（预留位），只是不发信也不发验证码。 */
+  const mailRow =
+    '<div class="bind-row bind-mail">' +
+      '<div class="bind-info">' +
+        '<span class="bind-avatar bind-avatar-fallback" aria-hidden="true">@</span>' +
+        '<div class="bind-text"><b>邮箱 / 公告订阅</b><span class="dim" id="mailState">加载中…</span></div>' +
+      '</div>' +
+      '<div class="bind-edit">' +
+        '<input id="mailInput" class="bind-input" type="email" maxlength="254" placeholder="you@example.com" autocomplete="email" />' +
+        '<button class="act-btn small" id="mailSave" type="button">保存</button>' +
+        '<button class="act-btn small ghost" id="mailToggle" type="button" hidden>取消订阅</button>' +
+        '<button class="act-btn small ghost" id="mailRemove" type="button" hidden>解绑</button>' +
+      '</div>' +
+    '</div>';
+
   box.innerHTML =
-    '<div class="bind-list">' + ghRow + qqRow + '</div>' +
-    '<p class="bind-tip">QQ 绑定流程：填好 QQ 号保存 → 点「生成 QQ 绑定码」→ 把 8 位码发给 QQ 机器人（/绑定 &lt;绑定码&gt;），两边号码一致即绑定成功。GitHub 关联使用官方 OAuth 授权，本站只读取你的公开资料（ID / 登录名 / 头像），不会获取任何仓库权限。</p>';
+    '<div class="bind-list">' + ghRow + qqRow + mailRow + '</div>' +
+    '<p class="bind-tip">QQ 绑定流程：填好 QQ 号保存 → 点「生成 QQ 绑定码」→ 把 8 位码发给 QQ 机器人（/绑定 &lt;绑定码&gt;），两边号码一致即绑定成功。GitHub 关联使用官方 OAuth 授权，本站只读取你的公开资料（ID / 登录名 / 头像），不会获取任何仓库权限。绑定邮箱后默认订阅项目公告，可随时取消；邮箱不会出现在任何公开页面。</p>';
 
   const ghLink = $('#ghLink');
   if (ghLink) ghLink.addEventListener('click', linkGithub);
@@ -426,6 +442,15 @@ function renderBindCard(row) {
   const qqCodeBtn = $('#qqCodeBtn');
   if (qqCodeBtn) qqCodeBtn.addEventListener('click', genQQCode);
 
+  // 邮箱 / 公告订阅
+  const mailSave = $('#mailSave');
+  if (mailSave) mailSave.addEventListener('click', saveEmail);
+  const mailToggle = $('#mailToggle');
+  if (mailToggle) mailToggle.addEventListener('click', toggleSubscribe);
+  const mailRemove = $('#mailRemove');
+  if (mailRemove) mailRemove.addEventListener('click', removeEmail);
+  loadMailState();
+
   // 降级路径的 row 不含 qq 列（单独查一次，失败不影响其他展示）
   if (row && !('qq' in row)) {
     (async () => {
@@ -444,6 +469,104 @@ function updateQQDisplay(qqVal) {
   const state = $('#qqState'), input = $('#qqInput');
   if (state) state.textContent = qqVal ? '已绑定 ' + qqVal : '未绑定';
   if (input) input.placeholder = qqVal ? '更换 QQ 号' : '输入 QQ 号';
+}
+
+/* ---------- 邮箱绑定 / 项目公告订阅（fs-notify） ----------
+   与公告群发共用 fs_email_subscriptions；该表前端零权限，只走函数。
+   邮件通道（RESEND_API_KEY）未配置时仍可登记 / 退订，只是不发信、不发验证码，
+   前端用 configured=false 如实提示，不假装「已订阅成功」。 */
+async function notifyCall(action, extra) {
+  const res = await fetch(FUNCTIONS_BASE + '/fs-notify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': ANON_KEY,
+      'Authorization': 'Bearer ' + getToken()
+    },
+    body: JSON.stringify(Object.assign({ action: action }, extra || {}))
+  });
+  const data = await res.json().catch(() => null);
+  return { ok: res.ok && !!(data && data.ok), status: res.status, data: data || {} };
+}
+
+let mailStateCache = { bound: false, email: '', subscribed: false };
+
+function renderMailState(d) {
+  mailStateCache = {
+    bound: !!d.bound, email: String(d.email || ''), subscribed: !!d.subscribed
+  };
+  const st = $('#mailState'), input = $('#mailInput');
+  const toggle = $('#mailToggle'), remove = $('#mailRemove');
+  if (!st) return;
+  const channel = d.configured ? '' : ' · 邮件通道待开通（当前仅登记，暂不发信）';
+  if (!d.bound) {
+    st.textContent = '未绑定 · 绑定后可接收项目公告' + channel;
+  } else {
+    st.textContent = '已登记 ' + d.email + ' · ' +
+      (d.subscribed ? (d.verified ? '已订阅' : '已订阅（待验证）') : '已取消订阅') + channel;
+  }
+  if (input) input.value = d.email || '';
+  if (toggle) {
+    toggle.hidden = !d.bound;
+    toggle.textContent = d.subscribed ? '取消订阅' : '重新订阅';
+  }
+  if (remove) remove.hidden = !d.bound;
+}
+
+async function loadMailState() {
+  const st = $('#mailState');
+  if (!st) return;
+  try {
+    const r = await notifyCall('email_get');
+    if (!r.ok) { st.textContent = '邮箱功能暂时不可用'; return; }
+    renderMailState(r.data);
+  } catch (e) { st.textContent = '邮箱功能暂时不可用'; }
+}
+
+async function saveEmail() {
+  const input = $('#mailInput'), btn = $('#mailSave');
+  if (!input || !btn) return;
+  const email = input.value.trim();
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showToast('邮箱格式不正确'); return;
+  }
+  btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    const r = await notifyCall('email_bind', { email: email });
+    if (!r.ok) { showToast(r.data.error || '保存失败'); return; }
+    showToast('邮箱已登记' + (r.data.configured ? '，已订阅项目公告' : '，待邮件通道开通后生效'));
+    await loadMailState();
+  } catch (e) { showToast('网络异常，请稍后再试'); }
+  finally { btn.disabled = false; btn.textContent = '保存'; }
+}
+
+async function toggleSubscribe() {
+  const btn = $('#mailToggle');
+  if (!btn || !mailStateCache.bound) return;
+  const wantSubscribe = !mailStateCache.subscribed;
+  btn.disabled = true;
+  try {
+    const r = await notifyCall(wantSubscribe ? 'email_bind' : 'email_unsubscribe',
+                               wantSubscribe ? { email: mailStateCache.email } : {});
+    if (!r.ok) { showToast(r.data.error || '操作失败'); return; }
+    showToast(wantSubscribe ? '已重新订阅项目公告' : '已取消订阅');
+    await loadMailState();
+  } catch (e) { showToast('网络异常，请稍后再试'); }
+  finally { btn.disabled = false; }
+}
+
+async function removeEmail() {
+  const btn = $('#mailRemove');
+  if (!btn) return;
+  if (!window.confirm('解绑邮箱后会退出公告订阅列表，确定吗？')) return;
+  btn.disabled = true;
+  try {
+    const r = await notifyCall('email_remove');
+    if (!r.ok) { showToast(r.data.error || '解绑失败'); return; }
+    showToast('邮箱已解绑');
+    await loadMailState();
+  } catch (e) { showToast('网络异常，请稍后再试'); }
+  finally { btn.disabled = false; }
 }
 
 /* 保存 QQ 号：PATCH users?id=eq.{JWT.sub}（uid 只信 JWT，不信任何前端自造值） */

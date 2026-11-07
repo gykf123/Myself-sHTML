@@ -53,7 +53,11 @@ async function hmacSha256(key: string, msg: string): Promise<string> {
 function b64urlDecode(s: string): string {
   let b64 = s.replace(/-/g, '+').replace(/_/g, '/')
   while (b64.length % 4) b64 += '='
-  return atob(b64)
+  // atob() 返回字节字符串，UTF-8 中文需显式解码，否则 payload 里中文变 mojibake
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new TextDecoder().decode(bytes)
 }
 
 // 返回 { sub, username } 或 null（过期/格式错/签名不匹配一律拒绝）
