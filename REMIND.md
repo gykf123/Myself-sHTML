@@ -164,3 +164,21 @@
 - 样式新增 `.jump-*`（变量化、520px 响应式、reduced-motion 降级）。**改 `style.css` 必须同步全部 8 个引用页的 `?v=`**：`404.html` / `admin` / `chat` / `index` / `reopenai` / `stats` / `user/index` / `user/github-callback` 统一 `?v=20261107`；`script.js?v=20261101` → `?v=20261107`。
 - 验收 **44/44**：纯函数 17 种输入形态（含大小写混淆的 `JaVaScRiPt:`、带端口域名、query 完整保留）、真实新标签页跳转、危险协议零弹窗且 `aria-invalid=true`、回车提交、4 个预设逐一打开正确目标、五视图切换与主题切换后卡片不丢、零 `pageerror`。
 - 小坑：卡片 `<section>` 漏写 `id="jumpBox"` 被测试抓到，已补；测试里桌面视口下顶栏 `#themeBtn` 隐藏，要点侧栏 `#sidebarThemeBtn`。
+
+## 2026-11-07 ⑤ 国内访问 Supabase 不稳，接入反代 `api.fkd.xn--0iv.gay`
+
+- **触发**：用户转来另一智能体的汇报——`supabase.co` 在国内偶发不可达，用户已搭好反代 `https://api.fkd.xn--0iv.gay`，给了两条路：①只在 `callFn` 里手动双端点重试；②引入 `net-guard.js` 全局接管 `fetch`。用户没点选哪个，只说「你看」。**选 ②，但自写一份 fesui 专用版，不拷 FKD 站那份。**
+- **选 ② 的理由（关键）**：本站的 Supabase 请求**根本不集中在 `callFn`**——`visit.js` 全站 38 页每页都发 `record_visit` / `is_account_banned`，另有 `chat.js`、`stats.js`、`admin.js`、`user.js`、`auth-ticket.js`、`login/index.html` 内联 `callFn`、`tool/` 各页，散落十几处。方案一要逐个改且漏一处就漏，`auth-ticket.js` 的换票请求还是页面一加载就发。全局接管一次覆盖全部，且对第三方 API（`api.mcsrvstat.us` 等）原样透传。
+- **实测确认反代可用后才动手**：`OPTIONS` 返 204，`Access-Control-Allow-Origin` **精确回显** `https://fesui.xn--0iv.gay`，允许 `apikey,content-type,authorization`；带正常浏览器 UA 的匿名 REST 读官方域 200 / 1.67s、反代 200 / 1.58s。**坑：Python requests / curl 默认 UA 会吃 Cloudflare `error code: 1010`（浏览器签名策略），那不是反代故障，换 UA 即通。**
+- **为什么不直接拷 FKD 的 `js/net-guard.js`**（下载到 `/tmp/ng__js_net-guard.js` 审过）：①它会自动跳 `diag.html?auto=1`，fesui 没有这个页面，等于把用户送去 404；②它把匿名公开 GET 的响应缓存进 `localStorage`，聊天室消息、统计数字会看到过期数据；③`localStorage` 键前缀是 FKD 语义，混用会互相污染；④重试白名单不是按 fesui 端点细化的。**决策：不缓存任何响应、不自动跳诊断页、键统一 `fs_` 前缀。**
+- **`net-guard.js` 实现要点**（ES5、零依赖、`<head>` 同步加载最先接管 `window.fetch`）：
+  - 端点 `PRIMARY=https://yowwyasttkywyqgseuqz.supabase.co` / `PROXY=https://api.fkd.xn--0iv.gay`；官方域**永远保留为兜底**，即使 `FS_NET_ENDPOINTS` 只配了反代。
+  - 反代路径白名单与 `proxy-core.js` 对齐：`/rest/v1/` `/functions/v1/` `/storage/v1/object/` `/auth/v1/`；auth 敏感子路径（`/admin/`、`invite`、`recover`、`otp`、`magiclink`、`resend`）**一律回退官方域**，不让反代代劳。
+  - **写操作一律不重试**：一次性 ticket 的 `auth-exchange` `redeem`、`record_visit`、`ban_account`、发消息、解封等重试会造成重复消费或重复副作用；只有只读 GET/HEAD/OPTIONS，以及纯校验/纯读 POST 白名单（`/functions/v1/login`、`/functions/v1/profile`、5 个统计/封禁查询 RPC、`fs-chat` 的只读 action）允许在网络层失败时换端点再试一次。
+  - **拿到任何 HTTP 响应都不重试**（尤其 401/403/404）；仅 5xx 且属重试白名单才换端点。**自己触发的超时也不重试**——请求可能已送达服务端，重试等于重复写；用 `fired` 标记与「调用方 signal」区分开。
+  - 端点竞速：并发匿名 GET `/rest/v1/users?select=id&limit=1`，谁先 200 用谁，结果存 `localStorage['fs_net_active']` 跨页面复用；`fs_net_probe_at` 做 **30 分钟冷却**（否则 38 个页面每开一页都发探针）。**脚本加载即探测，不延迟到 `load`**——`chat/` / `admin/` 的换票请求会立刻发出。
+  - 对外 `window.FS_NET`：`active()` / `endpoints()` / `stats()` / `probe()` / `setEndpoints()` / `reset()`，便于在控制台手动裁决链路。
+- **接入范围**：全站 **38/38 个 HTML** 在 `</head>` 前插入 `<script src="/net-guard.js?v=20261107"></script>`，且校验过它是**首个 `src` 脚本**（零顺序问题、零重复）；首页另加 `<link rel="preconnect" href="https://api.fkd.xn--0iv.gay" crossorigin />`。静态校验：`style.css` 版本集合仍是 `{'20261107'}`，`net-guard.js` 版本集合 `{'20261107'}`。
+- **验收 `test_net_guard.py` 20/20 全过**：官方域完全不通时竞速切到反代并持久化 → 统计页经反代渲染 SVG、聊天室公共消息经反代读取 → **主域断开时完整跑通登录 `issue` + `redeem` 一次性票**（证明全局接管覆盖了 `login` 内联 `callFn` 与 `auth-ticket.js`，这是方案一最难覆盖的部分）→ 错误密码 401 只请求 1 次 → 全端点断开时 `record_visit` 与 `auth-exchange` 各只发 1 次 → `/auth/v1/recover` 正确回退官方域 → 调试接口可用 → 零 `pageerror`。`node --check net-guard.js` 通过。
+- **验收脚本自身的两个口径修正**（初版 17/20，非产品问题）：①聊天室公共消息首屏读的是 `/rest/v1/fs_chat_messages`，**不是** `/functions/v1/fs-chat`，原断言写错；②活跃端点已持久化为反代，`401` 时请求打反代是预期，真正要断言的是「不产生第二次请求、不触发端点切换」，不是「打官方域」。
+- **运维注意**：①反代是站外依赖，若它下线，网络层失败会自动切回官方域，行为退化成没装兜底时那样，不会整个站点挂掉；②`fs_net_active` 持久化后，官方域恢复也不会立刻切回（30 分钟冷却 + 竞速谁先 200 用谁），需要立刻裁决可在控制台 `FS_NET.reset()`；③探针依赖 anon 对 `users.id` 的 SELECT，**若将来收紧 users 表 RLS，需同步换探针路径**，否则两端都判失败但真实请求仍可用（不会误伤，只是失去自动优选）；④本层不缓存、不改业务代码、不动后端，纯前端兜底，**无任何 SQL / Edge Function 变更**。本条与代码同批提交。
