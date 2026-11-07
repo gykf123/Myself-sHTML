@@ -78,3 +78,80 @@ a.chat-name:hover { color: var(--accent); border-bottom-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   .chat-list { scroll-behavior: auto; }
 }
+
+/* ---------- 模式切换（公共大厅 / 私聊） ---------- */
+.chat-tabs { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.chat-tab {
+  padding: 7px 14px; border-radius: 999px; font: inherit; font-size: 13px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.chat-tab:hover { color: var(--text); }
+.chat-tab.active {
+  background: var(--accent-soft); border-color: var(--accent);
+  color: var(--text); font-weight: 600;
+}
+.chat-tab-badge {
+  display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px;
+  border-radius: 999px; background: #e04848; color: #fff;
+  font-size: 11px; line-height: 18px; text-align: center;
+}
+.chat-tab-badge[hidden] { display: none; }
+
+/* ---------- 私聊布局 ---------- */
+.dm-card { padding: 0; overflow: hidden; }
+.dm-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 420px; }
+.dm-side {
+  border-right: 1px solid var(--border); display: flex;
+  flex-direction: column; min-width: 0;
+}
+.dm-start-row { display: flex; gap: 8px; padding: 12px; border-bottom: 1px solid var(--border); }
+.dm-peer-input { min-height: 36px; padding: 8px 10px; font-size: 13px; resize: none; }
+.dm-start-row .act-btn { flex-shrink: 0; }
+.dm-conv-list { flex: 1; overflow-y: auto; max-height: 460px; }
+.dm-conv {
+  display: block; width: 100%; text-align: left; padding: 11px 12px;
+  border: 0; border-bottom: 1px solid var(--border);
+  background: transparent; color: var(--text); font: inherit; cursor: pointer;
+}
+.dm-conv:hover { background: var(--surface); }
+.dm-conv.active { background: var(--accent-soft); }
+.dm-conv-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.dm-conv-name {
+  font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dm-conv-time { font-size: 11px; color: var(--text-dim); flex-shrink: 0; }
+.dm-conv-last {
+  font-size: 12px; color: var(--text-dim); margin-top: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dm-conv-unread {
+  float: right; min-width: 18px; padding: 0 5px; border-radius: 999px;
+  background: #e04848; color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+}
+.dm-main { display: flex; flex-direction: column; min-width: 0; }
+.dm-head {
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text-dim);
+}
+.dm-head b { color: var(--text); }
+.dm-list { flex: 1; max-height: 360px; min-height: 220px; }
+.dm-composer { border-top: 1px solid var(--border); padding: 12px 16px; }
+.chat-dm-btn {
+  margin-left: 6px; font-size: 11px; color: var(--accent); cursor: pointer;
+  background: transparent; border: 0; padding: 0;
+}
+.chat-dm-btn:hover { text-decoration: underline; }
+.dm-login-tip { margin: 0; font-size: 13px; color: var(--text-dim); }
+.dm-login-tip a { color: var(--accent); }
+
+@media (max-width: 720px) {
+  .dm-layout { grid-template-columns: 1fr; }
+  .dm-side { border-right: 0; border-bottom: 1px solid var(--border); }
+  .dm-conv-list { max-height: 180px; }
+  .dm-list { max-height: 300px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-tab { transition: none; }
+}

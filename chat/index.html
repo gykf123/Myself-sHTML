@@ -9,7 +9,7 @@
   <link rel="icon" href="../favicon.png" />
   <link rel="stylesheet" href="../style.css?v=20261024b" />
   <link rel="stylesheet" href="../user/user.css?v=20261106a" />
-  <link rel="stylesheet" href="./chat.css?v=20261106a" />
+  <link rel="stylesheet" href="./chat.css?v=20261107" />
   <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
 </head>
 <body>
@@ -23,6 +23,7 @@
         <a href="../">主页</a>
         <a href="../#wall">留言墙</a>
         <a href="../user/">个人中心</a>
+        <a href="../stats/">访问统计</a>
         <a href="./" class="active" aria-current="page">聊天室</a>
       </nav>
     </header>
@@ -30,22 +31,49 @@
     <main class="user-main">
       <section class="user-card chat-head-card">
         <h1 class="chat-title">💬 聊天室</h1>
-        <p class="chat-sub">站点公共大厅，所有人都能看到消息。登录后即可发言，点昵称可以去看 TA 的资料。</p>
+        <p class="chat-sub">公共大厅所有人可见；私聊只有你和对方能看到。点昵称可以看 TA 的资料，也能直接发起私聊。</p>
+        <div class="chat-tabs" role="tablist" aria-label="聊天模式">
+          <button class="chat-tab active" data-chat-tab="public" type="button" role="tab" aria-selected="true">💬 公共大厅</button>
+          <button class="chat-tab" data-chat-tab="dm" type="button" role="tab" aria-selected="false">✉️ 私聊 <span id="dmBadge" class="chat-tab-badge" hidden>0</span></button>
+        </div>
         <div class="chat-status-row">
           <span id="chatConn" class="chat-conn">连接中…</span>
           <button id="chatRefresh" class="act-btn small" type="button">刷新</button>
         </div>
       </section>
 
-      <section class="user-card chat-room-card">
-        <div id="chatList" class="chat-list" aria-live="polite">
-          <div class="user-loading">正在加载消息…</div>
-        </div>
-      </section>
+      <div id="viewPublic">
+        <section class="user-card chat-room-card">
+          <div id="chatList" class="chat-list" aria-live="polite">
+            <div class="user-loading">正在加载消息…</div>
+          </div>
+        </section>
 
-      <section class="user-card chat-compose-card">
-        <div id="chatComposer"></div>
-      </section>
+        <section class="user-card chat-compose-card">
+          <div id="chatComposer"></div>
+        </section>
+      </div>
+
+      <div id="viewDm" hidden>
+        <section class="user-card dm-card">
+          <div class="dm-layout">
+            <aside class="dm-side">
+              <div class="dm-start-row">
+                <input id="dmPeerInput" class="chat-input dm-peer-input" type="text" maxlength="60" placeholder="输入用户名发起私聊" aria-label="对方用户名" />
+                <button id="dmStart" class="act-btn small" type="button">发起</button>
+              </div>
+              <div id="dmConvList" class="dm-conv-list" aria-live="polite">
+                <div class="user-loading">加载会话…</div>
+              </div>
+            </aside>
+            <div class="dm-main">
+              <div id="dmHead" class="dm-head">从左侧选一个会话，或输入用户名发起私聊</div>
+              <div id="dmList" class="chat-list dm-list" aria-live="polite"></div>
+              <div id="dmComposer" class="dm-composer"></div>
+            </div>
+          </div>
+        </section>
+      </div>
     </main>
 
     <footer class="user-foot">
@@ -55,6 +83,7 @@
     </footer>
   </div>
 
-  <script src="./chat.js?v=20261106a" defer></script>
+  <script src="./chat.js?v=20261107" defer></script>
+  <script src="/visit.js?v=20261107" defer></script>
 </body>
 </html>

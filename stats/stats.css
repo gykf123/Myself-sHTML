@@ -1,0 +1,152 @@
+/* ============================================================
+   访问统计（stats/）增量样式
+   骨架复用 ../user/user.css；配色全部走主站 style.css 的 CSS 变量，
+   随「标准 / 液态玻璃」主题与深浅色自动切换，无需重复定义令牌。
+   本文件所有类名统一 st- 前缀，不污染全局。
+   ============================================================ */
+
+/* ---------- 头部与控制条 ---------- */
+.st-head-card { padding-bottom: 16px; }
+.st-title { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: var(--text); }
+.st-sub { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.75; }
+.st-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.st-updated { margin-left: auto; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.st-range {
+  display: inline-flex; gap: 3px; padding: 3px;
+  border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.st-range-btn {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 6px 14px; border-radius: 999px;
+  font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--text-dim); background: transparent;
+  transition: color .2s var(--ease), background .2s var(--ease);
+}
+.st-range-btn:hover { color: var(--text); }
+.st-range-btn.is-active {
+  color: var(--accent); background: var(--accent-soft); box-shadow: var(--shadow);
+}
+.st-range-btn:disabled { opacity: .55; cursor: not-allowed; }
+.st-range-btn:focus-visible,
+.st-refresh-btn:focus-visible,
+.st-retry-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.st-window-label { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--text-dim); }
+
+/* ---------- 概览卡 ---------- */
+.st-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.st-card {
+  min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 14px 12px;
+}
+.st-card-label { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+.st-card-value {
+  font-size: 26px; font-weight: 800; line-height: 1.1; color: var(--text);
+  font-variant-numeric: tabular-nums; word-break: break-all;
+}
+.st-card-note {
+  margin-top: 8px; min-height: 22px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--text-dim);
+}
+.st-delta {
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  padding: 2px 8px; border-radius: 999px;
+  color: var(--text-dim); background: var(--surface-2); border: 1px solid var(--border);
+}
+.st-delta.up { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.st-delta.down { color: var(--text-dim); }
+
+/* ---------- 趋势图（手写 SVG） ---------- */
+.st-chart-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
+.st-chart { width: 100%; min-height: 180px; }
+.st-chart-note { margin: 10px 0 0; text-align: center; font-size: 11.5px; color: var(--text-dim); line-height: 1.7; }
+
+.st-svg { display: block; width: 100%; height: auto; color: var(--accent); }
+.st-grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 4 5; }
+.st-axis-line { stroke: var(--border); stroke-width: 1; }
+.st-axis-y, .st-axis-x { fill: var(--text-dim); font-size: 11px; font-family: inherit; }
+.st-axis-x { font-size: 10.5px; }
+.st-grad-top { stop-color: var(--accent); stop-opacity: .34; }
+.st-grad-bottom { stop-color: var(--accent); stop-opacity: .02; }
+.st-area { fill: url(#stAreaGrad); }
+.st-line {
+  fill: none; stroke: var(--accent); stroke-width: 2.4;
+  stroke-linejoin: round; stroke-linecap: round;
+}
+.st-dot { fill: var(--accent); }
+.st-hit { fill: transparent; pointer-events: all; cursor: crosshair; transition: fill .15s var(--ease); }
+.st-hit:hover { fill: var(--accent); fill-opacity: .16; }
+
+/* ---------- 状态块（加载 / 失败 / 空数据） ---------- */
+.st-status {
+  width: 100%; min-height: 180px; padding: 24px 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; text-align: center; color: var(--text-dim); font-size: 13px;
+}
+.st-status-ico { font-size: 30px; line-height: 1; }
+.st-status-title { margin: 0; font-size: 14px; font-weight: 650; color: var(--text); }
+.st-status-detail { margin: 0; max-width: 360px; font-size: 12px; line-height: 1.7; }
+.st-spinner {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  animation: st-spin .8s linear infinite;
+}
+@keyframes st-spin { to { transform: rotate(360deg); } }
+
+/* ---------- 路径 Top 10（纯 CSS 条形） ---------- */
+.st-paths { display: flex; flex-direction: column; gap: 8px; }
+.st-path-row {
+  display: grid; grid-template-columns: minmax(90px, 38%) 1fr auto;
+  align-items: center; gap: 10px; width: 100%;
+  appearance: none; text-align: left; cursor: pointer; font: inherit;
+  padding: 9px 12px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid transparent; color: var(--text);
+  transition: border-color .2s var(--ease), transform .15s var(--ease);
+}
+.st-path-row:hover { border-color: var(--accent); transform: translateX(2px); }
+.st-path-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.st-path-label {
+  min-width: 0; font-size: 12.5px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.st-path-track {
+  display: block; min-width: 0; height: 10px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); overflow: hidden;
+}
+.st-path-fill {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--accent); opacity: .85;
+  animation: st-grow .5s var(--ease) backwards;
+}
+@keyframes st-grow { from { width: 0; } }
+.st-path-value {
+  min-width: 40px; text-align: right;
+  font-size: 12.5px; font-weight: 700; color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 页脚口径说明 ---------- */
+.st-footnote { margin: 12px 0 0; text-align: center; font-size: 11.5px; color: var(--text-dim); line-height: 1.7; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 560px) {
+  .st-svg { min-width: 560px; }          /* 手机端图表横向滚动 */
+  .st-card-value { font-size: 22px; }
+  .st-updated { margin-left: 0; width: 100%; }
+}
+@media (max-width: 480px) {
+  .st-path-row { grid-template-columns: 1fr auto; row-gap: 6px; }
+  .st-path-track { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* ---------- 动效减弱 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .st-spinner, .st-path-fill { animation: none; }
+  .st-range-btn, .st-hit, .st-path-row { transition: none; }
+  .st-path-row:hover { transform: none; }
+  .st-chart-scroll { scroll-behavior: auto; }
+}

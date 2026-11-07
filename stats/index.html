@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>访问统计 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="FeSui 访问统计：匿名访问上报的聚合数据，仅展示访问量、独立访客与热门路径。" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261024b" />
+  <link rel="stylesheet" href="../user/user.css?v=20261106a" />
+  <link rel="stylesheet" href="./stats.css?v=20261107" />
+  <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../tool/">工具箱</a>
+        <a href="../chat/">聊天室</a>
+        <a href="./" class="active" aria-current="page">访问统计</a>
+      </nav>
+    </header>
+
+    <main class="user-main">
+      <section class="user-card st-head-card">
+        <h1 class="st-title">📊 访问统计</h1>
+        <p class="st-sub">数据来自本站匿名访问上报，仅统计聚合数值，不含任何个人信息</p>
+        <div class="st-controls">
+          <div class="st-range" role="group" aria-label="统计时间窗口">
+            <button class="st-range-btn" type="button" data-days="7" aria-pressed="false">7 天</button>
+            <button class="st-range-btn is-active" type="button" data-days="30" aria-pressed="true">30 天</button>
+            <button class="st-range-btn" type="button" data-days="90" aria-pressed="false">90 天</button>
+          </div>
+          <button class="act-btn small st-refresh-btn" id="stRefresh" type="button">刷新</button>
+          <span class="st-updated" id="stUpdated">尚未加载</span>
+        </div>
+      </section>
+
+      <section class="user-card st-overview-card">
+        <h2><span class="card-ico" aria-hidden="true">📈</span>概览</h2>
+        <div class="st-cards" id="stCards" aria-live="polite"></div>
+      </section>
+
+      <section class="user-card st-trend-card">
+        <h2>
+          <span class="card-ico" aria-hidden="true">📉</span>访问趋势
+          <span class="st-window-label" id="stTrendWindow">近 30 天</span>
+        </h2>
+        <div class="st-chart-scroll">
+          <div class="st-chart" id="stTrendChart" aria-live="polite"></div>
+        </div>
+        <p class="st-chart-note">纵轴：访问量（次） · 横轴：日期（北京时间） · 悬停数据点可看单日明细</p>
+      </section>
+
+      <section class="user-card st-path-card">
+        <h2><span class="card-ico" aria-hidden="true">🔗</span>热门路径 Top 10</h2>
+        <div class="st-paths" id="stPaths" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer class="user-foot">
+      <span>© <span id="footYear"></span> FeSui</span>
+      <span class="user-foot-sep">·</span>
+      <a href="../">返回主页</a>
+    </footer>
+    <p class="st-footnote">统计口径：北京时间，数据保留 30 天，仅聚合展示</p>
+  </div>
+
+  <script src="./stats.js?v=20261107b" defer></script>
+  <script src="/visit.js?v=20261107" defer></script>
+</body>
+</html>

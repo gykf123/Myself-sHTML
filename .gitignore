@@ -13,3 +13,6 @@ secrets.*
 preview-*.png
 *.preview.png
 *.log
+
+# Supabase CLI 本地链接状态（含项目 ref / 组织信息，仅本机有效）
+supabase/.temp/

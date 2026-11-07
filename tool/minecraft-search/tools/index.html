@@ -45,5 +45,6 @@ $('#refTitle').textContent = zh ? '参考库' : 'Reference';
 $('#refs').replaceChildren(...REF_CATEGORIES.map(c => el('a', { class: 'card', href: rel(`/items/?c=${c.slug}`) },
   el('h3', { style: 'font-size:.95rem' }, c.slug), el('p', { class: 'faint', style: 'font-size:.78rem' }, '→'))));
 </script>
+  <script src="/visit.js?v=20261107" defer></script>
 </body>
 </html>
