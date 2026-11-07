@@ -17,7 +17,7 @@
   <meta name="twitter:description" content="在红石电路与代码逻辑的交界，我既是建筑师，也是工程师。" />
   <link rel="icon" type="image/png" href="./favicon.png" />
   <link rel="preconnect" href="https://yowwyasttkywyqgseuqz.supabase.co" crossorigin />
-  <link rel="stylesheet" href="./style.css?v=20261024b" />
+  <link rel="stylesheet" href="./style.css?v=20261107" />
   <!-- 结构化数据：便于搜索引擎理解「这是谁的站点」 -->
   <script type="application/ld+json">
   {
@@ -132,6 +132,22 @@
           <p>世界是开放的沙盒，而我乐此不疲地编辑它。</p>
         </section>
 
+        <!-- 自定义链接跳转：手动输入任意 http(s) 网址，或点下方预设；一律新标签页打开 -->
+        <section class="jump-box glass" id="jumpBox" aria-labelledby="jumpTitle">
+          <div class="jump-head">
+            <h3 id="jumpTitle">🔗 自定义链接跳转</h3>
+            <span class="jump-sub">只支持 http / https，新标签页打开</span>
+          </div>
+          <form class="jump-form" id="jumpForm" autocomplete="off">
+            <input class="jump-input" id="jumpInput" type="text" inputmode="url"
+                   aria-label="要跳转的网址" placeholder="https://example.com 或 example.com"
+                   maxlength="2048" spellcheck="false" autocapitalize="off" autocomplete="off" />
+            <button class="jump-go" id="jumpGo" type="submit">跳转 ↗</button>
+          </form>
+          <div class="jump-presets" id="jumpPresets" aria-label="预设站点"></div>
+          <p class="jump-msg" id="jumpMsg" role="status" aria-live="polite"></p>
+        </section>
+
         <!-- 待补充：彩蛋跳转预设链接请在 script.js 的 CONFIG.eggLinks 中配置 -->
         <button id="eggBtn" class="egg-btn" type="button" aria-label="随机彩蛋">
           <span class="egg-ico" aria-hidden="true">🎲</span>
@@ -204,7 +220,7 @@
 
   <button id="toTop" class="to-top" type="button" aria-label="返回顶部" hidden>↑</button>
 
-  <script src="./script.js?v=20261101" defer></script>
+  <script src="./script.js?v=20261107" defer></script>
   <script src="/visit.js?v=20261107" defer></script>
 </body>
 </html>

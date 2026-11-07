@@ -1,4 +1,11 @@
 -- ============================================================
+--  ⚠️ 历史草稿，请勿整份执行 / DO NOT RUN AS-IS（2026-11-07 标注）
+--  线上实际执行的是 account-bind-safe.sql。本文件第 2 节的
+--  `revoke all on table public.users from anon, authenticated`
+--  会撤销线上现有的「列级」授权（含 authenticated 对 qq 的 UPDATE、anon 对基础列的
+--  SELECT），导致 QQ 绑定、公开名片、主站登录态一起失效。
+--  第 1 节加列语句本身没问题，但请一律以 account-bind-safe.sql 为准。
+-- ============================================================
 --  账号绑定（GitHub OAuth + QQ）迁移 SQL
 --  项目：yowwyasttkywyqgseuqz（与 guestbook.sql 同一项目）
 --

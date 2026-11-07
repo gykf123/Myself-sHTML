@@ -42,6 +42,13 @@ const CONFIG = {
     { name: 'MCJS', url: 'https://mcjs.link', desc: '网页版 Minecraft 最佳中文版，无需下载即可在浏览器里游玩。', favicon: 'https://mcjs.link/favicon.ico' },
     { name: 'DJI 虚拟飞行模拟器', url: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/', desc: '网页版无人机飞行模拟器：自由飞行、天气操控与联机约飞广场。', favicon: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/favicon.ico' }
   ],
+  // 自定义链接跳转的预设站点（与手动输入共用同一套 URL 白名单校验）
+  jumpPresets: [
+    { name: '抖音', icon: '🎵', url: 'https://www.douyin.com/', title: '抖音 · douyin.com' },
+    { name: '必应', icon: '🔍', url: 'https://www.bing.com/', title: '必应 · bing.com' },
+    { name: 'DS', icon: '🤖', url: 'https://chat.deepseek.com/', title: 'DeepSeek · chat.deepseek.com' },
+    { name: 'FKD 诊断', icon: '🩺', url: 'https://fkd.xn--0iv.gay/diag.html', title: 'FKD 服务器诊断页' }
+  ],
   // 彩蛋按钮预设链接：点击随机跳转（"精神污染"/鬼畜整活向，链接均来自权威来源真实存在）
   eggLinks: [
     { title: '🧊 冰冰冰 500 小时纯享版', url: 'https://www.bilibili.com/video/BV1a6ho6cEan/' },
@@ -245,6 +252,98 @@ function bindTheme() {
 }
 function applyTheme(t) {
   document.documentElement.classList.toggle('theme-glass', t === 'glass');
+}
+
+/* ---------- 自定义链接跳转 ---------- */
+// 只放行 http/https：挡掉 javascript:/data:/file:/vbscript: 等危险协议；
+// 无协议输入按 https:// 补全，protocol-relative（//host）也规整为 https://host。
+function normalizeJumpUrl(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return { ok: false, msg: '请先输入网址' };
+  if (s.length > 2048) return { ok: false, msg: '网址太长（上限 2048 字符）' };
+  if (/[\u0000-\u001f\u007f]/.test(s)) return { ok: false, msg: '网址含有非法字符' };
+  if (/^(javascript|data|vbscript|file|blob)\s*:/i.test(s)) {
+    return { ok: false, msg: '出于安全考虑，只支持 http / https 链接' };
+  }
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s) && !/^https?:\/\//i.test(s)) {
+    return { ok: false, msg: '只支持 http / https 链接' };
+  }
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+  let u;
+  try { u = new URL(s); } catch (e) { return { ok: false, msg: '网址格式不正确' }; }
+  if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) {
+    return { ok: false, msg: '只支持 http / https 链接' };
+  }
+  return { ok: true, url: u.href };
+}
+
+// 用临时 <a> 打开并固定 rel=noopener noreferrer，避免反向 tabnabbing；
+// 比 window.open 更少受弹窗拦截影响，也不会把 opener 暴露给目标站。
+function openJump(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function setJumpMsg(text, isError) {
+  const el = $('#jumpMsg');
+  if (el) {
+    el.textContent = text || '';
+    el.classList.toggle('is-error', !!isError);
+  }
+  const input = $('#jumpInput');
+  if (input) input.setAttribute('aria-invalid', isError ? 'true' : 'false');
+}
+
+function renderJumpPresets() {
+  const box = $('#jumpPresets');
+  if (!box) return;
+  box.textContent = '';
+  (CONFIG.jumpPresets || []).forEach(p => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'jump-preset';
+    btn.dataset.url = p.url;
+    btn.title = p.title || p.url;
+    const ico = document.createElement('span');
+    ico.className = 'jp-ico';
+    ico.setAttribute('aria-hidden', 'true');
+    ico.textContent = p.icon || '🔗';
+    const label = document.createElement('span');
+    label.textContent = p.name;
+    btn.appendChild(ico);
+    btn.appendChild(label);
+    box.appendChild(btn);
+  });
+}
+
+function bindJump() {
+  const form = $('#jumpForm');
+  if (!form) return;
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const input = $('#jumpInput');
+    const r = normalizeJumpUrl(input && input.value);
+    if (!r.ok) { setJumpMsg(r.msg, true); return; }
+    setJumpMsg('已在新标签页打开：' + r.url, false);
+    openJump(r.url);
+  });
+  const input = $('#jumpInput');
+  if (input) input.addEventListener('input', () => setJumpMsg('', false));
+  const presets = $('#jumpPresets');
+  if (presets) presets.addEventListener('click', e => {
+    const btn = e.target.closest && e.target.closest('.jump-preset');
+    if (!btn) return;
+    const r = normalizeJumpUrl(btn.dataset.url);
+    if (!r.ok) { setJumpMsg('预设链接配置有误：' + r.msg, true); return; }
+    setJumpMsg('已在新标签页打开：' + r.url, false);
+    openJump(r.url);
+  });
 }
 
 /* ---------- 彩蛋按钮：随机跳转到预设链接 ---------- */
@@ -601,6 +700,8 @@ function init() {
   bindCollapse();
   bindTheme();
   bindEgg();
+  renderJumpPresets();
+  bindJump();
   bindMobile();
   bindToTop();
   fillFooter();
