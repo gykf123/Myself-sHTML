@@ -324,3 +324,20 @@
 - **GitHub schedule 不可靠**：`mail-queue.yml` 共 6 次运行**全是 `workflow_dispatch`，`schedule` = 0**；同仓库「Bot 保活」的 schedule 也稀疏到 6~12 小时一次。**排错别用 `gh run list --workflow X --limit 30` 就断言 schedule 没跑**，要用 `gh api repos/.../actions/workflows/<id>/runs?event=schedule` 精确按 workflow_id 查（先按 `event=schedule` 查全仓库会看到别的 workflow 的 49 次，差点误判）。公告入队可能长期卡 pending，需主动 dispatch 兜底。
 - **临时邮箱工具坑**：`api.mail.tm` / Mailinator 被 Cloudflare 挡，`1secmail.com` SSL 证书不匹配，`maildrop.cc` API 返回 Gatsby 网页；**只有 `api.guerrillamail.com` 可用**。读收件箱用 `f=get_email_list&offset=0`，`f=check_email&seq=0` 是增量读取、会误报 0 封；建号自带一封 `no-reply@guerrillamail.com` 欢迎邮件，写「是否收到」断言必须过滤发件人 / 主题。同一 inbox 的 `sharklasers.com` / `guerrillamail.com` / `guerrillamailblock.com` 是别名，可直接做多域名对照。
 - 本次只做诊断，**未改动任何线上功能代码**；订阅名单仍只有用户那两个邮箱（测试只往 `fs_mail_queue` 插记录，没碰 `fs_email_subscriptions`）。修复方向待用户选：换订阅邮箱 / dispatch 兜底 + 规范邮件头 / 换专业发信服务。
+
+## 2026-11-08 ⑯ 邮件「最小修复」：入队后自动唤醒发信任务 + 规范邮件头
+
+用户选「最小修复」后说「我要走了，现在你自己弄，不要中断」，全程自主闭环。
+
+- **改动 1｜`fs-notify` 入队后主动 dispatch**：新增 `wakeMailWorker()`，`POST /repos/gykf123/Myself-sHTML/actions/workflows/mail-queue.yml/dispatches`，只在 `queued > 0` 时调，用 `try/catch` 包住，**唤醒失败绝不影响入队**；`mail_test` / `announce` 返回值都带 `dispatch: {ok, detail}` 与如实文案。因为实测 `schedule` 一次都没跑过（⑮），只靠定时会让公告长期卡在 `pending`。
+  - 新 secret `GH_DISPATCH_TOKEN`（最小权限 PAT，只存 Supabase secrets，服务端用）；`GH_MAIL_WORKFLOW` 可覆盖，默认 `mail-queue.yml`。workflow 文件名可直接当 `workflow_id` 用（已验证）。
+- **改动 2｜`send-queue.mjs` 邮件头**：`from` 改 `{ name:'FeSui 项目公告', address: SMTP_FROM }`；`messageId` 用 `<randomUUID()@fesui.xn--0iv.gay>`（nodemailer 默认拿 runner 随机主机名拼，容易被当垃圾）；补 `List-Unsubscribe: <https://fesui.xn--0iv.gay/user/>`。
+- **⚠️ 新坑：线上函数运行时的 `JWT_SECRET` ≠ Management API `/secrets` 返回的 `JWT_SECRET`。**
+  - 拿 `/secrets` 里 64 位 hex 的 `JWT_SECRET` 自签 admin JWT → 线上 `fs-notify` 一律 401；用这个值复算**线上 `login` 真实签发的 token** 签名也是 `MISMATCH`，17 个 secret + 4 个 `/api-keys` 全试过都不匹配。
+  - 结论：**不要再从 `/secrets` 读密钥自签本站 JWT**（历史 ⑪ 记过 `SUPABASE_SERVICE_ROLE_KEY` 同类坑，这次是 `JWT_SECRET`）。
+  - 需要 admin 态验证时的正确姿势：**临时把测试账号 `fe_probe_dev` 的 `users.role` 改成 `admin` → 走线上 `login` 拿真实 token → 调接口 → `finally` 里立刻改回 `user`**。本轮已执行并复核还原成功（`role=user`），线上数据零残留。
+- **验证（端到端，非 mock）**：`mail_test` 只调一次、不手动触发 → HTTP 200，`queued=1`、`dispatch.ok=true`；5 秒内自动出现新 run `42472239891`；worker 日志 `✓ #19`、成功 1 失败 0；队列 #19 `status=sent`。`deno check` / `node --check` 均通过。
+- **邮件头验证**：`nodemailer` 的 `streamTransport` 本地渲染同一 mail 对象，原始 MIME 头确认 `Message-ID: <uuid@fesui.xn--0iv.gay>`、`From` 为 RFC2047 编码的中文显示名、`List-Unsubscribe` 存在。Guerrilla Mail 的 `fetch_email` **不返回原始 headers**（字段里没有 `mail_headers`），所以别指望用它验头。
+- **仍存在的偶发丢信**：#19（经 Actions 发的完整 HTML 模板邮件）90 秒未到临时邮箱，而 #18（同样经 Actions、极简 `<p>` 文本）9 秒到达、10:16 本地直发的完整公告 HTML 也到达。疑似 **Actions runner IP + 完整模板内容** 组合触发收件方拦截，或新浪短时群发限流。队列 `sent` 只代表 SMTP 接受，**不代表送达**，别拿它当送达证据。
+- **本轮没解决的遗留**（按用户选的最小修复范围，明确留给用户）：① `fesui_a@sina.com` 是发件人自己，自发自收被新浪静默丢弃，换一个非发件人邮箱才能收到；② `13119173807@163.com` 需用户自行翻垃圾箱 /「订阅邮件」分类并加白名单；③ 订阅名单未改动。
+- 交付：提交推送、`fs-notify` 重新部署、发项目公告、留言板汇报，见下方「本轮交付」。
