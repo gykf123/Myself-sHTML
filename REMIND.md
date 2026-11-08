@@ -313,3 +313,14 @@
   - 验收时只 route 掉 `visit.js` 避免污染真实访问统计，其余全走线上真实链路；本地 mock 脚本不能替代线上核验。
 - **本轮没发公告**：这是 UI 小迭代，且 ⑬ 刚发过 id=9（已入队 1 封邮件），连发会打扰订阅用户；§0 铁律针对的是「大改动」。留言板仍按惯例汇报。
 - 观察（未改）：沙箱 Chromium 缺 emoji 字体，截图里 `📢`/`📭`/`📰` 显示成豆腐块；全站都用 emoji，单独改公告区会破坏一致性，暂不动，等用户明确说再统一换纯 CSS 图标。
+
+## 2026-11-08 ⑮ 邮件送达诊断：两个订阅邮箱都收不到（用户：「你注册个临时邮箱测试一下？」）
+
+- **核心结论：`fs_mail_queue.status = sent` 只代表 SMTP 服务器回了 250，不等于收件箱收到。** 队列 8 条全 `sent`、心跳 `last_error=null`、Actions 6 次全成功，用户两个邮箱却一封没见着。以后排查「没收到邮件」，先分清「没发出」和「发了没落地」。
+- **链路是通的**：注册临时邮箱 `lvranlid@guerrillamailblock.com`（Guerrilla Mail）实测收到 5 封，含完整公告 HTML（table 模板、中文主题正常）与一封**经 GitHub Actions 队列发出**的唯一标记邮件（10:22:52 发 → 10:23:01 收，9 秒）。Edge Function 入队 → Actions → 新浪 SMTP → 收件方这一段没坏。
+- **自发自收坑（最可能的真因）**：`fesui_a@sina.com` 既是 `SINA_SMTP_USER`（发件人）又是订阅者。登新浪 IMAP（`imap.sina.com:993`，授权码同 SMTP）查遍 10 个文件夹（INBOX、`\Junk`、已删除、广告、订阅…），11/8 零封、**无退信** → 新浪静默丢弃自发自收邮件。**订阅邮箱绝不能等于发件邮箱。**
+- 国内收件方：163 侧无 IMAP 凭据，推测被反垃圾拦截或分到「订阅邮件 / 广告邮件」分类；邮件含「订阅 / 取消订阅 / 订阅用户」营销词 + table 布局 + 外链，个人邮箱群发易被判垃圾。需用户查垃圾箱并加白名单。
+- **偶发静默丢信**：10:07 Actions 发往临时邮箱的 #17 始终没到，10:16 本地 `smtplib` 直发、10:22 Actions 重发都秒到；今天短时间发了 8+ 封，疑似新浪个人邮箱群发限流。别拿单封「没收到」直接判链路坏，要多次 + 多域名交叉验证。
+- **GitHub schedule 不可靠**：`mail-queue.yml` 共 6 次运行**全是 `workflow_dispatch`，`schedule` = 0**；同仓库「Bot 保活」的 schedule 也稀疏到 6~12 小时一次。**排错别用 `gh run list --workflow X --limit 30` 就断言 schedule 没跑**，要用 `gh api repos/.../actions/workflows/<id>/runs?event=schedule` 精确按 workflow_id 查（先按 `event=schedule` 查全仓库会看到别的 workflow 的 49 次，差点误判）。公告入队可能长期卡 pending，需主动 dispatch 兜底。
+- **临时邮箱工具坑**：`api.mail.tm` / Mailinator 被 Cloudflare 挡，`1secmail.com` SSL 证书不匹配，`maildrop.cc` API 返回 Gatsby 网页；**只有 `api.guerrillamail.com` 可用**。读收件箱用 `f=get_email_list&offset=0`，`f=check_email&seq=0` 是增量读取、会误报 0 封；建号自带一封 `no-reply@guerrillamail.com` 欢迎邮件，写「是否收到」断言必须过滤发件人 / 主题。同一 inbox 的 `sharklasers.com` / `guerrillamail.com` / `guerrillamailblock.com` 是别名，可直接做多域名对照。
+- 本次只做诊断，**未改动任何线上功能代码**；订阅名单仍只有用户那两个邮箱（测试只往 `fs_mail_queue` 插记录，没碰 `fs_email_subscriptions`）。修复方向待用户选：换订阅邮箱 / dispatch 兜底 + 规范邮件头 / 换专业发信服务。
