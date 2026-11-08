@@ -254,4 +254,15 @@
 - **博客表格**：`blog/blog.js` 自写渲染器加 GFM 表格——表头行 + 分隔行（`| --- | :---: | ---: |`）、三种对齐映射白名单 class、单元格仍走 `inlineMd()`（先 `escapeHtml`）、支持 `\|` 转义、列数不齐/代码块内语法不误判、外面套 `.md-table-wrap` 横向滚动；`blog.css` 补斑马纹与移动端样式；后台编辑器加语法提示。安全断言照旧：`<script>` / `<img onerror>` 被转义、`javascript:` 链接被剥离、`window.__pwned` 不存在。
 - **版本号**：本日改动的 `admin.js` / `admin.css` / `user.js` / `blog.js` / `blog.css` 统一 `?v=20261108`，只改引用它们的 3 个 HTML；`style.css` / `user.css` / `site-nav.js` / `net-guard.js` 未改故保持旧版。`.gitignore` 新增 `node_modules/`（依赖由 Actions `npm ci` 现场装）。
 - **验收**：线上 API **49/49**（通道状态/匿名零权限/越权 403/伪造签名 401/测试邮件入队/公告入队与 HTML 转义/唯一索引防重复/RPC 成功与失败回写/mailed_count 不重复累加/RPC 只授权 service_role/心跳 ready 双向切换/邮箱绑定回归）+ 浏览器 **47/47**（后台队列状态与统计、测试邮件按钮、真实文章表格对齐与 XSS、渲染器 7 个边界、个人中心文案、零 pageerror）+ worker 本地联调 **7/7**（mock REST + DRY_RUN 不连 SMTP、缺凭据报错、非白名单 URL 拒绝、`npm ci` 通过、workflow YAML 结构）。沙箱实测 `smtp.sina.com:465` TLS 握手与 `220` 问候正常。测试数据全部 `finally` 清理、探针账号与 worker 心跳已恢复。
-- **仍未做、不能自主做**：填 GitHub Secrets（需要用户的授权码与 service_role key，**不主动索要、不代为保管**）；真发一封邮件验证（无凭据，只能由用户点 Actions 手动触发）；邮箱验证码机制（`verified` 仍是预留位，当前填别人邮箱也能进订阅名单）。
+- **仍未做、不能自主做**：邮箱验证码机制（`verified` 仍是预留位，当前填别人邮箱也能进订阅名单）。填 GitHub Secrets 与真发一封邮件验证已于同日 15:48 由用户提供凭据后完成，见 ⑪。
+
+## 2026-11-08 ⑪ 邮件队列凭据配置完成 + 首次真实发信成功
+
+- **用户给了三样，明确说「一切自己弄」**：新浪授权码、发信邮箱 `fesui_a@sina.com`、GitHub fine-grained PAT（`gykf123`）。凭据全部只落在仓库外的 `/root/.supabase/mail-relay.env` 与 `/root/.gh_pat_new`，`chmod 600`，**不进仓库、不打印值、不写进本文件**。
+- **拿 service_role 的正确姿势（本轮新增，很重要）**：不用 Dashboard 手抄，直接用 PAT 调 Management API `GET /v1/projects/{ref}/api-keys`，返回 4 条（legacy anon / legacy service_role / publishable / secret），取 `id == 'service_role'` 的 `api_key`。解 JWT 确认 `role=service_role`、`iss=supabase`，用它读 `fs_mail_queue` 返回 **200**。⚠️ 这与 `GET /secrets` 里那个 **64 位** `SUPABASE_SERVICE_ROLE_KEY` **不是同一个值**（⑩ 记的坑再次确认），后者调 REST 是 401。以后要拿 key 一律走 `/api-keys`。
+- **沙箱先验**：`smtplib.SMTP_SSL('smtp.sina.com', 465)` + 授权码 `login` 直接 `235 OK Authenticated`；新 PAT `gh api user` = `gykf123`、仓库 `permissions.admin=true`，写 Secret 无阻。
+- **三个 Repository Secrets 已写入**（`gh secret set`，值从凭据文件读、不落到命令行输出）：`SUPABASE_SERVICE_ROLE_KEY` / `SINA_SMTP_USER` / `SINA_SMTP_PASS`。
+- **首次真实发信闭环**：`mail_test` 入队 #8 → 手动 `gh workflow run mail-queue.yml` → run `42460262070` 23 秒全绿 → 日志「SMTP 连接验证通过 · 认领 1 封 · ✓ #8 · 完成：成功 1 封，失败 0 封」→ 队列行 `pending → sent`（`sent_at` 有值）→ `fs_mail_worker` 心跳写入。线上真实域名后台状态栏变绿「✅ GitHub Actions 队列 · SMTP · 最后运行 2026-11-08 15:48」，队列统计「待发 0 · 已送达 1 · 失败 0」，线上复验 **7/7**，零 pageerror。
+- **保留而非清理**：文章 `pclpost1`（用户真实内容，勿删）；队列 #8 的 `sent` 行是真实投递凭证，不会被 worker 再认领（`status='pending'` 才捞），留着正好让后台如实显示「已送达 1」。订阅 / 公告 0 行，探针账号 `role` 已恢复 `user`、心跳保留（代表 worker 真的跑过，不能清）。
+- **已知边界没变**：邮件非实时（cron 每 15 分钟，GitHub 通常再有 3–15 分钟延迟）；新浪免费邮箱单日约 100 封、群发多了易进垃圾箱；没有邮箱验证码。
+- **安全提醒（已当面告知用户）**：授权码与 PAT 曾在聊天里明文出现，跑通后建议各自轮换一次；轮换后同步更新 3 个 Secret 与本地凭据文件即可，无需改代码。
