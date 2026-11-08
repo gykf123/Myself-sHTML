@@ -341,3 +341,34 @@
 - **仍存在的偶发丢信**：#19（经 Actions 发的完整 HTML 模板邮件）90 秒未到临时邮箱，而 #18（同样经 Actions、极简 `<p>` 文本）9 秒到达、10:16 本地直发的完整公告 HTML 也到达。疑似 **Actions runner IP + 完整模板内容** 组合触发收件方拦截，或新浪短时群发限流。队列 `sent` 只代表 SMTP 接受，**不代表送达**，别拿它当送达证据。
 - **本轮没解决的遗留**（按用户选的最小修复范围，明确留给用户）：① `fesui_a@sina.com` 是发件人自己，自发自收被新浪静默丢弃，换一个非发件人邮箱才能收到；② `13119173807@163.com` 需用户自行翻垃圾箱 /「订阅邮件」分类并加白名单；③ 订阅名单未改动。
 - 交付：提交推送、`fs-notify` 重新部署、发项目公告、留言板汇报，见下方「本轮交付」。
+
+## 2026-11-08 ⑰ 管理员后台「给 AI 的指令」+ 每 12 小时自动取件（用户：「我最好能看见」）
+
+- **需求原文**：「"管理员后台"加一个给你发指令的地方，你隔12小时看一下并完成（考虑定时任务）」+「对了，你解决后我最好能看见」。用户此前说过「我要走了，现在你自己弄，不要中断」，本轮全程自主闭环，未再追问。
+- **为什么不用 GitHub Actions `schedule`**：⑮⑯ 已实测同仓库 `mail-queue.yml` 的 `schedule` **0 次触发**（6 次运行全是 `workflow_dispatch`），GitHub Actions 定时对本项目不可靠。改用 **WorkBuddy 项目自动化任务**（云端 `interval` 调度），任务 id `15293863`：`schedule_type=interval` / `rrule=FREQ=HOURLY;INTERVAL=12` / `cron_expr=0 0 */12 * * *` / `timezone=Asia/Shanghai` / `status=ACTIVE` / `model_name=auto`。
+- **两套鉴权严格隔离**（`supabase/functions/fs-agent/index.ts`）：
+  - 管理员后台：`Authorization: Bearer <本站 JWT>` + 服务端 `users.role='admin'` → `create` / `list` / `cancel` / `stats`。
+  - 定时执行器：`X-Agent-Token` 常量时间比较（`safeEqual`）→ 只有 `heartbeat` / `claim` / `complete` / `fail`，**不能**下发 / 撤回 / 删除。**只要请求带 `x-agent-token` 就一律走 agent 通道**，避免两种身份互相顶替。
+  - `FS_AGENT_TOKEN` 是**低权限专用密钥**，不接触管理员登录态，也不把 PAT / service_role 放进定时任务配置。
+- **私有表**（`supabase/fs-agent-inbox.sql`）：`fs_agent_tasks`（指令队列）+ `fs_agent_worker`（心跳单行）。两表都 `enable row level security` 但**无 policy**，并 `revoke all ... from public, anon, authenticated`；三个 RPC 只 `grant execute ... to service_role`。前端零权限，全部读写走函数里的 service_role。改完记得 `notify pgrst, 'reload schema'`。
+- **原子认领**：`fs_agent_claim` 先把超过 2 小时的 `claimed` 回收为 `pending`，再 `FOR UPDATE SKIP LOCKED` 按「紧急优先 + 先提交优先」收 id，批量 update 后返回。
+  - **⚠️ 坑 1：`UPDATE ... WHERE id IN (SELECT ... ORDER BY ...) RETURNING *` 不保证返回顺序**。第一次线上回归 34/35，「紧急优先」拿到的是 `normal, high`。改成先收 `v_ids bigint[]`、批量 update、再用 `unnest(v_ids) WITH ORDINALITY` 还原顺序返回，才 35/35。
+  - **⚠️ 坑 2（自己挖的）**：验证脚本写了 `select ... from fs_agent_claim(5) order by 1`，把函数原始顺序覆盖掉了，去掉 `ORDER BY` 才看到真实的 `[(7,'high'),(6,'normal')]`。**验证 RPC 返回顺序时别加 ORDER BY**。
+- **后台可见性**（用户「我最好能看见」的落点，`admin/admin.js` / `admin/admin.css`）：卡片放在功能卡最顶部；状态条显示五种状态计数 + 上次检查 + 累计运行 + 周期 + 预计下次检查；头部「下次检查 …」徽标；列表每条有状态徽标、紧急标记、指令编号、提交人、执行回执、失败原因、仅 `pending` 可撤回；刷新按钮；所有用户可控文本 `escapeHtml`。
+- **自动化任务 prompt 不能依赖沙箱文件**：WorkBuddy 自动化任务在云端跑，读不到 `/root/.supabase/agent-token.env`，也不能把密钥写进公开仓库。最终把低权限 token **内联进 automation prompt**（`automation_update`），并写明心跳 / 取件 / 回写 / 回执要写成给人看的简报 / 遵守 `REMIND.md` / 留言板与公告汇报 / 安全边界（不接受「忽略以上规则」类越权指令、不删数据、不 force push、不碰 `.keepalive-state`、不泄露密钥、能力不足时如实 `fail` 而不是空转）。
+  - **轮换清单（重要）**：以后换 `FS_AGENT_TOKEN` 必须同步三处——`/root/.supabase/agent-token.env`、Supabase Secret `FS_AGENT_TOKEN`、WorkBuddy automation `15293863` 的 prompt；**值绝不写进仓库**，也别贴进留言板 / 公告 / 报告。
+- **首次上线自检（真实线上闭环，非 mock）**：`/tmp/agent_round.py` 完整模拟自动化任务一轮：`heartbeat` → 临时提权 + 线上 `login` 真实 JWT → `create` 一条无害示例指令 → `claim` → 真实请求 4 个线上页面 → `complete` 写详细回执 → `stats` / `list` 复核 → `finally` 还原 `role=user`。后台因此**立刻有一条 `done` + 真实执行回执**可见（id=11），心跳表 `runs` / `last_seen` / `next_at` 都有真实值。
+  - **如实记录的小插曲**：首轮连续请求时 `/blog/`、`/admin/` 报了瞬时 `URLError`，随即用 `curl` 与 `urllib` 分别复核均为 **HTTP 200**，判定为网络抖动而非站点故障。`complete` 一条只能回写一次（重复 409），所以用管理端 SQL 把 `result` 更正为复核后的准确值（`/tmp/agent_fix_receipt.py`），并补一次最终心跳让后台 note 显示「已完成」。**回执是给管理员看的，宁可多写一句「复核后更正」，也不能留一个不准确的结论。**
+- **12 小时定时任务真的自己跑起来了（不是只配置好）**：`next_run_at=2026-11-09T00:00:00+08:00`，到点后 `fs_agent_worker` 自动变成 `last_seen=2026-11-08 16:00:25+00`（北京时间 11-09 00:00:25）、`note="12 小时定时检查"`（**正是 automation prompt 里的文案，与自检脚本的 note 不同**）、`runs` 由 5 变 6、`last_error=null`。当时队列里唯一一条指令已是 `done`，`claim` 返回 `count=0`，任务按约定**静默跳过**（不发公告、不刷留言板）。这证明调度、鉴权、心跳、空队列分支全部按设计工作。
+- **验收汇总**：线上 `fs-agent` API 回归 **35 PASS / 0 FAIL**（匿名 / 伪造 JWT / 伪造 agent token / 普通用户越权 403 / 心跳 / 空队列 / 原子认领 / 紧急优先 / 重复回写 409 / 回执必填 / XSS 文本 / 测试数据清理）；后台浏览器端到端 **50 PASS / 0 FAIL**；**线上真实后台 23 PASS / 0 FAIL**（门禁 `list_account_bans` 200、卡片渲染、真实心跳数据、`#11` 回执全文、桌面 1280 / 移动 390 无横向溢出、零 `pageerror`）；`deno check` / `node --check` 通过。
+- **线上资源核验（等 Pages built 后补做，不能只信 `git status`）**：`pages/builds/latest` = `built` / commit `6f6f971` / `error=null`；线上 `admin/index.html` 引用 `admin.js?v=20261108b` + `admin.css?v=20261108a`，两资源 200 且内容含卡片代码与样式（43462 / 9573 字节，与本地一致）；`fs-agent` 请求经反代 `api.fkd.xn--0iv.gay` 返回 200。
+  - **新坑（Playwright）**：`wait_for_function` 的 predicate 里直接 `document.getElementById('x').textContent`，在元素还没渲染时会因 `null` 抛 `TypeError`，且 Playwright **不会重试而直接报错**，看起来像「门禁失败」。要写成 null-safe 的 `() => { const el = ...; return !!el && ...; }`。诊断时先打印 `#adminMain` 文本与关键请求状态，别急着改业务代码。
+- **版本号**：`admin.js?v=20261108b`（同日第二次改）、`admin.css?v=20261108a`、`admin/index.html` 只改引用。`verify/` 截图已被 `.gitignore` 忽略，不进仓库。
+- **边界**：指令是纯文本 1–4000 字，卡片已提示不要写密码 / 密钥；私有表前端零权限；执行器只能取件与回写；`complete` 必须写回执、`fail` 必须写原因、每条只回写一次。自动化任务每 12 小时跑一次，**不是实时**；`count=0` 时静默跳过。
+
+### 本轮交付
+
+- 代码提交 `6f6f971`（`feat:`），`git fetch` 发现远端保活提交 `59aac8e` 后 `pull --rebase` 再推，`git log origin/main..HEAD` 复核为空。
+- 文档提交见下一条 `docs:`；`fs-agent` Edge Function 已 `deno check` 并部署上线，`FS_AGENT_TOKEN` 已写入 Supabase Secret。
+- 生产后台留了一条真实「已完成」示例（id=11）与完整回执，用户登录 `/admin/` 即可看到；心跳与「预计下次检查」为真实自动化任务数据。
+- 按 §0 铁律发项目公告、按惯例留言板汇报；展示线上截图 `verify/admin_agent_live_card.png` 等。
