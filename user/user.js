@@ -370,7 +370,8 @@ function renderBindCard(row) {
             ? '<img class="bind-avatar" src="' + escapeHtml(row.github_avatar_url) + '" alt="" referrerpolicy="no-referrer" />'
             : '<span class="bind-avatar bind-avatar-fallback" aria-hidden="true">GH</span>') +
           '<div class="bind-text"><b>GitHub</b><span class="dim">@' + escapeHtml(row.github_login || '') +
-            (row.github_linked_at ? ' · ' + fmtRelative(row.github_linked_at) + '绑定' : '') + '</span></div>' +
+            (row.github_linked_at ? ' · ' + fmtRelative(row.github_linked_at) + '绑定' : '') +
+            ' · 已可在登录页一键登录</span></div>' +
         '</div>' +
         '<button class="act-btn small danger" id="ghUnlink" type="button">解除绑定</button>' +
       '</div>'
@@ -396,25 +397,27 @@ function renderBindCard(row) {
       '</div>' +
     '</div>';
 
-  /* 邮箱 / 公告订阅：与项目公告共用 fs_email_subscriptions 一张表。
-     邮件通道未配置时仍可登记/退订（预留位），只是不发信也不发验证码。 */
+  /* 邮箱 / 公告订阅：一个账号可绑多个邮箱，逐条独立订阅 / 退订 / 解绑。
+     与项目公告共用 fs_email_subscriptions 一张表；邮件通道未配置时仍可登记，
+     只是不发信也不发验证码（如实提示，不假装已送达）。 */
   const mailRow =
     '<div class="bind-row bind-mail">' +
       '<div class="bind-info">' +
         '<span class="bind-avatar bind-avatar-fallback" aria-hidden="true">@</span>' +
         '<div class="bind-text"><b>邮箱 / 公告订阅</b><span class="dim" id="mailState">加载中…</span></div>' +
       '</div>' +
-      '<div class="bind-edit">' +
-        '<input id="mailInput" class="bind-input" type="email" maxlength="254" placeholder="you@example.com" autocomplete="email" />' +
-        '<button class="act-btn small" id="mailSave" type="button">保存</button>' +
-        '<button class="act-btn small ghost" id="mailToggle" type="button" hidden>取消订阅</button>' +
-        '<button class="act-btn small ghost" id="mailRemove" type="button" hidden>解绑</button>' +
+      '<div class="mail-editor">' +
+        '<div class="mail-list" id="mailList"></div>' +
+        '<div class="mail-add">' +
+          '<input id="mailInput" class="bind-input" type="email" maxlength="254" placeholder="添加邮箱…" autocomplete="email" />' +
+          '<button class="act-btn small" id="mailSave" type="button">添加</button>' +
+        '</div>' +
       '</div>' +
     '</div>';
 
   box.innerHTML =
     '<div class="bind-list">' + ghRow + qqRow + mailRow + '</div>' +
-    '<p class="bind-tip">QQ 绑定流程：填好 QQ 号保存 → 点「生成 QQ 绑定码」→ 把 8 位码发给 QQ 机器人（/绑定 &lt;绑定码&gt;），两边号码一致即绑定成功。GitHub 关联使用官方 OAuth 授权，本站只读取你的公开资料（ID / 登录名 / 头像），不会获取任何仓库权限。绑定邮箱后默认订阅项目公告，可随时取消；邮箱不会出现在任何公开页面。</p>';
+    '<p class="bind-tip">QQ 绑定流程：填好 QQ 号保存 → 点「生成 QQ 绑定码」→ 把 8 位码发给 QQ 机器人（/绑定 &lt;绑定码&gt;），两边号码一致即绑定成功。GitHub 关联使用官方 OAuth 授权，本站只读取你的公开资料（ID / 登录名 / 头像），不会获取任何仓库权限；<b>关联后即可在登录页点「通过 GitHub 登录」一键进入</b>。一个账号最多绑定 5 个邮箱，每条都可单独订阅或退订项目公告；邮箱不会出现在任何公开页面。</p>';
 
   const ghLink = $('#ghLink');
   if (ghLink) ghLink.addEventListener('click', linkGithub);
@@ -442,13 +445,11 @@ function renderBindCard(row) {
   const qqCodeBtn = $('#qqCodeBtn');
   if (qqCodeBtn) qqCodeBtn.addEventListener('click', genQQCode);
 
-  // 邮箱 / 公告订阅
+  // 邮箱 / 公告订阅：列表内每行按钮走事件委托（列表会随增删整体重绘）
   const mailSave = $('#mailSave');
   if (mailSave) mailSave.addEventListener('click', saveEmail);
-  const mailToggle = $('#mailToggle');
-  if (mailToggle) mailToggle.addEventListener('click', toggleSubscribe);
-  const mailRemove = $('#mailRemove');
-  if (mailRemove) mailRemove.addEventListener('click', removeEmail);
+  const mailList = $('#mailList');
+  if (mailList) mailList.addEventListener('click', onMailItemAction);
   loadMailState();
 
   // 降级路径的 row 不含 qq 列（单独查一次，失败不影响其他展示）
@@ -490,31 +491,65 @@ async function notifyCall(action, extra) {
   return { ok: res.ok && !!(data && data.ok), status: res.status, data: data || {} };
 }
 
-let mailStateCache = { bound: false, email: '', subscribed: false };
+let mailStateCache = { emails: [], max: 5, configured: false, provider: '', ready: false };
 
 function renderMailState(d) {
+  let list = Array.isArray(d.emails) ? d.emails.slice() : [];
+  // 兼容还没更新的旧后端：只返回单邮箱字段时，构造一条等价记录
+  if (!list.length && d.bound && d.email) {
+    list = [{ email: d.email, subscribed: !!d.subscribed, verified: !!d.verified }];
+  }
   mailStateCache = {
-    bound: !!d.bound, email: String(d.email || ''), subscribed: !!d.subscribed
+    emails: list,
+    max: Number(d.max) || 5,
+    configured: !!d.configured,
+    provider: String(d.provider || ''),
+    ready: !!d.ready,
   };
-  const st = $('#mailState'), input = $('#mailInput');
-  const toggle = $('#mailToggle'), remove = $('#mailRemove');
-  if (!st) return;
+  const st = $('#mailState'), box = $('#mailList');
+  const input = $('#mailInput'), addBtn = $('#mailSave');
+  if (!st || !box) return;
   const channel = !d.configured ? ' · 邮件通道待开通（当前仅登记，暂不发信）'
     : d.provider === 'queue' && !d.ready ? ' · 公告会加入邮件队列（发信任务尚未首次运行）'
     : d.provider === 'queue' ? ' · 公告会由邮件队列发送'
     : '';
-  if (!d.bound) {
-    st.textContent = '未绑定 · 绑定后可接收项目公告' + channel;
-  } else {
-    st.textContent = '已登记 ' + d.email + ' · ' +
-      (d.subscribed ? (d.verified ? '已订阅' : '已订阅（待验证）') : '已取消订阅') + channel;
+  const subCount = list.filter(x => x.subscribed).length;
+  st.textContent = list.length
+    ? ('已绑定 ' + list.length + '/' + mailStateCache.max + ' 个 · ' + subCount + ' 个订阅中' + channel)
+    : ('未绑定 · 绑定后可接收项目公告' + channel);
+
+  // 到上限就关掉添加入口，并给出明确原因，别让用户白点
+  const full = list.length >= mailStateCache.max;
+  if (input) {
+    input.disabled = full;
+    input.placeholder = full ? '已达上限，请先解绑一个' : '添加邮箱…';
   }
-  if (input) input.value = d.email || '';
-  if (toggle) {
-    toggle.hidden = !d.bound;
-    toggle.textContent = d.subscribed ? '取消订阅' : '重新订阅';
+  if (addBtn) {
+    addBtn.dataset.full = full ? '1' : '';  // 供 saveEmail 的 finally 恢复正确状态
+    addBtn.disabled = full;
+    addBtn.textContent = full ? '已达上限' : '添加';
   }
-  if (remove) remove.hidden = !d.bound;
+
+  if (!list.length) {
+    box.innerHTML = '<div class="mail-empty">还没有绑定邮箱。添加后默认订阅项目公告，可随时单独退订或解绑。</div>';
+    return;
+  }
+  // 邮箱来自服务端，仍一律转义后再拼 HTML（防存储型 XSS）
+  box.innerHTML = list.map(function (e) {
+    const addr = String(e.email || '');
+    const safe = escapeHtml(addr);
+    const on = !!e.subscribed;
+    return '<div class="mail-item">' +
+      '<span class="mail-addr" title="' + safe + '">' + safe + '</span>' +
+      '<span class="mail-badge' + (on ? ' on' : ' off') + '">' +
+        (on ? (e.verified ? '已订阅 · 已验证' : '已订阅') : '已退订') + '</span>' +
+      '<span class="mail-actions">' +
+        '<button class="act-btn small ghost" type="button" data-act="toggle" data-email="' + safe + '">' +
+          (on ? '退订' : '订阅') + '</button>' +
+        '<button class="act-btn small ghost" type="button" data-act="remove" data-email="' + safe + '">解绑</button>' +
+      '</span>' +
+    '</div>';
+  }).join('');
 }
 
 async function loadMailState() {
@@ -529,45 +564,49 @@ async function loadMailState() {
 
 async function saveEmail() {
   const input = $('#mailInput'), btn = $('#mailSave');
-  if (!input || !btn) return;
+  if (!input || !btn || btn.disabled) return;
   const email = input.value.trim();
   if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showToast('邮箱格式不正确'); return;
   }
-  btn.disabled = true; btn.textContent = '保存中…';
+  btn.disabled = true; btn.textContent = '添加中…';
   try {
     const r = await notifyCall('email_bind', { email: email });
-    if (!r.ok) { showToast(r.data.error || '保存失败'); return; }
-    showToast('邮箱已登记' + (r.data.configured ? '，已订阅项目公告' : '，待邮件通道开通后生效'));
+    if (!r.ok) { showToast(r.data.error || '添加失败'); return; }
+    input.value = '';
+    showToast('邮箱已添加' + (r.data.configured ? '，已订阅项目公告' : '，待邮件通道开通后生效'));
     await loadMailState();
   } catch (e) { showToast('网络异常，请稍后再试'); }
-  finally { btn.disabled = false; btn.textContent = '保存'; }
+  finally {
+    // loadMailState 可能刚把按钮置为「已达上限」，别在这里无条件覆盖回去
+    const full = btn.dataset.full === '1';
+    btn.disabled = full;
+    btn.textContent = full ? '已达上限' : '添加';
+  }
 }
 
-async function toggleSubscribe() {
-  const btn = $('#mailToggle');
-  if (!btn || !mailStateCache.bound) return;
-  const wantSubscribe = !mailStateCache.subscribed;
-  btn.disabled = true;
-  try {
-    const r = await notifyCall(wantSubscribe ? 'email_bind' : 'email_unsubscribe',
-                               wantSubscribe ? { email: mailStateCache.email } : {});
-    if (!r.ok) { showToast(r.data.error || '操作失败'); return; }
-    showToast(wantSubscribe ? '已重新订阅项目公告' : '已取消订阅');
-    await loadMailState();
-  } catch (e) { showToast('网络异常，请稍后再试'); }
-  finally { btn.disabled = false; }
-}
+/* 列表内「订阅 / 退订 / 解绑」统一走事件委托：列表会整体重绘，不能逐个绑事件 */
+async function onMailItemAction(ev) {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('button[data-act]') : null;
+  if (!btn || btn.disabled) return;
+  const email = btn.dataset.email || '';
+  const act = btn.dataset.act;
+  if (!email || (act !== 'toggle' && act !== 'remove')) return;
+  if (act === 'remove' && !window.confirm('解绑 ' + email + ' 后会退出公告订阅列表，确定吗？')) return;
 
-async function removeEmail() {
-  const btn = $('#mailRemove');
-  if (!btn) return;
-  if (!window.confirm('解绑邮箱后会退出公告订阅列表，确定吗？')) return;
   btn.disabled = true;
   try {
-    const r = await notifyCall('email_remove');
-    if (!r.ok) { showToast(r.data.error || '解绑失败'); return; }
-    showToast('邮箱已解绑');
+    let r;
+    if (act === 'toggle') {
+      const cur = mailStateCache.emails.find(x => x.email === email);
+      r = (cur && !cur.subscribed)
+        ? await notifyCall('email_bind', { email: email })
+        : await notifyCall('email_unsubscribe', { email: email });
+    } else {
+      r = await notifyCall('email_remove', { email: email });
+    }
+    if (!r.ok) { showToast(r.data.error || '操作失败'); btn.disabled = false; return; }
+    showToast(act === 'remove' ? '邮箱已解绑' : '订阅状态已更新');
     await loadMailState();
   } catch (e) { showToast('网络异常，请稍后再试'); }
   finally { btn.disabled = false; }
@@ -715,11 +754,15 @@ async function fetchProfile() {
   return null;
 }
 
-/* ---------- 发起 GitHub OAuth 授权 ---------- */
+/* ---------- 发起 GitHub OAuth 授权（关联模式） ----------
+   state 带 link: 前缀：登录页发起的是 login:，两者共用同一个
+   /user/github-callback.html 回调地址（GitHub OAuth App 只需登记这一个 URL），
+   落地页按前缀分流。无前缀的旧 state 一律按关联处理，兼容缓存中的旧页面。 */
 function linkGithub() {
   if (!GH_CLIENT_ID) { showToast('管理员尚未配置 GitHub OAuth App'); return; }
   // state 防 CSRF：本浏览器会话生成，回调落地页校验一致性
-  const state = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+  const nonce = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+  const state = 'link:' + nonce;
   try { sessionStorage.setItem('gh_oauth_state', state); } catch (e) {}
   const redirect = location.origin + '/user/github-callback.html';
   const url = 'https://github.com/login/oauth/authorize?client_id=' + encodeURIComponent(GH_CLIENT_ID) +

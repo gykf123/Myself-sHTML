@@ -275,49 +275,78 @@ Deno.serve(async (req) => {
   if (!session) return json({ ok: false, error: '登录态无效或已过期，请重新登录' }, 401)
   const uid = session.sub
 
-  /* ---------- 邮箱绑定 / 订阅 ---------- */
+  /* ---------- 邮箱绑定 / 订阅（一个账号可绑多个邮箱） ----------
+     表主键是独立 id，(user_id,email) 唯一，lower(email) 全局唯一防重复发信。
+     所有写操作都带 user_id = JWT sub，前端传别人的 uid 也不生效。
+     兼容：email_get 仍返回 bound/email/subscribed（取第一个订阅中的邮箱），
+     老前端不会炸；email_unsubscribe / email_remove 不传 email 时作用于全部。 */
+  const MAX_EMAILS = 5
+
   if (action === 'email_get') {
     const { data, error } = await db.from('fs_email_subscriptions')
-      .select('email,verified,subscribed,updated_at').eq('user_id', uid).limit(1)
+      .select('email,verified,subscribed,created_at,updated_at')
+      .eq('user_id', uid).order('created_at', { ascending: true }).limit(MAX_EMAILS + 1)
     if (error) return json({ ok: false, error: error.message }, 500)
-    const row = data && data[0] ? data[0] : null
+    const emails = (data || []).map(r => ({
+      email: String(r.email), verified: !!r.verified,
+      subscribed: !!r.subscribed, updated_at: r.updated_at,
+    }))
+    const primary = emails.find(e => e.subscribed) || emails[0] || null
     const w = PROVIDER === 'queue' ? await workerState() : null
-    return json({ ok: true, bound: !!row, email: row?.email || '',
-                  verified: !!row?.verified, subscribed: !!row?.subscribed,
-                  configured: mailConfigured(), provider: PROVIDER,
-                  ready: w ? w.ready : true })
+    return json({
+      ok: true, emails, count: emails.length, max: MAX_EMAILS,
+      // ↓ 兼容旧前端
+      bound: !!primary, email: primary?.email || '',
+      verified: !!primary?.verified, subscribed: !!primary?.subscribed,
+      configured: mailConfigured(), provider: PROVIDER,
+      ready: w ? w.ready : true,
+    })
   }
 
   if (action === 'email_bind' || action === 'email_subscribe') {
     const email = String(body.email || '').trim().toLowerCase()
-    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return json({ ok: false, error: '邮箱格式不正确' }, 400)
+    }
+    const { data: owned, error: listErr } = await db.from('fs_email_subscriptions')
+      .select('email').eq('user_id', uid)
+    if (listErr) return json({ ok: false, error: listErr.message }, 500)
+    const have = (owned || []).map(r => String(r.email))
+    const isNew = !have.includes(email)
+    if (isNew && have.length >= MAX_EMAILS) {
+      return json({ ok: false, error: '每个账号最多绑定 ' + MAX_EMAILS + ' 个邮箱，请先解绑一个' }, 400)
     }
     // TODO: 邮件通道稳定后改为「发送验证码 + verify 兑换」，
     //       只有 verified=true 才进入群发名单；当前 verified 字段仅预留。
     const { error } = await db.from('fs_email_subscriptions').upsert({
       user_id: uid, email, verified: false, subscribed: true,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' })
+    }, { onConflict: 'user_id,email' })
     if (error) {
       const dup = error.code === '23505' || /duplicate|unique/i.test(error.message)
       return json({ ok: false, error: dup ? '该邮箱已被其他账号绑定' : ('保存失败：' + error.message) },
                   dup ? 409 : 500)
     }
-    return json({ ok: true, email, configured: mailConfigured() })
+    return json({ ok: true, email, added: isNew, count: have.length + (isNew ? 1 : 0),
+                  max: MAX_EMAILS, configured: mailConfigured() })
   }
 
   if (action === 'email_unsubscribe' || action === 'email_remove') {
+    const target = String(body.email || '').trim().toLowerCase()
+    const table = db.from('fs_email_subscriptions')
+    let res
     if (action === 'email_remove') {
-      const { error } = await db.from('fs_email_subscriptions').delete().eq('user_id', uid)
-      if (error) return json({ ok: false, error: error.message }, 500)
+      res = target
+        ? await table.delete().eq('user_id', uid).eq('email', target).select('id')
+        : await table.delete().eq('user_id', uid).select('id')
     } else {
-      const { error } = await db.from('fs_email_subscriptions')
-        .update({ subscribed: false, updated_at: new Date().toISOString() })
-        .eq('user_id', uid)
-      if (error) return json({ ok: false, error: error.message }, 500)
+      const patch = { subscribed: false, updated_at: new Date().toISOString() }
+      res = target
+        ? await table.update(patch).eq('user_id', uid).eq('email', target).select('id')
+        : await table.update(patch).eq('user_id', uid).select('id')
     }
-    return json({ ok: true })
+    if (res.error) return json({ ok: false, error: res.error.message }, 500)
+    return json({ ok: true, affected: (res.data || []).length, email: target || null })
   }
 
   /* ---------- 管理员：队列状态 / 测试邮件 ---------- */

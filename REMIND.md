@@ -279,3 +279,20 @@
 - **预览产物**：`preview/mail-template.html`（测试邮件）与 `preview/announcement-mail.html`（真公告样式对照）及对应 `.png`，用浏览器可直接看效果，避免每次都去翻收件箱。
 - **验收**：线上 API **38/38**（模板结构 11 项 ×2、XSS 五连、文章不发邮件、越权 401）+ 浏览器 **23/23**（后台两张卡文案、公告在 `/blog/` 可见、600px 卡片真实渲染、CTA/退订、零 pageerror）+ 真实发信 2 次（run `42461290241` / `42461598488`，均成功 1 封失败 0 封）。测试数据已清理、探针账号恢复。
 - **提醒**：`fs-notify` 改模板后必须重新部署（本轮部署 2 次）；已发出的旧邮件不会变样，只有新入队的才用新模板。
+
+## 2026-11-08 ⑬ 一人多邮箱 + GitHub 一键登录（关联终于有用了）
+
+- **用户两个需求**：①「支持一下一个人绑多个邮箱」；②「然后『通过 github 登录』也要安排到位，不然关联 github 没有用」——第 ② 点提得准：只让关联不能登录，关联就只是展示牌。
+- **远端状态补核验**：`83ebd7f`（⑫ 那轮）本地已提交但**推送被后续需求打断，远端一直停在 `3d08ed1`**；本轮 `git fetch` 确认后一并推上去了。以后提交完别只看 `git status` 为空就当交付完成，要 `git log origin/main..HEAD` 复核。
+- **多邮箱数据库**：`supabase/fs-multi-email.sql` 幂等迁移——原表 `user_id uuid primary key` 卡死一人一条，改成独立 `id bigint identity` 主键 + `(user_id,email)` 唯一索引；**保留 `lower(email)` 全局唯一**，否则同一地址被多个账号绑定会让同一封公告寄两遍；另加 `subscribed=true` 部分索引。不 drop 表、不丢存量（admin 的 `fesui_a@sina.com` 原样保留）。`notify pgrst` 已执行，实测主键/三个索引/RLS true/policies 0 全部就位。
+- **多邮箱接口**：`fs-notify` 上限 `MAX_EMAILS=5`；`email_get` 返回 `emails[]` + 兼容旧前端的 `bound/email/subscribed`；`email_bind`/`email_subscribe` 改 `onConflict:'user_id,email'`；`email_unsubscribe`/`email_remove` 支持可选 `email`，传了定向操作、不传才作用于全部。**`upsert` 的 onConflict 依赖唯一索引（不是 constraint），PostgreSQL 认 `create unique index` 即可**。公告群发仍按 `subscribed=true` 取 email，一人多箱会分别投递，这是期望行为。
+- **GitHub 登录架构（本轮关键决策）**：**不新建回调页**，复用 `user/github-callback.html` 这个已在 OAuth App 登记的 redirect_uri，靠 `state` 前缀分流：`login:` = 免登录态一键登录，`link:` / 无前缀 = 关联到当前账号（无前缀兼容缓存中的旧页面）。**用户不用去 GitHub 后台改任何设置**。Client ID 是公开信息，与 `user/user.js` 内联同一个 `Ov23liK00mp7JPFFJ8PX`。
+- **服务端**：`account` 函数新增 `github_login`（唯一匿名 action）——抽出公共 `exchangeGithub(code)`（与已上线的关联流程共用）、按 GitHub 返回的**不可伪造 id** 查 `users.github_id`、校验 `status=approved`、`fkd_is_banned` 查封禁、用 `JWT_SECRET` 签本站 JWT，**直接 insert `auth_tickets` 生成 2 分钟一次性 ticket 返回**。JWT 全程只在数据库票据行里，不出现在前端 JS / URL / 浏览器历史；目标页沿用 `auth-exchange redeem` 兑换。所有其他 action 仍强制验签，绝不按 action 降级。响应统一加 `Cache-Control: no-store` 等安全头。
+- **签名一致性**：新写的 `signSiteJwt` 必须与线上 `login/_shared/jwt.ts` 的 `signJWT` **逐字节一致**（header `{alg,typ}` + HS256(JWT_SECRET) + base64url 无 padding）。用 Deno 单元比对（含中文 payload）确认 `IDENTICAL: true`；否则下游 `fs-notify`/`fs-chat` 验签会全 401。历史踩坑见 ⑧⑨：签名段 base64url、payload 中文要 `TextDecoder`。
+- **错误态**：未关联返回 `code:'NOT_LINKED'` + 明确文案，回调页插一个「去登录 / 关联」按钮并带 `?gh_error=` 回登录页；待审核/封禁/授权失败/GitHub 拒绝授权/state 不匹配都有独立文案；回跳目标做同父域白名单（与 login 页 `isAllowedHost` 一致），防开放重定向。
+- **前端**：`login/index.html` 加 GitHub 登录按钮（内联 SVG mark，无外部依赖）+ `oauth-sep` 分隔线 + `gh_error` 回显并清参；`user/user.js` 邮箱区从「单行输入框」改成「列表 + 添加栏」，每行独立订阅/退订/解绑，事件委托（列表整体重绘不能逐个绑事件）、满 5 条禁用添加并写明原因、邮箱文本一律 `escapeHtml`；`user/user.css` 新增 `.mail-editor/.mail-list/.mail-item/.mail-badge/.mail-add` 与 600px 以下换行规则。
+- **坑**：`saveEmail()` 的 `finally` 原本无条件把添加按钮恢复成可用，会覆盖 `renderMailState()` 刚设置的「已达上限」；改为读 `btn.dataset.full` 决定恢复状态。
+- **版本号**：`user.js?v=20261108a`（今日第二次改，加字母）、`user.css?v=20261108`（今日首次改），**7 个引用 user.css 的 HTML 全部同步**；`style.css`/`script.js`/`net-guard.js`/`site-nav.js`/`visit.js` 未改故不动。`login/index.html` 是 HTML 内联改动，不涉及外部静态资源版本。
+- **验收**：线上 API 多邮箱回归全通过（增/删/退订/重订/幂等重复绑定/上限 5 拒第 6 个/非法格式/清理）；`account` 鉴权边界 6 项（匿名只放行 `github_login`，`profile`/`callback`/未知 action 全 401，带真 token 200）；签名等价性 1 项；本地浏览器端到端 **44/44**（登录页 authorize 参数与 state 前缀、回调页登录成功/state 拒绝不发请求/未关联/服务端错误/无 redirect 回主站/拒绝授权、关联模式两种 state 前缀、多邮箱列表 16 项含 XSS 转义、零 pageerror）。
+- **未做（需要用户本人操作）**：真实 GitHub 授权码没法在无用户交互下产生，所以 `code → token → /user → 查库 → 签票` 的**真实授权那一跳**只能由用户点一次「通过 GitHub 登录」验收；服务端假 code 已证明确实走到 GitHub 并返回了 GitHub 的错误（`The code passed is incorrect or expired.`），其余环节各自有独立验证。
+- **部署**：`fs-notify` 与 `account` 均已 `deno check` 通过并 `--no-verify-jwt --use-api` 部署上线（`--project-ref` 已弃用，统一用 `--remote=<ref>`）。

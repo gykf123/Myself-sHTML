@@ -312,9 +312,38 @@
   outline: none; transition: border-color .2s;
 }
 .bind-input:focus { border-color: var(--accent); }
-/* 邮箱 / 公告订阅行：地址较长，输入框放宽并允许按钮换行 */
-.bind-mail .bind-input { width: min(240px, 100%); }
-.bind-mail .bind-edit { flex-wrap: wrap; }
+/* 邮箱 / 公告订阅：一个账号可绑多条，列表 + 底部添加栏 */
+.bind-mail { flex-direction: column; align-items: stretch; }
+.mail-editor { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.mail-list { display: flex; flex-direction: column; gap: 6px; }
+.mail-empty { font-size: 12px; color: var(--text-dim); line-height: 1.6; padding: 2px 0; }
+.mail-item {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 9px 11px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.mail-addr {
+  flex: 1 1 190px; min-width: 0; font-size: 13px; font-weight: 600;
+  color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mail-badge {
+  flex: none; font-size: 11px; padding: 3px 9px; border-radius: 20px;
+  background: var(--surface-2); color: var(--text-dim);
+}
+.mail-badge.on { background: var(--accent-soft); color: var(--accent); }
+.mail-badge.off { opacity: .8; }
+.mail-actions { display: flex; gap: 6px; flex: none; }
+.mail-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bind-mail .bind-input { width: min(260px, 100%); flex: 1 1 200px; }
+.bind-mail .bind-input:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 600px) {
+  .mail-item { gap: 8px; }
+  .mail-addr { flex-basis: 100%; }
+  .mail-actions { width: 100%; }
+  .mail-actions .act-btn { flex: 1; }
+  .mail-add .bind-input { flex-basis: 100%; }
+  .mail-add .act-btn { width: 100%; }
+}
 .bind-tip { font-size: 12px; color: var(--text-dim); margin-top: 12px; line-height: 1.7; }
 
 .act-btn.small { padding: 7px 14px; font-size: 13px; }

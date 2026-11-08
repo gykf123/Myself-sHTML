@@ -83,6 +83,20 @@
     .hint { font-size: 12px; color: #8a909c; margin-top: 14px; line-height: 1.6; text-align: center; }
     .back { display: block; text-align: center; margin-top: 14px; font-size: 13px; color: #6f9bff; text-decoration: none; }
     .back:hover { text-decoration: underline; }
+
+    .oauth-sep { display: flex; align-items: center; gap: 12px; margin: 6px 0 2px; font-size: 12px; color: #7c8393; }
+    .oauth-sep::before, .oauth-sep::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.14); }
+    .gh-btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 11px 13px; border-radius: 12px; cursor: pointer;
+      font-size: 14px; font-weight: 600; color: #e8eaed;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.18);
+      transition: background .2s, transform .15s;
+    }
+    .gh-btn:hover { background: rgba(255,255,255,.13); transform: translateY(-1px); }
+    .gh-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    .gh-btn svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
+    .gh-note { font-size: 11px; color: #727a89; line-height: 1.6; text-align: center; margin-top: 2px; }
   </style>
   <script src="/net-guard.js?v=20261107"></script>
   <script src="/site-nav.js?v=20261107b"></script>
@@ -107,6 +121,13 @@
       <input id="loginPassword" type="password" placeholder="密码" required />
       <button class="btn" type="submit" id="loginBtn">登录</button>
       <div class="msg" id="loginMsg"></div>
+      <div class="oauth-sep"><span>或</span></div>
+      <button class="gh-btn" type="button" id="ghLoginBtn">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span>通过 GitHub 登录</span>
+      </button>
+      <div class="msg" id="ghMsg"></div>
+      <p class="gh-note">需先在个人中心「关联 GitHub」，关联后即可一键登录。</p>
     </form>
 
     <form id="applyForm" hidden autocomplete="on">
@@ -234,6 +255,43 @@
       btn.textContent = '跳转中...';
       target.searchParams.set(ticket ? 'ticket' : 'token', ticket || token);
       location.href = target.toString();
+    });
+
+    // —— 通过 GitHub 登录（免登录态 OAuth） ——
+    // Client ID 是 OAuth App 的公开标识（不是密钥），与 user/user.js 用同一个。
+    // 回调地址复用 /user/github-callback.html，靠 state 前缀区分「登录 / 关联」，
+    // 所以 GitHub 后台只需登记这一个 callback URL，无需改动 OAuth App 设置。
+    const GH_CLIENT_ID = 'Ov23liK00mp7JPFFJ8PX';
+    const GH_CALLBACK = location.origin + '/user/github-callback.html';
+    const ghMsg = document.getElementById('ghMsg');
+    const ghBtn = document.getElementById('ghLoginBtn');
+
+    // 回调页在「该 GitHub 尚未关联本站账号」时会带错误回到这里
+    const ghErr = qs.get('gh_error');
+    if (ghErr) {
+      setMsg(ghMsg, ghErr, false);
+      try {
+        const u = new URL(location.href);
+        u.searchParams.delete('gh_error');
+        history.replaceState(null, '', u.pathname + u.search + u.hash);
+      } catch (e) {}
+    }
+
+    ghBtn.addEventListener('click', () => {
+      if (!GH_CLIENT_ID) { setMsg(ghMsg, '管理员尚未配置 GitHub OAuth App', false); return; }
+      const nonce = crypto.randomUUID ? crypto.randomUUID()
+        : (String(Date.now()) + Math.random().toString(36).slice(2));
+      const state = 'login:' + nonce;
+      try {
+        sessionStorage.setItem('gh_oauth_state', state);
+        sessionStorage.setItem('gh_login_redirect', getRedirect());
+      } catch (e) {
+        setMsg(ghMsg, '浏览器存储不可用，请关闭隐私模式后重试', false); return;
+      }
+      const url = 'https://github.com/login/oauth/authorize?client_id=' + encodeURIComponent(GH_CLIENT_ID) +
+        '&redirect_uri=' + encodeURIComponent(GH_CALLBACK) +
+        '&scope=read:user&state=' + encodeURIComponent(state);
+      location.href = url;
     });
 
     // 注册：提交后账号直接生效（status=approved），无需审核
