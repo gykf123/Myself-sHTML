@@ -99,19 +99,90 @@ async function isAdmin(uid: string): Promise<boolean> {
   return !!(data && data[0] && data[0].role === 'admin')
 }
 
-/* ---------- 邮件内容（html + 纯文本，统一模板） ---------- */
+/* ---------- 邮件模板 ------------------------------------------------------
+   邮件客户端不认 flex/grid/CSS 变量/外链样式，一律 table 布局 + 内联样式；
+   纯色背景打底、渐变只作增强（不支持的客户端自动退回纯色）。
+   所有用户可控文本（标题 / 正文）统一先 esc()，绝不拼进未经转义的 HTML。
+   ------------------------------------------------------------------------ */
+function paraHtml(raw: string): string {
+  // 先转义，再分段；段内单换行保留为 <br>，避免一整段挤成一条长线
+  return esc(raw).split(/\n{2,}/).map(p =>
+    '<p style="margin:0 0 14px;font-size:15px;line-height:1.85;color:#374151;">' +
+    p.replace(/\n/g, '<br />') + '</p>',
+  ).join('')
+}
+
+function mailHtml(o: { eyebrow: string; title: string; body: string;
+                       ctaText?: string; ctaHref?: string }): string {
+  const date = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric',
+    weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date())
+  const home = SITE_URL + '/'
+  const blog = SITE_URL + '/blog/'
+  const user = SITE_URL + '/user/'
+  const cta = o.ctaHref
+    ? '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:6px;"><tr>' +
+      '<td align="center" style="background:#4f46e5;border-radius:9px;">' +
+      '<a href="' + esc(o.ctaHref) + '" target="_blank" rel="noopener noreferrer" ' +
+      'style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;' +
+      'font-weight:600;text-decoration:none;">' + esc(o.ctaText || '查看详情') + ' →</a>' +
+      '</td></tr></table>'
+    : ''
+  return '<!DOCTYPE html><html lang="zh-CN"><head>' +
+    '<meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />' +
+    '<title>' + esc(o.title) + '</title></head>' +
+    '<body style="margin:0;padding:0;background:#f3f4f6;">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" ' +
+    'style="background:#f3f4f6;padding:28px 12px;"><tr><td align="center">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" ' +
+    'style="width:600px;max-width:600px;background:#ffffff;border-radius:14px;' +
+    'overflow:hidden;box-shadow:0 4px 18px rgba(20,24,40,.08);' +
+    'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',\'PingFang SC\',\'Microsoft YaHei\',sans-serif;">' +
+      // 顶部品牌条
+      '<tr><td style="padding:26px 32px;background:#4f46e5;' +
+      'background-image:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);color:#ffffff;">' +
+      '<div style="font-size:20px;font-weight:700;letter-spacing:.5px;">' +
+      '<span style="display:inline-block;width:9px;height:9px;margin-right:9px;' +
+      'border-radius:50%;background:#ffffff;vertical-align:middle;"></span>FeSui</div>' +
+      '<div style="font-size:12px;opacity:.88;margin-top:5px;">项目公告 · 站点更新通知</div>' +
+      '</td></tr>' +
+      // 标签 / 标题 / 日期
+      '<tr><td style="padding:30px 32px 0;">' +
+      '<div style="display:inline-block;padding:5px 12px;border-radius:20px;' +
+      'background:#eef2ff;color:#4f46e5;font-size:12px;font-weight:600;">' +
+      esc(o.eyebrow) + '</div>' +
+      '<h1 style="margin:16px 0 8px;font-size:23px;line-height:1.45;' +
+      'font-weight:700;color:#111827;">' + esc(o.title) + '</h1>' +
+      '<div style="font-size:12px;color:#9ca3af;">' + esc(date) + '（北京时间）</div>' +
+      '<div style="margin-top:22px;height:1px;background:#eef0f3;"></div>' +
+      '</td></tr>' +
+      // 正文
+      '<tr><td style="padding:22px 32px 6px;">' + paraHtml(o.body) + '</td></tr>' +
+      // 按钮
+      (cta ? '<tr><td style="padding:8px 32px 30px;">' + cta + '</td></tr>' : '') +
+      // 页脚
+      '<tr><td style="padding:18px 32px;background:#f9fafb;border-top:1px solid #eef0f3;' +
+      'font-size:12px;line-height:1.8;color:#9ca3af;">' +
+      '你收到这封邮件，是因为在 <a href="' + home + '" style="color:#6b7280;">FeSui</a> ' +
+      '绑定了邮箱并订阅了项目公告。<br />' +
+      '<a href="' + blog + '" style="color:#6b7280;">查看全部公告</a> · ' +
+      '<a href="' + user + '" style="color:#6b7280;">取消订阅</a>' +
+      '</td></tr>' +
+    '</table>' +
+    '<div style="margin-top:16px;font-size:11px;color:#b6bcc7;">' +
+    '© FeSui · 本邮件由系统自动发送，请勿直接回复</div>' +
+    '</td></tr></table></body></html>'
+}
+
 function buildMail(title: string, body: string) {
   const subject = '【FeSui 项目公告】' + title
-  const text = title + '\n\n' + body + '\n\n--\n' + SITE_URL +
+  const text = title + '\n\n' + body + '\n\n———\n查看全部公告：' + SITE_URL + '/blog/' +
                '\n取消订阅：' + SITE_URL + '/user/'
-  const html =
-    '<div style="font:15px/1.7 -apple-system,Segoe UI,PingFang SC,sans-serif;color:#1f2328">' +
-    '<h2>' + esc(title) + '</h2>' +
-    '<div>' + esc(body).replace(/\n/g, '<br>') + '</div>' +
-    '<hr style="margin:24px 0;border:0;border-top:1px solid #ddd">' +
-    '<p style="font-size:13px;color:#6b7280">你收到这封邮件，是因为在 ' +
-    '<a href="' + SITE_URL + '/">' + SITE_URL + '</a> 绑定了邮箱并订阅项目公告。' +
-    '可在 <a href="' + SITE_URL + '/user/">个人中心</a> 取消订阅。</p></div>'
+  const html = mailHtml({
+    eyebrow: '项目公告', title, body,
+    ctaText: '查看博客与公告', ctaHref: SITE_URL + '/blog/',
+  })
   return { subject, text, html }
 }
 
@@ -270,10 +341,16 @@ Deno.serve(async (req) => {
     }
     const mail = {
       subject: '【FeSui】邮件通道测试',
-      text: '这是一封测试邮件。看到它，说明 GitHub Actions 发信链路已经打通。\n\n' + SITE_URL,
-      html: '<div style="font:15px/1.7 sans-serif"><h2>邮件通道测试 ✅</h2>' +
-            '<p>看到它，说明 GitHub Actions 发信链路已经打通。</p>' +
-            '<p><a href="' + SITE_URL + '">' + SITE_URL + '</a></p></div>',
+      text: '邮件通道测试\n\n看到这封信，说明 GitHub Actions 发信链路已经打通，' +
+            '项目公告以后会按这个样式送到你邮箱。\n\n———\n访问站点：' + SITE_URL +
+            '\n取消订阅：' + SITE_URL + '/user/',
+      html: mailHtml({
+        eyebrow: '通道测试', title: '发信链路已经打通',
+        body: '看到这封信，说明 GitHub Actions 队列 → 新浪 SMTP 这一整条链路都正常。\n\n' +
+              '以后每次发布项目公告，都会按这个样式自动送到已订阅用户的邮箱；' +
+              '博客文章不会发邮件，只在站内展示。',
+        ctaText: '去站点看看', ctaHref: SITE_URL + '/blog/',
+      }),
     }
     const n = await enqueue(null, [to], mail)
     return json({ ok: true, queued: n, provider: PROVIDER,

@@ -175,7 +175,7 @@ function renderShell(s) {
     '<section class="user-card">' +
       '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">📢</span>项目公告</h2>' +
         '<button class="act-btn small" id="adAnnRefresh" type="button">刷新</button></div>' +
-      '<p class="ad-note">发布后立刻在主站「项目导航」与博客页可见；邮件会加入队列，由 GitHub Actions 定时发给已订阅用户。</p>' +
+      '<p class="ad-note">发布后立刻在博客页（主站「博客 / 公告」入口）可见；<b>只有公告会发邮件</b>——会加入队列，由 GitHub Actions 定时发给已订阅用户。写博客文章不会触发任何邮件。</p>' +
       '<div class="ad-status" id="adMailStatus">正在检查邮件通道…</div>' +
       '<div class="ad-status" id="adQueueStats">队列统计加载中…</div>' +
       '<div class="ad-mail-test">' +
@@ -207,7 +207,7 @@ function renderShell(s) {
           '<a class="act-btn small" href="../blog/" target="_blank" rel="noopener noreferrer">查看前台 ↗</a>' +
           '<button class="act-btn small" id="adPostNew" type="button">新建</button>' +
         '</div></div>' +
-      '<p class="ad-note">草稿只在这里可见；勾选「立即发布」后才会出现在 <code>/blog/</code>。正文支持 Markdown：标题、列表、粗体、代码块、<b>表格</b>（<code>| 列 | 列 |</code> 下一行写 <code>| --- | --- |</code>，用 <code>:---:</code> 居中、<code>---:</code> 右对齐；表头与分隔行列数要一致）。</p>' +
+      '<p class="ad-note">草稿只在这里可见；勾选「立即发布」后才会出现在 <code>/blog/</code>。<b>文章只在站内展示，不会发邮件</b>；要通知订阅用户请用上面的「项目公告」。正文支持 Markdown：标题、列表、粗体、代码块、<b>表格</b>（<code>| 列 | 列 |</code> 下一行写 <code>| --- | --- |</code>，用 <code>:---:</code> 居中、<code>---:</code> 右对齐；表头与分隔行列数要一致）。</p>' +
       '<form class="ad-form" id="adPostForm" autocomplete="off">' +
         '<input type="hidden" id="adPostId" />' +
         '<div class="ad-field">' +
