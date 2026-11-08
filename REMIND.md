@@ -242,3 +242,16 @@
 - **存量数据修复**：用 PAT 跑 PL/pgSQL `DO` 块逐行 `convert_from(convert_to(author_name,'LATIN1'),'UTF8')` 还原；正常中文无法编码成 LATIN1 会抛异常，靠 `exception when others then continue` 跳过，纯 ASCII 转换前后相同也不更新。**7 条历史消息昵称全部还原成「执拗的同学」**，未动消息内容、未删任何行。
 - **顺手修**：`chat.js` 轮询 `fetchMessages(true)` 时状态栏不更新计数，导致列表已 4 条、状态栏还写「3 条消息」；改成只要当前在公共大厅就刷新计数。
 - **教训（与 11-07 修 base64url 签名那次并列）**：JWT 有两条独立编码链——**签名段是 base64url 无 padding**，**payload 是 UTF-8 字节的 base64url**。`btoa/atob` 默认只处理字节字符串，任何「自己解析 JWT」的地方都必须同时正确处理这两件事；只测真实 token 能否通过验签，测不出 payload 里的中文被解错。负向测试要有：中文 payload 落库后读回比对、伪造签名 401。
+
+## 2026-11-08 ⑩ 邮件通道改 GitHub Actions 队列 + 博客表格支持
+
+- **用户诉求**：Resend 在国外访问慢 / 担心送达率，问有没有别的办法（甚至提出给新浪邮箱账号密码）；另外指出「文章不支持表格」。用户最后**明确选 GitHub 队列方案**，要具体操作说明。
+- **硬约束（查 Supabase 官方文档坐实）**：Edge Functions **禁止出站 25 / 587**，且 Deno Deploy 不提供 TCP socket，所以 **SMTP 465/587 在函数里根本连不上**——给新浪账号密码也没用；程序发信一律只能用 16 位「客户端授权码」，绝不能用网页登录主密码。结论：必须走 HTTPS 邮件 API 或 **异步队列 + 外部 worker**。
+- **方案**：`fs-notify` 改成可插拔 provider，默认 `queue`（零 Supabase Secret 依赖，部署即生效），`FS_MAIL_PROVIDER=resend` 切回原通道、`none` 只发站内。队列链路：函数 `announce` / `mail_test` 只写私有表 `fs_mail_queue` → `.github/workflows/mail-queue.yml`（每 15 分钟 + 手动触发 + `concurrency` 防重复发）跑 `supabase/mail-relay/send-queue.mjs`（nodemailer 连新浪 SMTP 465，逐封 `To` 不暴露订阅名单）→ 调 RPC `fs_mail_mark_sent` 回写状态并累加公告 `mailed_count`，失败累计 5 次标 `failed`。
+- **诚实性设计**：新增单行表 `fs_mail_worker` 记录心跳，`mail_status` 返回 `ready`——**「代码通道已就绪」≠「Actions 真跑过」**，后台/个人中心在 worker 从未运行时如实显示「发信任务还没跑过 / 尚未首次运行」，不假装已开通。队列模式下 `mailed=0` 而 `queued=N`，不把入队数冒充送达数。
+- **权限**：`fs_mail_queue` / `fs_mail_worker` RLS 开启、无任何 policy、`revoke all`；RPC 默认 `EXECUTE` 是给 public 的，**必须 `revoke ... from public, anon, authenticated` 再只 `grant ... to service_role`**（`security definer` + `set search_path = public`）。队列表 `(announcement_id, email)` 唯一索引 + `ON CONFLICT DO NOTHING`，重复发布公告不会重复发信。
+- **GitHub 侧需要用户填 3 个 Repository Secrets**：`SUPABASE_SERVICE_ROLE_KEY` / `SINA_SMTP_USER` / `SINA_SMTP_PASS`；可选 Variables：`SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_FROM`。⚠️ **service_role key 必须从 Dashboard → Project Settings → API → `service_role` 复制**，不能从 Edge Functions → Secrets 里取：本轮再次实测 Management API `GET /secrets` 返回的 `SUPABASE_SERVICE_ROLE_KEY` 调 REST 直接 **401 Invalid API key**，与函数运行时注入的保留变量不是同一个值（与 11-07 ⑧ 的踩坑同源）。
+- **博客表格**：`blog/blog.js` 自写渲染器加 GFM 表格——表头行 + 分隔行（`| --- | :---: | ---: |`）、三种对齐映射白名单 class、单元格仍走 `inlineMd()`（先 `escapeHtml`）、支持 `\|` 转义、列数不齐/代码块内语法不误判、外面套 `.md-table-wrap` 横向滚动；`blog.css` 补斑马纹与移动端样式；后台编辑器加语法提示。安全断言照旧：`<script>` / `<img onerror>` 被转义、`javascript:` 链接被剥离、`window.__pwned` 不存在。
+- **版本号**：本日改动的 `admin.js` / `admin.css` / `user.js` / `blog.js` / `blog.css` 统一 `?v=20261108`，只改引用它们的 3 个 HTML；`style.css` / `user.css` / `site-nav.js` / `net-guard.js` 未改故保持旧版。`.gitignore` 新增 `node_modules/`（依赖由 Actions `npm ci` 现场装）。
+- **验收**：线上 API **49/49**（通道状态/匿名零权限/越权 403/伪造签名 401/测试邮件入队/公告入队与 HTML 转义/唯一索引防重复/RPC 成功与失败回写/mailed_count 不重复累加/RPC 只授权 service_role/心跳 ready 双向切换/邮箱绑定回归）+ 浏览器 **47/47**（后台队列状态与统计、测试邮件按钮、真实文章表格对齐与 XSS、渲染器 7 个边界、个人中心文案、零 pageerror）+ worker 本地联调 **7/7**（mock REST + DRY_RUN 不连 SMTP、缺凭据报错、非白名单 URL 拒绝、`npm ci` 通过、workflow YAML 结构）。沙箱实测 `smtp.sina.com:465` TLS 握手与 `220` 问候正常。测试数据全部 `finally` 清理、探针账号与 worker 心跳已恢复。
+- **仍未做、不能自主做**：填 GitHub Secrets（需要用户的授权码与 service_role key，**不主动索要、不代为保管**）；真发一封邮件验证（无凭据，只能由用户点 Actions 手动触发）；邮箱验证码机制（`verified` 仍是预留位，当前填别人邮箱也能进订阅名单）。

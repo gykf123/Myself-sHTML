@@ -1,0 +1,13 @@
+{
+  "name": "fs-mail-queue-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "读取 FeSui 私有邮件队列，经新浪 SMTP 逐封发送并回写状态",
+  "scripts": {
+    "send": "node send-queue.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  }
+}

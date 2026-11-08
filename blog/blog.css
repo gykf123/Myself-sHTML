@@ -100,6 +100,24 @@
 .md-pre code { background: none; padding: 0; color: var(--text); }
 .md-img { max-width: 100%; height: auto; border-radius: 10px; margin: 6px 0 14px; }
 
+/* ---------- GFM 表格 ---------- */
+.md-table-wrap {
+  margin: 0 0 16px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.md-table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 13.6px; }
+.md-table th, .md-table td {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  text-align: left; vertical-align: top; line-height: 1.7;
+}
+.md-table th { background: var(--surface-2); font-weight: 700; white-space: nowrap; }
+.md-table tbody tr:nth-child(even) { background: rgba(127, 127, 127, .06); }
+.md-table tbody tr:last-child td { border-bottom: 0; }
+.md-align-left   { text-align: left !important; }
+.md-align-center { text-align: center !important; }
+.md-align-right  { text-align: right !important; }
+.md-table .md-code { font-size: 12.2px; }
+
 /* ---------- 响应式 / 动效降级 ---------- */
 @media (max-width: 620px) {
   .blog-title { font-size: 21px; }

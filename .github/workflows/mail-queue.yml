@@ -1,0 +1,53 @@
+name: 发送公告邮件队列
+
+# FeSui 项目公告的 SMTP 发信 worker。
+# Edge Function 只能写私有队列表 fs_mail_queue（出站 25/587 被 Supabase 禁用），
+# 这里定时把队列里的邮件经新浪 SMTP 发出，并回写状态 / 公告送达数。
+#
+# 需要在仓库 Settings → Secrets and variables → Actions 里配置 3 个 Secrets：
+#   SUPABASE_SERVICE_ROLE_KEY  Supabase → Project Settings → API → service_role
+#   SINA_SMTP_USER             完整邮箱（如 you@sina.com）
+#   SINA_SMTP_PASS             16 位客户端授权码（不是网页登录密码）
+# 可选：SMTP_HOST / SMTP_PORT / SMTP_SECURE / SMTP_FROM
+#
+# 首次配置完成后，直接在本 workflow 页面点「Run workflow」立即验证，
+# 不必等定时任务。
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # 每 15 分钟（GitHub 不保证准时，通常有 3–15 分钟延迟）
+  workflow_dispatch:          # 手动触发：配好 Secrets 后立刻跑一次
+
+# 防止 cron 与手动触发重叠导致同一封邮件被发两次
+concurrency:
+  group: fs-mail-queue
+  cancel-in-progress: false
+
+permissions:
+  contents: read             # 最小权限，只读代码
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 安装发信依赖
+        working-directory: supabase/mail-relay
+        run: npm ci --no-audit --no-fund
+
+      - name: 发送队列邮件
+        working-directory: supabase/mail-relay
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SINA_SMTP_USER: ${{ secrets.SINA_SMTP_USER }}
+          SINA_SMTP_PASS: ${{ secrets.SINA_SMTP_PASS }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_SECURE: ${{ vars.SMTP_SECURE }}
+          SMTP_FROM: ${{ vars.SMTP_FROM }}
+        run: node send-queue.mjs

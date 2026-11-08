@@ -171,12 +171,18 @@ function renderShell(s) {
       '<div class="ad-table-scroll" id="adBanBox"><div class="user-loading">加载中…</div></div>' +
     '</section>' +
 
-    /* 项目公告：站内展示 + 邮件通道开通后自动群发订阅用户 */
+    /* 项目公告：站内展示 + 邮件走 GitHub Actions 队列异步发送 */
     '<section class="user-card">' +
       '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">📢</span>项目公告</h2>' +
         '<button class="act-btn small" id="adAnnRefresh" type="button">刷新</button></div>' +
-      '<p class="ad-note">发布后展示在主站「项目导航」与博客页；邮件通道开通时会同步群发给已订阅用户。</p>' +
+      '<p class="ad-note">发布后立刻在主站「项目导航」与博客页可见；邮件会加入队列，由 GitHub Actions 定时发给已订阅用户。</p>' +
       '<div class="ad-status" id="adMailStatus">正在检查邮件通道…</div>' +
+      '<div class="ad-status" id="adQueueStats">队列统计加载中…</div>' +
+      '<div class="ad-mail-test">' +
+        '<input class="ad-input" id="adTestEmail" type="email" maxlength="254" placeholder="收件邮箱（先填自己的）" aria-label="测试邮件收件地址" />' +
+        '<button class="act-btn small" id="adTestMailBtn" type="button">加入测试邮件</button>' +
+        '<span class="ad-hint" id="adTestMailHint"></span>' +
+      '</div>' +
       '<form class="ad-form" id="adAnnForm" autocomplete="off">' +
         '<div class="ad-field">' +
           '<label class="ad-label" for="adAnnTitle">标题</label>' +
@@ -201,7 +207,7 @@ function renderShell(s) {
           '<a class="act-btn small" href="../blog/" target="_blank" rel="noopener noreferrer">查看前台 ↗</a>' +
           '<button class="act-btn small" id="adPostNew" type="button">新建</button>' +
         '</div></div>' +
-      '<p class="ad-note">草稿只在这里可见；勾选「立即发布」后才会出现在 <code>/blog/</code>。正文支持 Markdown。</p>' +
+      '<p class="ad-note">草稿只在这里可见；勾选「立即发布」后才会出现在 <code>/blog/</code>。正文支持 Markdown：标题、列表、粗体、代码块、<b>表格</b>（<code>| 列 | 列 |</code> 下一行写 <code>| --- | --- |</code>，用 <code>:---:</code> 居中、<code>---:</code> 右对齐；表头与分隔行列数要一致）。</p>' +
       '<form class="ad-form" id="adPostForm" autocomplete="off">' +
         '<input type="hidden" id="adPostId" />' +
         '<div class="ad-field">' +
@@ -420,6 +426,8 @@ async function contentCall(fn, action, extra, s) {
 }
 
 let mailConfigured = false;
+let mailProvider = '';
+let mailReady = false;
 
 async function loadMailStatus() {
   const el = $('#adMailStatus');
@@ -433,13 +441,72 @@ async function loadMailStatus() {
     const d = await res.json().catch(() => null);
     if (!res.ok || !d || d.ok !== true) throw new Error('HTTP ' + res.status);
     mailConfigured = !!d.configured;
-    el.className = 'ad-status ' + (mailConfigured ? 'ok' : 'wait');
-    el.textContent = mailConfigured
-      ? '✅ 邮件通道已开通 · 发布公告时会同步群发给已订阅用户（发信地址：' + String(d.from || '') + '）'
-      : '⏳ 邮件通道待开通 · 现在就能发布公告（站内可见）；配置 RESEND_API_KEY 后，发布会自动群发给订阅用户';
+    mailProvider = String(d.provider || '');
+    mailReady = !!d.ready;
+    const label = String(d.label || '邮件通道');
+    if (!mailConfigured) {
+      el.className = 'ad-status wait';
+      el.textContent = '⏳ 邮件通道待开通 · 现在就能发布公告（站内可见），暂不发信';
+    } else if (mailProvider === 'queue' && !mailReady) {
+      el.className = 'ad-status wait';
+      el.textContent = '⏳ ' + label + ' 代码已就绪，但发信任务还没跑过 · 去 GitHub → Actions →「发送公告邮件队列」点 Run workflow 手动触发一次';
+    } else {
+      el.className = 'ad-status ok';
+      el.textContent = '✅ ' + label +
+        (d.from ? '（发件地址：' + String(d.from) + '）' : '') +
+        (d.last_seen ? ' · 最后运行 ' + fmtDateTime(d.last_seen) : '') +
+        ' · 公告会加入队列自动发送';
+    }
   } catch (e) {
     el.className = 'ad-status wait';
     el.textContent = '⚠️ 暂时读不到邮件通道状态，公告仍可正常发布（站内可见）';
+  }
+}
+
+/* 队列统计：待发 / 已送达 / 失败，只走管理员接口 */
+async function loadQueueStats(s) {
+  const el = $('#adQueueStats');
+  if (!el) return;
+  try {
+    const { status, data } = await contentCall('fs-notify', 'mail_queue_stats', {}, s);
+    if (status !== 200 || data.ok !== true) throw new Error('HTTP ' + status);
+    el.className = 'ad-status ' + (Number(data.failed) > 0 ? 'wait' : '');
+    el.textContent = '📮 队列：待发 ' + (Number(data.pending) || 0) +
+      ' · 已送达 ' + (Number(data.sent) || 0) +
+      ' · 失败 ' + (Number(data.failed) || 0) + '（失败 5 次后停止重试）';
+  } catch (e) {
+    el.textContent = '📮 队列统计暂时读不到，公告仍可正常发布';
+  }
+}
+
+/* 测试邮件：入一封到队列，用户去 Actions 手动触发即可验证整条链路 */
+async function sendTestMail(s) {
+  const input = $('#adTestEmail'), btn = $('#adTestMailBtn'), hint = $('#adTestMailHint');
+  if (!input || !btn) return;
+  const email = String(input.value || '').trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (hint) hint.textContent = '邮箱格式不正确';
+    showToast('邮箱格式不正确');
+    return;
+  }
+  btn.disabled = true; btn.textContent = '加入中…';
+  if (hint) hint.textContent = '';
+  try {
+    const { status, data } = await contentCall('fs-notify', 'mail_test', { email }, s);
+    if (status !== 200 || data.ok !== true) {
+      const msg = data.error || ('加入失败（HTTP ' + status + '）');
+      if (hint) hint.textContent = msg;
+      showToast(msg);
+      return;
+    }
+    if (hint) hint.textContent = data.note || '已加入队列';
+    showToast('测试邮件已加入队列');
+    await loadQueueStats(s);
+  } catch (e) {
+    if (hint) hint.textContent = '网络异常，请稍后再试';
+    showToast('网络异常，请稍后再试');
+  } finally {
+    btn.disabled = false; btn.textContent = '加入测试邮件';
   }
 }
 
@@ -462,8 +529,9 @@ async function loadAnnouncements() {
           '<time>' + escapeHtml(fmtDateTime(a.created_at)) + '</time></div>' +
         '<div class="ad-item-body">' + escapeHtml(a.body).replace(/\n/g, '<br>') + '</div>' +
         '<div class="ad-item-foot">' + (Number(a.mailed_count) > 0
-          ? '📧 已群发 ' + Number(a.mailed_count) + ' 位订阅用户'
-          : '📭 未发邮件' + (mailConfigured ? '' : '（邮件通道待开通）')) + '</div>' +
+          ? '📧 已送达 ' + Number(a.mailed_count) + ' 位订阅用户'
+          : (mailProvider === 'queue' ? '📮 站内公告 · 邮件由队列发送'
+             : '📭 站内公告' + (mailConfigured ? '' : '（邮件通道待开通）'))) + '</div>' +
       '</article>').join('');
   } catch (e) {
     box.innerHTML = '<div class="ad-err">网络异常，稍后再试</div>';
@@ -476,8 +544,10 @@ async function submitAnnouncement(e, s) {
   const body = ($('#adAnnBody').value || '').trim();
   const hint = $('#adAnnHint'), btn = $('#adAnnSubmit');
   if (!title || !body) { showToast('标题和正文都要填'); return; }
-  if (!window.confirm('确认发布公告？\n标题：' + title + '\n' +
-      (mailConfigured ? '将同时群发给已订阅用户' : '仅站内发布（邮件通道待开通）'))) return;
+  const mailHint = !mailConfigured ? '仅站内发布（邮件通道待开通）'
+    : mailProvider === 'queue' ? '将加入邮件队列，由 GitHub Actions 定时发送'
+    : '将同时群发给已订阅用户';
+  if (!window.confirm('确认发布公告？\n标题：' + title + '\n' + mailHint)) return;
   btn.disabled = true; btn.textContent = '发布中…';
   if (hint) hint.textContent = '';
   try {
@@ -490,9 +560,11 @@ async function submitAnnouncement(e, s) {
     }
     $('#adAnnTitle').value = '';
     $('#adAnnBody').value = '';
-    if (hint) hint.textContent = data.note || ('已发布 · 群发 ' + (Number(data.mailed) || 0) + ' 封');
+    if (hint) hint.textContent = data.note ||
+      ('已发布 · 群发 ' + (Number(data.mailed) || 0) + ' 封 · 入队 ' + (Number(data.queued) || 0) + ' 封');
     showToast('公告已发布');
     await loadAnnouncements();
+    await loadQueueStats(s);
   } catch (err) {
     showToast('网络异常，请稍后再试');
   } finally {
@@ -609,7 +681,9 @@ function bindContentEvents(s) {
   const annForm = $('#adAnnForm');
   if (annForm) annForm.addEventListener('submit', e => submitAnnouncement(e, s));
   const annRefresh = $('#adAnnRefresh');
-  if (annRefresh) annRefresh.addEventListener('click', () => loadAnnouncements());
+  if (annRefresh) annRefresh.addEventListener('click', () => { loadAnnouncements(); loadQueueStats(s); });
+  const testMailBtn = $('#adTestMailBtn');
+  if (testMailBtn) testMailBtn.addEventListener('click', () => sendTestMail(s));
   const postForm = $('#adPostForm');
   if (postForm) postForm.addEventListener('submit', e => submitPost(e, s));
   const newBtn = $('#adPostNew'), cancelBtn = $('#adPostCancel');
@@ -657,7 +731,7 @@ async function boot() {
   $('#adRefresh').addEventListener('click', async () => {
     const btn = $('#adRefresh');
     btn.disabled = true; btn.textContent = '加载中…';
-    await Promise.all([loadBans(s, false), loadStats(s), loadAnnouncements(), loadPosts(s)]);
+    await Promise.all([loadBans(s, false), loadStats(s), loadAnnouncements(), loadPosts(s), loadQueueStats(s)]);
     btn.disabled = false; btn.textContent = '刷新';
   });
   $('#adBanBox').addEventListener('click', e => {
@@ -669,6 +743,7 @@ async function boot() {
   // 项目公告 / 博客文章 / 邮件通道状态
   bindContentEvents(s);
   loadMailStatus();
+  loadQueueStats(s);
   loadAnnouncements();
   loadPosts(s);
 }

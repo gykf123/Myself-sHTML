@@ -16,3 +16,6 @@ preview-*.png
 
 # Supabase CLI 本地链接状态（含项目 ref / 组织信息，仅本机有效）
 supabase/.temp/
+
+# Node 依赖由 GitHub Actions 用 package-lock.json 现场安装（npm ci），绝不提交
+node_modules/

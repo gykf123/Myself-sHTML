@@ -77,7 +77,46 @@ function inlineMd(text) {
   return s;
 }
 
-/* 块级 Markdown：标题 / 段落 / 列表 / 引用 / 代码块 / 分割线 */
+/* ---------- GFM 表格辅助 ----------
+   单元格永远经 inlineMd()（先 escapeHtml 再拼受控标签），
+   对齐值只映射白名单 class，绝不把用户输入拼进属性或事件。 */
+function tableCells(line) {
+  let s = String(line || '').trim();
+  if (s.charAt(0) === '|') s = s.slice(1);
+  if (s.charAt(s.length - 1) === '|') s = s.slice(0, -1);
+  // 占位符用转义写法，源码里不出现字面控制字符
+  s = s.replace(/\\\|/g, '\u0002');
+  return s.split('|').map(c => c.replace(/\u0002/g, '|').trim());
+}
+function tableSep(line) {
+  const raw = String(line || '');
+  if (raw.indexOf('|') < 0) return null;
+  const cells = tableCells(raw);
+  if (!cells.length || cells.some(c => !/^:?-{1,}:?$/.test(c))) return null;
+  return cells.map(c => {
+    const l = c.charAt(0) === ':', r = c.charAt(c.length - 1) === ':';
+    return l && r ? 'center' : r ? 'right' : l ? 'left' : '';
+  });
+}
+function renderTable(head, aligns, rows) {
+  const n = aligns.length;
+  const cls = a => a ? ' class="md-align-' + a + '"' : '';
+  let h = '<div class="md-table-wrap"><table class="md-table"><thead><tr>';
+  for (let j = 0; j < n; j++) {
+    h += '<th' + cls(aligns[j]) + '>' + inlineMd(head[j] || '') + '</th>';
+  }
+  h += '</tr></thead><tbody>';
+  for (const row of rows) {
+    h += '<tr>';
+    for (let j = 0; j < n; j++) {
+      h += '<td' + cls(aligns[j]) + '>' + inlineMd(row[j] || '') + '</td>';
+    }
+    h += '</tr>';
+  }
+  return h + '</tbody></table></div>';
+}
+
+/* 块级 Markdown：标题 / 段落 / 列表 / 引用 / 代码块 / 表格 / 分割线 */
 function renderMarkdown(src) {
   const lines = String(src || '').replace(/\r\n?/g, '\n').split('\n');
   const out = [];
@@ -99,6 +138,26 @@ function renderMarkdown(src) {
       continue;
     }
     if (/^\s*$/.test(line)) { flushPara(); flushList(); i++; continue; }
+
+    /* 表格：表头行 + 紧随的分隔行（| --- | :---: | ---: |），列数必须一致 */
+    if (i + 1 < lines.length && String(line).indexOf('|') >= 0) {
+      const aligns = tableSep(lines[i + 1]);
+      const head = tableCells(line);
+      if (aligns && head.length === aligns.length) {
+        flushPara(); flushList();
+        i += 2;
+        const rows = [];
+        while (i < lines.length) {
+          const ln = lines[i];
+          if (/^\s*$/.test(ln) || String(ln).indexOf('|') < 0) break;
+          rows.push(tableCells(ln));
+          i++;
+        }
+        out.push(renderTable(head, aligns, rows));
+        continue;
+      }
+    }
+
     const h = /^(#{1,6})\s+(.*)$/.exec(line);
     if (h) {
       flushPara(); flushList();

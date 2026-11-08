@@ -473,8 +473,9 @@ function updateQQDisplay(qqVal) {
 
 /* ---------- 邮箱绑定 / 项目公告订阅（fs-notify） ----------
    与公告群发共用 fs_email_subscriptions；该表前端零权限，只走函数。
-   邮件通道（RESEND_API_KEY）未配置时仍可登记 / 退订，只是不发信、不发验证码，
-   前端用 configured=false 如实提示，不假装「已订阅成功」。 */
+   邮件通道未配置（provider=none）时仍可登记 / 退订，只是不发信、不发验证码，
+   前端用 configured=false 如实提示，不假装「已订阅成功」。
+   当前默认 provider=queue：登记照常，公告加入队列由 GitHub Actions 发送。 */
 async function notifyCall(action, extra) {
   const res = await fetch(FUNCTIONS_BASE + '/fs-notify', {
     method: 'POST',
@@ -498,7 +499,10 @@ function renderMailState(d) {
   const st = $('#mailState'), input = $('#mailInput');
   const toggle = $('#mailToggle'), remove = $('#mailRemove');
   if (!st) return;
-  const channel = d.configured ? '' : ' · 邮件通道待开通（当前仅登记，暂不发信）';
+  const channel = !d.configured ? ' · 邮件通道待开通（当前仅登记，暂不发信）'
+    : d.provider === 'queue' && !d.ready ? ' · 公告会加入邮件队列（发信任务尚未首次运行）'
+    : d.provider === 'queue' ? ' · 公告会由邮件队列发送'
+    : '';
   if (!d.bound) {
     st.textContent = '未绑定 · 绑定后可接收项目公告' + channel;
   } else {

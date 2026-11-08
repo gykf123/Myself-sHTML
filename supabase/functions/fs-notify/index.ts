@@ -1,21 +1,27 @@
 // ============================================================
-// fs-notify — 邮箱绑定 / 订阅名单 / 项目公告 / 群发邮件
+// fs-notify — 邮箱绑定 / 订阅名单 / 项目公告 / 邮件发送
 // 项目：yowwyasttkywyqgseuqz（Deno Edge Functions）
 //
 // 设计要点：
 //   · user_id 一律只信本站 JWT 的 sub，前端传什么都不生效；
-//   · fs_email_subscriptions 前端零权限（RLS 无 policy），只走本函数 service_role；
-//   · 邮件走 Resend HTTP API。未配置 RESEND_API_KEY 时功能不报错：
-//     公告照常发布（站内可见），只是不发信，mail_configured=false 让前端如实提示；
-//   · verified 字段是预留位：当前不做验证码，故群发不按 verified 过滤，
-//     等验证码通道上线后再加条件（见下方 TODO）。
+//   · fs_email_subscriptions / fs_mail_queue 前端零权限（RLS 无 policy），
+//     只走本函数 service_role；
+//   · 默认通道 = queue（GitHub Actions 异步队列）。Supabase Edge Functions
+//     禁止出站 25/587 且 Deno Deploy 无 TCP socket，函数内无法直连 SMTP，
+//     所以只把待发邮件写入私有队列表，由仓库的 mail-queue.yml 定时发出。
+//     显式设置 FS_MAIL_PROVIDER=resend 可切回 Resend HTTP API，
+//     设为 none 则只发站内公告（不发信也不假装发过）；
+//   · ready 由 fs_mail_worker 心跳决定：代码就绪 ≠ Actions 真的跑过，
+//     后台必须如实区分这两种状态；
+//   · verified 字段是预留位：当前不做验证码，故群发不按 verified 过滤。
 // ============================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const PROVIDER = (Deno.env.get('FS_MAIL_PROVIDER') || 'queue').trim().toLowerCase()
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') || ''
-const MAIL_FROM = Deno.env.get('FS_MAIL_FROM') || 'FeSui <onboarding@resend.dev>'
+const MAIL_FROM = Deno.env.get('FS_MAIL_FROM') || ''
 const SITE_URL = 'https://fesui.xn--0iv.gay'
 const db = createClient(SUPABASE_URL, SERVICE_KEY)
 
@@ -38,7 +44,14 @@ function esc(s: string): string {
   }[c] || c))
 }
 
-function mailConfigured(): boolean { return RESEND_KEY.length > 0 }
+function providerLabel(): string {
+  if (PROVIDER === 'queue') return 'GitHub Actions 队列 · SMTP'
+  if (PROVIDER === 'resend') return 'Resend HTTP API'
+  return '未配置'
+}
+function mailConfigured(): boolean {
+  return PROVIDER === 'queue' || (PROVIDER === 'resend' && RESEND_KEY.length > 0)
+}
 
 /* ---------- 本站 JWT 验签（HS256 + base64url，与 login/_shared/jwt.ts 一致） ---------- */
 async function hmacSha256(key: string, msg: string): Promise<string> {
@@ -86,19 +99,63 @@ async function isAdmin(uid: string): Promise<boolean> {
   return !!(data && data[0] && data[0].role === 'admin')
 }
 
-/* ---------- Resend 批量发信（免费层单次上限 100 封，故分批） ---------- */
-async function sendBatch(emails: string[], title: string, body: string): Promise<number> {
+/* ---------- 邮件内容（html + 纯文本，统一模板） ---------- */
+function buildMail(title: string, body: string) {
+  const subject = '【FeSui 项目公告】' + title
+  const text = title + '\n\n' + body + '\n\n--\n' + SITE_URL +
+               '\n取消订阅：' + SITE_URL + '/user/'
+  const html =
+    '<div style="font:15px/1.7 -apple-system,Segoe UI,PingFang SC,sans-serif;color:#1f2328">' +
+    '<h2>' + esc(title) + '</h2>' +
+    '<div>' + esc(body).replace(/\n/g, '<br>') + '</div>' +
+    '<hr style="margin:24px 0;border:0;border-top:1px solid #ddd">' +
+    '<p style="font-size:13px;color:#6b7280">你收到这封邮件，是因为在 ' +
+    '<a href="' + SITE_URL + '/">' + SITE_URL + '</a> 绑定了邮箱并订阅项目公告。' +
+    '可在 <a href="' + SITE_URL + '/user/">个人中心</a> 取消订阅。</p></div>'
+  return { subject, text, html }
+}
+
+/* ---------- worker 心跳（公开状态只暴露时间，不暴露任何凭据） ---------- */
+async function workerState(): Promise<{ ready: boolean; last_seen: string | null; last_ok: string | null }> {
+  const { data } = await db.from('fs_mail_worker')
+    .select('last_seen,last_ok').eq('id', 1).limit(1)
+  const row = data && data[0] ? data[0] : null
+  const seen = row?.last_seen ? new Date(row.last_seen).getTime() : 0
+  return {
+    ready: !!seen && (Date.now() - seen) < 26 * 3600 * 1000,
+    last_seen: row?.last_seen || null,
+    last_ok: row?.last_ok || null,
+  }
+}
+
+/* ---------- 通道 A：入队（默认） ---------- */
+async function enqueue(announcementId: number | null, emails: string[],
+                       mail: { subject: string; text: string; html: string }): Promise<number> {
+  let n = 0
+  for (let i = 0; i < emails.length; i += 100) {
+    const rows = emails.slice(i, i + 100).map(email => ({
+      announcement_id: announcementId,
+      email,
+      subject: mail.subject,
+      text_body: mail.text,
+      html_body: mail.html,
+    }))
+    // ON CONFLICT DO NOTHING：同一公告 + 同一邮箱只排一次，重复发布不会重复发信
+    const { data, error } = await db.from('fs_mail_queue')
+      .upsert(rows, { onConflict: 'announcement_id,email', ignoreDuplicates: true })
+      .select('id')
+    if (error) { console.error('enqueue failed', error.message); continue }
+    n += (data || []).length
+  }
+  return n
+}
+
+/* ---------- 通道 B：Resend HTTP API（显式切换时才用） ---------- */
+async function sendResend(emails: string[], title: string, body: string): Promise<number> {
   let sent = 0
+  const mail = buildMail(title, body)
   for (let i = 0; i < emails.length; i += 100) {
     const chunk = emails.slice(i, i + 100)
-    const html =
-      '<div style="font:15px/1.7 -apple-system,Segoe UI,PingFang SC,sans-serif;color:#1f2328">' +
-      '<h2>' + esc(title) + '</h2>' +
-      '<div>' + esc(body).replace(/\n/g, '<br>') + '</div>' +
-      '<hr style="margin:24px 0;border:0;border-top:1px solid #ddd">' +
-      '<p style="font-size:13px;color:#6b7280">你收到这封邮件，是因为在 ' +
-      '<a href="' + SITE_URL + '/">' + SITE_URL + '</a> 绑定了邮箱并订阅项目公告。' +
-      '可在 <a href="' + SITE_URL + '/user/">个人中心</a> 取消订阅。</p></div>'
     try {
       const r = await fetch('https://api.resend.com/emails/batch', {
         method: 'POST',
@@ -107,12 +164,8 @@ async function sendBatch(emails: string[], title: string, body: string): Promise
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(chunk.map(to => ({
-          from: MAIL_FROM,
-          to: [to],
-          subject: '【FeSui 项目公告】' + title,
-          text: title + '\n\n' + body + '\n\n--\n' + SITE_URL +
-                '\n取消订阅：' + SITE_URL + '/user/',
-          html,
+          from: MAIL_FROM || 'FeSui <onboarding@resend.dev>',
+          to: [to], subject: mail.subject, text: mail.text, html: mail.html,
         }))),
       })
       if (r.ok) sent += chunk.length
@@ -130,9 +183,19 @@ Deno.serve(async (req) => {
   try { body = await req.json() } catch { /* 空体按缺字段处理 */ }
   const action = String(body.action || '')
 
-  // 公开：邮件通道状态（前端据此显示「已开通 / 待配置」）
+  // 公开：邮件通道状态（前端据此显示「已开通 / 等待首次运行 / 待配置」）
   if (action === 'mail_status') {
-    return json({ ok: true, configured: mailConfigured(), from: MAIL_FROM })
+    const w = PROVIDER === 'queue' ? await workerState() : null
+    return json({
+      ok: true,
+      configured: mailConfigured(),
+      provider: PROVIDER,
+      label: providerLabel(),
+      ready: w ? w.ready : mailConfigured(),
+      last_seen: w?.last_seen || null,
+      last_ok: w?.last_ok || null,
+      from: MAIL_FROM,
+    })
   }
 
   const auth = req.headers.get('Authorization') || ''
@@ -147,9 +210,11 @@ Deno.serve(async (req) => {
       .select('email,verified,subscribed,updated_at').eq('user_id', uid).limit(1)
     if (error) return json({ ok: false, error: error.message }, 500)
     const row = data && data[0] ? data[0] : null
+    const w = PROVIDER === 'queue' ? await workerState() : null
     return json({ ok: true, bound: !!row, email: row?.email || '',
                   verified: !!row?.verified, subscribed: !!row?.subscribed,
-                  configured: mailConfigured() })
+                  configured: mailConfigured(), provider: PROVIDER,
+                  ready: w ? w.ready : true })
   }
 
   if (action === 'email_bind' || action === 'email_subscribe') {
@@ -157,7 +222,7 @@ Deno.serve(async (req) => {
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return json({ ok: false, error: '邮箱格式不正确' }, 400)
     }
-    // TODO: 邮件通道开通后，这里改为「发送验证码 + verify 兑换」，
+    // TODO: 邮件通道稳定后改为「发送验证码 + verify 兑换」，
     //       只有 verified=true 才进入群发名单；当前 verified 字段仅预留。
     const { error } = await db.from('fs_email_subscriptions').upsert({
       user_id: uid, email, verified: false, subscribed: true,
@@ -184,6 +249,37 @@ Deno.serve(async (req) => {
     return json({ ok: true })
   }
 
+  /* ---------- 管理员：队列状态 / 测试邮件 ---------- */
+  if (action === 'mail_queue_stats') {
+    if (!await isAdmin(uid)) return json({ ok: false, error: '需要管理员权限' }, 403)
+    const { data, error } = await db.from('fs_mail_queue').select('status').limit(5000)
+    if (error) return json({ ok: false, error: error.message }, 500)
+    const stat = { pending: 0, sent: 0, failed: 0 }
+    for (const r of data || []) {
+      const k = String(r.status) as keyof typeof stat
+      if (k in stat) stat[k]++
+    }
+    return json({ ok: true, ...stat })
+  }
+
+  if (action === 'mail_test') {
+    if (!await isAdmin(uid)) return json({ ok: false, error: '需要管理员权限' }, 403)
+    const to = String(body.email || '').trim().toLowerCase()
+    if (to.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      return json({ ok: false, error: '邮箱格式不正确' }, 400)
+    }
+    const mail = {
+      subject: '【FeSui】邮件通道测试',
+      text: '这是一封测试邮件。看到它，说明 GitHub Actions 发信链路已经打通。\n\n' + SITE_URL,
+      html: '<div style="font:15px/1.7 sans-serif"><h2>邮件通道测试 ✅</h2>' +
+            '<p>看到它，说明 GitHub Actions 发信链路已经打通。</p>' +
+            '<p><a href="' + SITE_URL + '">' + SITE_URL + '</a></p></div>',
+    }
+    const n = await enqueue(null, [to], mail)
+    return json({ ok: true, queued: n, provider: PROVIDER,
+                  note: '已加入队列；去 GitHub Actions 手动触发「发送公告邮件队列」即可立即发送' })
+  }
+
   /* ---------- 项目公告（管理员） ---------- */
   if (action === 'announce') {
     if (!await isAdmin(uid)) return json({ ok: false, error: '需要管理员权限' }, 403)
@@ -197,19 +293,29 @@ Deno.serve(async (req) => {
       .select('id, created_at').limit(1)
     if (error) return json({ ok: false, error: error.message }, 500)
     const id = data && data[0] ? data[0].id : null
+    const mail = buildMail(title, text)
 
-    let mailed = 0
+    let mailed = 0, queued = 0
     if (mailConfigured()) {
       const { data: subs } = await db.from('fs_email_subscriptions')
         .select('email').eq('subscribed', true)
       const emails = (subs || []).map(s => String(s.email)).filter(Boolean)
-      mailed = await sendBatch(emails, title, text)
-      await db.from('fs_announcements')
-        .update({ mailed_count: mailed, mailed_at: mailed ? new Date().toISOString() : null })
-        .eq('id', id)
+      if (PROVIDER === 'queue') {
+        queued = await enqueue(id, emails, mail)
+      } else if (PROVIDER === 'resend') {
+        mailed = await sendResend(emails, title, text)
+        await db.from('fs_announcements')
+          .update({ mailed_count: mailed, mailed_at: mailed ? new Date().toISOString() : null })
+          .eq('id', id)
+      }
     }
-    return json({ ok: true, id, mailed, configured: mailConfigured(),
-                  note: mailConfigured() ? null : '邮件通道未配置，本次仅站内发布' })
+    return json({
+      ok: true, id, mailed, queued, configured: mailConfigured(), provider: PROVIDER,
+      note: !mailConfigured() ? '邮件通道未配置，本次仅站内发布'
+            : PROVIDER === 'queue'
+              ? ('已加入邮件队列 ' + queued + ' 封，由 GitHub Actions 定时任务发送')
+              : null,
+    })
   }
 
   return json({ ok: false, error: '未知操作：' + action }, 400)
