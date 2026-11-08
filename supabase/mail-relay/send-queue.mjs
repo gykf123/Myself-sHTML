@@ -24,6 +24,7 @@
    失败累计 5 次后标记 failed，不再重试，避免无限重发。
    ============================================================ */
 import nodemailer from 'nodemailer';
+import { randomUUID } from 'node:crypto';
 
 // 允许自托管 / 本地联调时覆盖，但只放行 Supabase 官方域与本机地址，
 // 避免 service_role key 被意外发到第三方服务器。
@@ -136,11 +137,19 @@ async function main() {
   for (const row of list) {
     try {
       await transport.sendMail({
-        from: SMTP_FROM,
+        from: { name: 'FeSui 项目公告', address: SMTP_FROM },
         to: row.email,
         subject: row.subject,
         text: row.text_body,
         html: row.html_body,
+        // nodemailer 默认用本机 hostname 拼 Message-ID 的域名部分；在 GitHub
+        // Actions runner 上是随机主机名，容易被收件方当垃圾。改用自有域名。
+        messageId: '<' + randomUUID() + '@fesui.xn--0iv.gay>',
+        headers: {
+          // 批量邮件的标准退订头（Gmail 等要求），指向个人中心的订阅管理页。
+          // 部分邮箱会据此归入「订阅邮件」分类，比被静默丢弃好找。
+          'List-Unsubscribe': '<https://fesui.xn--0iv.gay/user/>',
+        },
       });
       await sb('rpc/fs_mail_mark_sent', {
         method: 'POST',

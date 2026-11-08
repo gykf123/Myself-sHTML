@@ -23,6 +23,11 @@ const PROVIDER = (Deno.env.get('FS_MAIL_PROVIDER') || 'queue').trim().toLowerCas
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') || ''
 const MAIL_FROM = Deno.env.get('FS_MAIL_FROM') || ''
 const SITE_URL = 'https://fesui.xn--0iv.gay'
+// 入队后主动唤醒 GitHub Actions 发信任务：本仓库实测 schedule 长期不触发
+// （详见 REMIND.md ⑮），只靠定时会让公告卡在 pending。需要最小权限 PAT。
+const GH_DISPATCH_TOKEN = Deno.env.get('GH_DISPATCH_TOKEN') || ''
+const GH_REPO = 'gykf123/Myself-sHTML'
+const GH_MAIL_WORKFLOW = Deno.env.get('GH_MAIL_WORKFLOW') || 'mail-queue.yml'
 const db = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const CORS = {
@@ -199,9 +204,45 @@ async function workerState(): Promise<{ ready: boolean; last_seen: string | null
   }
 }
 
+/* ---------- 入队后立即唤醒发信 worker ----------
+   GitHub 的 schedule 在本仓库实测 0 次触发，只靠定时会让公告长期卡在
+   pending（见 REMIND.md ⑮）。入队成功后主动 dispatch 一次 workflow_dispatch。
+   幂等由两层保证：workflow 的 concurrency group 串行执行 +
+   fs_mail_mark_sent 只更新 status='pending' 的行，重复运行不会重复发信。
+   唤醒失败不阻断公告：返回 detail 让管理员在响应里看得见，仍有定时兜底。 */
+type DispatchResult = { ok: boolean; detail: string }
+const NO_DISPATCH: DispatchResult = { ok: false, detail: '未入队，无需唤醒' }
+
+async function wakeMailWorker(): Promise<DispatchResult> {
+  if (!GH_DISPATCH_TOKEN) {
+    return { ok: false, detail: '未配置 GH_DISPATCH_TOKEN，等定时任务兜底' }
+  }
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${GH_REPO}/actions/workflows/${GH_MAIL_WORKFLOW}/dispatches`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + GH_DISPATCH_TOKEN,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'main' }),
+        signal: AbortSignal.timeout(8000),
+      })
+    if (r.status === 204) return { ok: true, detail: '已唤醒发信任务' }
+    const t = await r.text().catch(() => '')
+    return { ok: false, detail: `dispatch ${r.status}: ${t.slice(0, 160)}` }
+  } catch (e) {
+    return { ok: false, detail: 'dispatch 异常：' + String((e as Error)?.message || e).slice(0, 160) }
+  }
+}
+
 /* ---------- 通道 A：入队（默认） ---------- */
 async function enqueue(announcementId: number | null, emails: string[],
-                       mail: { subject: string; text: string; html: string }): Promise<number> {
+                       mail: { subject: string; text: string; html: string })
+  : Promise<{ queued: number; dispatch: DispatchResult }> {
   let n = 0
   for (let i = 0; i < emails.length; i += 100) {
     const rows = emails.slice(i, i + 100).map(email => ({
@@ -218,7 +259,9 @@ async function enqueue(announcementId: number | null, emails: string[],
     if (error) { console.error('enqueue failed', error.message); continue }
     n += (data || []).length
   }
-  return n
+  const dispatch = n > 0 ? await wakeMailWorker() : NO_DISPATCH
+  if (n > 0) console.log('mail worker wake:', dispatch.ok, dispatch.detail)
+  return { queued: n, dispatch }
 }
 
 /* ---------- 通道 B：Resend HTTP API（显式切换时才用） ---------- */
@@ -381,9 +424,11 @@ Deno.serve(async (req) => {
         ctaText: '去站点看看', ctaHref: SITE_URL + '/blog/',
       }),
     }
-    const n = await enqueue(null, [to], mail)
-    return json({ ok: true, queued: n, provider: PROVIDER,
-                  note: '已加入队列；去 GitHub Actions 手动触发「发送公告邮件队列」即可立即发送' })
+    const { queued, dispatch } = await enqueue(null, [to], mail)
+    return json({ ok: true, queued, provider: PROVIDER, dispatch,
+                  note: dispatch.ok
+                    ? '已加入队列并自动唤醒发信任务，稍后即可收到'
+                    : '已加入队列；自动唤醒失败，请在 GitHub Actions 手动触发发信任务' })
   }
 
   /* ---------- 项目公告（管理员） ---------- */
@@ -402,12 +447,15 @@ Deno.serve(async (req) => {
     const mail = buildMail(title, text)
 
     let mailed = 0, queued = 0
+    let dispatch: DispatchResult = NO_DISPATCH
     if (mailConfigured()) {
       const { data: subs } = await db.from('fs_email_subscriptions')
         .select('email').eq('subscribed', true)
       const emails = (subs || []).map(s => String(s.email)).filter(Boolean)
       if (PROVIDER === 'queue') {
-        queued = await enqueue(id, emails, mail)
+        const r = await enqueue(id, emails, mail)
+        queued = r.queued
+        dispatch = r.dispatch
       } else if (PROVIDER === 'resend') {
         mailed = await sendResend(emails, title, text)
         await db.from('fs_announcements')
@@ -416,10 +464,11 @@ Deno.serve(async (req) => {
       }
     }
     return json({
-      ok: true, id, mailed, queued, configured: mailConfigured(), provider: PROVIDER,
+      ok: true, id, mailed, queued, configured: mailConfigured(), provider: PROVIDER, dispatch,
       note: !mailConfigured() ? '邮件通道未配置，本次仅站内发布'
             : PROVIDER === 'queue'
-              ? ('已加入邮件队列 ' + queued + ' 封，由 GitHub Actions 定时任务发送')
+              ? ('已加入邮件队列 ' + queued + ' 封，' +
+                 (dispatch.ok ? '并已自动唤醒发信任务' : '自动唤醒失败，需手动触发发信任务'))
               : null,
     })
   }
