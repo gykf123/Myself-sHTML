@@ -9,7 +9,7 @@
   <link rel="icon" href="../favicon.png" />
   <link rel="stylesheet" href="../style.css?v=20261107b" />
   <link rel="stylesheet" href="../user/user.css?v=20261108" />
-  <link rel="stylesheet" href="./blog.css?v=20261108" />
+  <link rel="stylesheet" href="./blog.css?v=20261108a" />
   <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
   <script src="/net-guard.js?v=20261107"></script>
   <script src="/site-nav.js?v=20261107b"></script>
@@ -39,7 +39,11 @@
       <section class="user-card">
         <div class="blog-card-head">
           <h2>📢 项目公告</h2>
-          <a class="blog-head-link" href="../user/">绑定邮箱订阅 ↗</a>
+          <div class="blog-head-actions">
+            <span class="blog-count" id="annCount">…</span>
+            <button class="act-btn small ghost" id="annToggleAll" type="button" hidden>展开全部</button>
+            <a class="blog-head-link" href="../user/">绑定邮箱订阅 ↗</a>
+          </div>
         </div>
         <div id="annList" class="blog-ann-list"><div class="user-loading">加载中…</div></div>
       </section>
@@ -65,7 +69,7 @@
     </footer>
   </div>
 
-  <script src="./blog.js?v=20261108" defer></script>
+  <script src="./blog.js?v=20261108a" defer></script>
   <script src="/visit.js?v=20261107" defer></script>
 </body>
 </html>

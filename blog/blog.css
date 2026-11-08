@@ -24,21 +24,57 @@
 .blog-back:hover { text-decoration: underline; }
 .blog-empty { padding: 22px 10px; text-align: center; font-size: 13px; color: var(--text-dim); }
 
-/* ---------- 项目公告 ---------- */
+/* ---------- 项目公告（原生 details 折叠） ---------- */
 .blog-ann-list, .blog-post-list { display: flex; flex-direction: column; gap: 11px; }
+.blog-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* .act-btn 自带 display:flex，会盖掉 UA 的 [hidden]{display:none}，须显式补回来 */
+.blog-head-actions [hidden] { display: none; }
+.blog-head-actions .act-btn.small.ghost {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-dim); font-weight: 500;
+}
+.blog-head-actions .act-btn.small.ghost:hover { color: var(--accent); border-color: var(--accent); }
 .blog-ann {
-  padding: 13px 15px; border-radius: 11px;
+  padding: 11px 15px; border-radius: 11px;
   background: var(--surface-2); border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
 }
-.blog-ann-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.blog-ann-top b { font-size: 14.5px; color: var(--text); word-break: break-word; }
+.blog-ann > summary.blog-ann-top {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  cursor: pointer; list-style: none; padding: 0;
+}
+/* Chrome/Safari 与 Firefox 的原生三角各有一套选择器，两个都要去掉 */
+.blog-ann > summary.blog-ann-top::-webkit-details-marker { display: none; }
+.blog-ann > summary.blog-ann-top::marker { content: ''; }
+.blog-ann > summary.blog-ann-top:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px;
+}
+.blog-ann-top b {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 14.5px; font-weight: 700; color: var(--text); word-break: break-word;
+}
+.blog-ann > summary:hover b { color: var(--accent); }
 .blog-ann-top time, .blog-post-top time { flex: none; font-size: 11.5px; color: var(--text-dim); }
+/* 纯 CSS 箭头：折叠朝下、展开朝上，不依赖图标字体（emoji 在部分环境会变豆腐块） */
+.blog-ann-chev {
+  flex: none; align-self: center; width: 7px; height: 7px; margin-left: 2px;
+  border-right: 2px solid var(--text-dim); border-bottom: 2px solid var(--text-dim);
+  transform: rotate(45deg); transition: transform .2s ease;
+}
+.blog-ann[open] > summary .blog-ann-chev { transform: rotate(225deg); }
+/* 预览在 summary 内占满第二行；展开后整行隐藏，正文接棒 */
+.blog-ann-preview {
+  flex: 0 0 100%; min-width: 0;
+  margin-top: 7px; font-size: 12.5px; line-height: 1.6; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.blog-ann[open] .blog-ann-preview { display: none; }
 .blog-ann-body {
   margin-top: 8px; font-size: 13px; line-height: 1.8;
   color: var(--text); white-space: normal; word-break: break-word;
 }
 .blog-ann-foot { margin-top: 9px; font-size: 11.5px; color: var(--text-dim); }
+@media (prefers-reduced-motion: reduce) { .blog-ann-chev { transition: none; } }
 
 /* ---------- 文章列表 ---------- */
 .blog-post {

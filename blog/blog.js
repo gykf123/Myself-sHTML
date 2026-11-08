@@ -197,26 +197,68 @@ function renderError(box, msg) {
   if (box) box.innerHTML = '<div class="blog-empty">' + escapeHtml(msg) + '</div>';
 }
 
-/* ---------- 项目公告 ---------- */
+/* ---------- 项目公告 ----------
+   公告正文往往几百字，全量平铺会把文章列表挤到很下面。
+   改用原生 <details>/<summary>：最新一条默认展开，其余折叠并显示一行摘要预览；
+   原生标签自带键盘操作与读屏语义，比手写 JS 折叠稳妥。
+   折叠态预览只取第一行纯文本（先截取再转义，避免截断 HTML 实体）。 */
+function annPreview(raw) {
+  const first = String(raw == null ? '' : raw).split('\n')
+    .map(s => s.trim()).find(s => s.length > 0) || '';
+  return first.length > 58 ? first.slice(0, 58) + '…' : first;
+}
+
+/* 「展开全部 / 收起全部」：toggle 事件不冒泡，必须在容器上用捕获阶段监听 */
+function bindAnnToggleAll(box, btn) {
+  if (!btn) return;
+  const items = () => Array.prototype.slice.call(box.querySelectorAll('details.blog-ann'));
+  const sync = () => {
+    const all = items();
+    if (!all.length) return;
+    btn.textContent = all.filter(d => d.open).length === all.length ? '收起全部' : '展开全部';
+  };
+  btn.addEventListener('click', () => {
+    const all = items();
+    const shouldOpen = all.some(d => !d.open);
+    all.forEach(d => { d.open = shouldOpen; });
+    sync();
+  });
+  box.addEventListener('toggle', sync, true);
+  sync();
+}
+
 async function loadAnnouncements() {
   const box = $('#annList');
   if (!box) return;
   try {
     const list = await restGet('/fs_announcements' +
       '?select=id,title,body,created_at,mailed_count&order=created_at.desc&limit=10');
+    const countEl = $('#annCount');
+    if (countEl) countEl.textContent = list.length + ' 条';
+    const toggleAll = $('#annToggleAll');
+    if (toggleAll) toggleAll.hidden = list.length < 2;
     if (!list.length) {
       box.innerHTML = '<div class="blog-empty">暂时还没有公告，等管理员发第一条 📭</div>';
       return;
     }
-    box.innerHTML = list.map(a =>
-      '<article class="blog-ann">' +
-        '<div class="blog-ann-top"><b>' + escapeHtml(a.title) + '</b>' +
-          '<time>' + escapeHtml(fmtDateTime(a.created_at)) + '</time></div>' +
+    box.innerHTML = list.map((a, i) => {
+      // 预览必须放进 <summary>：Chrome 新版 details 折叠时对内容区用
+      // content-visibility:hidden，放在内容区里折叠时根本看不见。
+      const preview = annPreview(a.body);
+      return '<details class="blog-ann"' + (i === 0 ? ' open' : '') + '>' +
+        '<summary class="blog-ann-top">' +
+          '<b>' + escapeHtml(a.title) + '</b>' +
+          '<time>' + escapeHtml(fmtDateTime(a.created_at)) + '</time>' +
+          '<span class="blog-ann-chev" aria-hidden="true"></span>' +
+          (preview ? '<span class="blog-ann-preview">' + escapeHtml(preview) + '</span>' : '') +
+        '</summary>' +
         '<div class="blog-ann-body">' + escapeHtml(a.body).replace(/\n/g, '<br />') + '</div>' +
         '<div class="blog-ann-foot">' + (Number(a.mailed_count) > 0
           ? '📧 已同步邮件给 ' + Number(a.mailed_count) + ' 位订阅用户'
           : '📭 站内公告') + '</div>' +
-      '</article>').join('');
+      '</details>';
+    }).join('');
+    bindAnnToggleAll(box, toggleAll);
   } catch (e) { renderError(box, '公告暂时读不到，稍后再试'); }
 }
 

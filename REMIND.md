@@ -296,3 +296,17 @@
 - **验收**：线上 API 多邮箱回归全通过（增/删/退订/重订/幂等重复绑定/上限 5 拒第 6 个/非法格式/清理）；`account` 鉴权边界 6 项（匿名只放行 `github_login`，`profile`/`callback`/未知 action 全 401，带真 token 200）；签名等价性 1 项；本地浏览器端到端 **44/44**（登录页 authorize 参数与 state 前缀、回调页登录成功/state 拒绝不发请求/未关联/服务端错误/无 redirect 回主站/拒绝授权、关联模式两种 state 前缀、多邮箱列表 16 项含 XSS 转义、零 pageerror）。
 - **未做（需要用户本人操作）**：真实 GitHub 授权码没法在无用户交互下产生，所以 `code → token → /user → 查库 → 签票` 的**真实授权那一跳**只能由用户点一次「通过 GitHub 登录」验收；服务端假 code 已证明确实走到 GitHub 并返回了 GitHub 的错误（`The code passed is incorrect or expired.`），其余环节各自有独立验证。
 - **部署**：`fs-notify` 与 `account` 均已 `deno check` 通过并 `--no-verify-jwt --use-api` 部署上线（`--project-ref` 已弃用，统一用 `--remote=<ref>`）。
+
+## 2026-11-08 ⑭ 项目公告改成可折叠（用户：「项目公告不折叠吗」）
+
+- 现状：`blog/blog.js` 的 `loadAnnouncements()` 把 10 条公告**全文平铺**，正文动辄几百字，文章列表被挤到很下面。
+- 方案：用原生 `<details>/<summary>`（自带键盘与读屏语义，比手写 JS 折叠稳），**最新一条默认 `open`**，其余折叠并显示一行摘要预览；卡片头加「N 条」计数 +「展开全部 / 收起全部」按钮（少于 2 条自动隐藏）。`toggle` 事件**不冒泡**，同步按钮文案必须在容器上用**捕获阶段**监听 `addEventListener('toggle', sync, true)`。
+- **两个真坑（本轮新踩）**：
+  1. Chrome 新版 `<details>` 折叠时对内容区用 `content-visibility: hidden`，子元素**仍有布局盒**（`offsetHeight` > 0、`getClientRects().length` = 1）但**不渲染**（`checkVisibility()` = false）。所以摘要预览**必须放进 `<summary>` 内**（用 `flex-wrap: wrap` + `flex: 0 0 100%` 换到第二行，展开时 `display:none`），放内容区里折叠时根本看不见。验收断言也不能再用 `offsetHeight === 0` 判断「不可见」，要用 `checkVisibility()`。
+  2. `.act-btn` 自带 `display:flex`，会**盖掉 UA 的 `[hidden]{display:none}`**，导致 `toggleAll.hidden = true` 不生效；须显式补 `.blog-head-actions [hidden] { display: none; }`。同理以后给任何带 display 的组件加 hidden 都要检查。
+- 另外：`style.css` 全局 reduced-motion 规则是 `transition-duration: 0.01ms !important`（不是 0s），计算值为 `1e-05s`，断言别写死 `'0s'`，用 `parseFloat(...) < 0.01`。
+- 样式：纯 CSS 箭头（border 方块 rotate(45deg)/rotate(225deg)），不用 emoji/图标字体；Chrome `::-webkit-details-marker` 与 Firefox `::marker` 两个选择器都要隐藏原生三角；`summary:focus-visible` 保留焦点环。
+- 版本号：`blog.js?v=20261108a`、`blog.css?v=20261108a`（今日二次改），只改 `blog/index.html` 两处引用。`style.css` / `user.css` 未改故不动。
+- 验收：本地浏览器 **32/32**（默认展开态、折叠预览可见、正文不可见、全部开关双向、手动开关同步、单条/零条边界、XSS 转义、reduced-motion、零 pageerror）+ 真实公告数据截图（3 条，含用户自己的 `V1.1测试`）+ 390px 移动端无横向溢出、零 pageerror。
+- **本轮没发公告**：这是 UI 小迭代，且 ⑬ 刚发过 id=9（已入队 1 封邮件），连发会打扰订阅用户；§0 铁律针对的是「大改动」。留言板仍按惯例汇报。
+- 观察（未改）：沙箱 Chromium 缺 emoji 字体，截图里 `📢`/`📭`/`📰` 显示成豆腐块；全站都用 emoji，单独改公告区会破坏一致性，暂不动，等用户明确说再统一换纯 CSS 图标。
