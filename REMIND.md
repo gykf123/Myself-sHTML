@@ -308,5 +308,8 @@
 - 样式：纯 CSS 箭头（border 方块 rotate(45deg)/rotate(225deg)），不用 emoji/图标字体；Chrome `::-webkit-details-marker` 与 Firefox `::marker` 两个选择器都要隐藏原生三角；`summary:focus-visible` 保留焦点环。
 - 版本号：`blog.js?v=20261108a`、`blog.css?v=20261108a`（今日二次改），只改 `blog/index.html` 两处引用。`style.css` / `user.css` 未改故不动。
 - 验收：本地浏览器 **32/32**（默认展开态、折叠预览可见、正文不可见、全部开关双向、手动开关同步、单条/零条边界、XSS 转义、reduced-motion、零 pageerror）+ 真实公告数据截图（3 条，含用户自己的 `V1.1测试`）+ 390px 移动端无横向溢出、零 pageerror。
+- **线上核验（等 Pages built 后补做）**：提交时 `pages/builds/latest` 还是 `building`，线上 HTML 仍返回旧 `?v=20261108`，**不能只看到 `git status` 干净就当已上线**。等 `built` 后重查：`commit=6dbcebf` / `34.6s` / `error=null`；线上 `blog/index.html` 已是 `blog.js?v=20261108a` + `blog.css?v=20261108a`，两资源 200 且含折叠代码；用**线上真实 3 条公告**再跑浏览器验收 **31/31 PASS**（版本号、资源真实加载、默认展开态、预览可见 / 正文不可见、全部开关、单条与键盘 Enter、折叠 287px vs 展开 1031px、移动端 0px 溢出、零 JS 错误、零 4xx/5xx）。脚本 `/tmp/verify_live_ann.py`（临时），截图 `verify/blog_fold_live_*.png`。
+  - **新坑**：Playwright `full_page=True` 拼接截图底部会冒出一块浅色遮罩盖住文章卡片，用 `full_page=False` 视口截图 + 滚到底再截复查均正常——是**拼接伪影**（`content-visibility` / `backdrop-filter` 类效果在全页拼接时重复渲染），别误判成线上样式 bug。以后看截图发现局部色块，先用视口截图复核再下结论。
+  - 验收时只 route 掉 `visit.js` 避免污染真实访问统计，其余全走线上真实链路；本地 mock 脚本不能替代线上核验。
 - **本轮没发公告**：这是 UI 小迭代，且 ⑬ 刚发过 id=9（已入队 1 封邮件），连发会打扰订阅用户；§0 铁律针对的是「大改动」。留言板仍按惯例汇报。
 - 观察（未改）：沙箱 Chromium 缺 emoji 字体，截图里 `📢`/`📭`/`📰` 显示成豆腐块；全站都用 emoji，单独改公告区会破坏一致性，暂不动，等用户明确说再统一换纯 CSS 图标。

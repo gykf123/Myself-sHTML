@@ -14,6 +14,9 @@ preview-*.png
 *.preview.png
 *.log
 
+# 浏览器验收截图（仅沙箱留存供查看，不进仓库）
+verify/
+
 # Supabase CLI 本地链接状态（含项目 ref / 组织信息，仅本机有效）
 supabase/.temp/
 
