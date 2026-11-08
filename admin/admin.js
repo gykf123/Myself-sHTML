@@ -129,6 +129,35 @@ function renderShell(s) {
       '<div class="ad-who">👤 当前操作员：<b>' + escapeHtml(s.name) + '</b></div>' +
     '</section>' +
 
+    /* 给 AI 的指令：后台下发 → 每 12 小时定时取件执行 → 回执写回这里 */
+    '<section class="user-card ad-agent-card">' +
+      '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">🤖</span>给 AI 的指令</h2>' +
+        '<div class="ad-head-actions">' +
+          '<span class="ad-agent-badge" id="adAgentNext">下次检查 …</span>' +
+          '<button class="act-btn small" id="adAgentRefresh" type="button">刷新</button>' +
+        '</div></div>' +
+      '<p class="ad-note">写下你想让我做的事，我会 <b>每 12 小时自动来取一次</b> 并完成；执行进度和结果都写回下面，完成后另发项目公告 + 留言板汇报。指令是纯文本，<b>不要写密码 / 密钥</b>。</p>' +
+      '<div class="ad-agent-state" id="adAgentState">正在检查执行器状态…</div>' +
+      '<form class="ad-form" id="adAgentForm" autocomplete="off">' +
+        '<div class="ad-field full">' +
+          '<label class="ad-label" for="adAgentBody">指令内容（1–4000 字）</label>' +
+          '<textarea class="ad-input ad-textarea ad-agent-input" id="adAgentBody" rows="3" maxlength="4000" required placeholder="例如：把首页标语改成…… / 检查线上博客页并汇报"></textarea>' +
+        '</div>' +
+        '<div class="ad-field">' +
+          '<label class="ad-label" for="adAgentPriority">优先级</label>' +
+          '<select class="ad-input" id="adAgentPriority">' +
+            '<option value="normal">普通</option>' +
+            '<option value="high">紧急（优先取件）</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="ad-form-actions">' +
+          '<button class="act-btn primary" id="adAgentSubmit" type="submit">提交指令</button>' +
+          '<span class="ad-hint" id="adAgentHint"></span>' +
+        '</div>' +
+      '</form>' +
+      '<div class="ad-list ad-agent-list" id="adAgentBox"><div class="user-loading">加载中…</div></div>' +
+    '</section>' +
+
     '<section class="user-card">' +
       '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">📈</span>站点访问概览</h2>' +
         '<button class="act-btn small" id="adRefresh" type="button">刷新</button></div>' +
@@ -425,6 +454,140 @@ async function contentCall(fn, action, extra, s) {
   return { status: res.status, data: data || {} };
 }
 
+/* ---------- 给 AI 的指令（fs-agent 函数） ----------------------------------
+   后台只负责下发 / 查看 / 撤回；真正的「取件执行」由项目自动化任务
+   每 12 小时跑一次，用独立低权限密钥调用同一函数。
+   ------------------------------------------------------------------------ */
+const AGENT_STATUS = {
+  pending:   ['待处理', 'wait'],
+  claimed:   ['执行中', 'site'],
+  done:      ['已完成', 'pub'],
+  failed:    ['失败',   'on'],
+  cancelled: ['已撤回', 'off'],
+};
+
+function agentCall(action, extra, s) {
+  return contentCall('fs-agent', action, extra, s);
+}
+
+function agentStatusTag(status) {
+  const m = AGENT_STATUS[status] || AGENT_STATUS.pending;
+  return '<span class="ad-pill ' + m[1] + '">' + m[0] + '</span>';
+}
+
+function renderAgentStats(d) {
+  const box = $('#adAgentState');
+  const next = $('#adAgentNext');
+  if (!box) return;
+  const c = (d && d.counts) || {};
+  const w = d && d.worker;
+  const healthy = !!(w && w.last_seen && !w.last_error);
+  box.className = 'ad-agent-state ' + (healthy ? 'ok' : 'wait');
+  box.innerHTML =
+    '待处理 <b>' + Number(c.pending || 0) + '</b> · 执行中 <b>' + Number(c.claimed || 0) +
+    '</b> · 已完成 <b>' + Number(c.done || 0) + '</b> · 失败 <b>' + Number(c.failed || 0) + '</b>' +
+    '<br />执行器：' + (w && w.last_seen
+      ? ('上次检查 ' + escapeHtml(fmtDateTime(w.last_seen)) + ' · 累计运行 ' + Number(w.runs || 0) + ' 次' +
+         (w.last_error ? ' · 上次异常：' + escapeHtml(w.last_error) : ' · 状态正常'))
+      : '尚未运行过，等首次自动检查') +
+    '<br />周期：每 12 小时' + (d && d.next_at ? ' · 预计下次 ' + escapeHtml(fmtDateTime(d.next_at)) : '');
+  if (next) next.textContent = d && d.next_at
+    ? '下次 ' + fmtDateTime(d.next_at) : '待首次检查';
+}
+
+function renderAgentTasks(list) {
+  const box = $('#adAgentBox');
+  if (!box) return;
+  if (!list || !list.length) {
+    box.innerHTML = '<div class="ad-empty">还没有指令。在上面写下要我做的事，我每 12 小时会来取一次。</div>';
+    return;
+  }
+  box.innerHTML = list.map(t => {
+    const when = t.finished_at || t.claimed_at || t.created_at;
+    const result = t.result ? escapeHtml(t.result) : '';
+    const err = t.last_error ? escapeHtml(t.last_error) : '';
+    return '<div class="ad-item ad-agent-item st-' + escapeHtml(t.status) + '">' +
+      '<div class="ad-item-top">' +
+        '<b>' + agentStatusTag(t.status) +
+          (t.priority === 'high' ? ' <span class="ad-pill on">紧急</span>' : '') +
+          ' <span class="ad-agent-id">#' + Number(t.id) + '</span></b>' +
+        '<time>' + escapeHtml(fmtDateTime(when)) + '</time>' +
+      '</div>' +
+      '<div class="ad-item-body">' + escapeHtml(t.body) + '</div>' +
+      (result ? '<div class="ad-agent-result"><b>执行回执</b>' + result + '</div>' : '') +
+      (err ? '<div class="ad-agent-error"><b>失败原因</b>' + err + '</div>' : '') +
+      '<div class="ad-item-foot">' +
+        '提交人 ' + escapeHtml(t.created_by_name || '管理员') +
+        ' · 取件 ' + Number(t.attempts || 0) + ' 次' +
+        (t.finished_at ? ' · 完成于 ' + escapeHtml(fmtDateTime(t.finished_at)) : '') +
+        (t.status === 'claimed' ? ' · 正在执行，请稍候' : '') +
+      '</div>' +
+      (t.status === 'pending'
+        ? '<div class="ad-item-actions"><button class="act-btn small ghost ad-agent-cancel" data-id="' +
+          Number(t.id) + '" type="button">撤回指令</button></div>'
+        : '') +
+    '</div>';
+  }).join('');
+}
+
+async function loadAgent(s) {
+  const [st, li] = await Promise.all([
+    agentCall('stats', {}, s),
+    agentCall('list', {}, s),
+  ]);
+  if (st.status === 200 && st.data && st.data.ok) renderAgentStats(st.data);
+  else {
+    const box = $('#adAgentState');
+    if (box) {
+      box.className = 'ad-agent-state wait';
+      box.textContent = '状态读取失败：' + ((st.data && st.data.error) || ('HTTP ' + st.status));
+    }
+  }
+  const box = $('#adAgentBox');
+  if (!box) return;
+  if (li.status !== 200 || !li.data || !li.data.ok) {
+    box.innerHTML = '<div class="ad-err">' +
+      escapeHtml((li.data && li.data.error) || ('HTTP ' + li.status)) + '</div>';
+    return;
+  }
+  renderAgentTasks(li.data.list);
+}
+
+async function submitAgentTask(e, s) {
+  e.preventDefault();
+  const ta = $('#adAgentBody'), pri = $('#adAgentPriority');
+  const hint = $('#adAgentHint'), btn = $('#adAgentSubmit');
+  const body = ta ? String(ta.value || '').trim() : '';
+  if (!body) { if (hint) hint.textContent = '指令内容不能为空'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = '提交中…'; }
+  if (hint) hint.textContent = '';
+  try {
+    const r = await agentCall('create', { body, priority: pri ? pri.value : 'normal' }, s);
+    if (r.status === 200 && r.data && r.data.ok) {
+      if (ta) ta.value = '';
+      if (hint) hint.textContent = '已提交，等我来取件。';
+      showToast('指令已提交，会自动执行并写回结果');
+      await loadAgent(s);
+    } else if (hint) {
+      hint.textContent = (r.data && (r.data.error || r.data.msg)) || ('提交失败 HTTP ' + r.status);
+    }
+  } catch (err) {
+    if (hint) hint.textContent = '网络异常：' + (err && err.message ? err.message : '未知错误');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '提交指令'; }
+  }
+}
+
+async function cancelAgentTask(id, s) {
+  if (!confirm('确定撤回这条指令吗？撤回后我不会再执行它。')) return;
+  try {
+    const r = await agentCall('cancel', { id }, s);
+    showToast(r.status === 200 && r.data && r.data.ok
+      ? '指令已撤回' : ((r.data && r.data.error) || '撤回失败'));
+  } catch (err) { showToast('网络异常，撤回失败'); }
+  await loadAgent(s);
+}
+
 let mailConfigured = false;
 let mailProvider = '';
 let mailReady = false;
@@ -678,6 +841,16 @@ function resetPostForm() {
 }
 
 function bindContentEvents(s) {
+  const agentForm = $('#adAgentForm');
+  if (agentForm) agentForm.addEventListener('submit', e => submitAgentTask(e, s));
+  const agentRefresh = $('#adAgentRefresh');
+  if (agentRefresh) agentRefresh.addEventListener('click', () => loadAgent(s));
+  const agentBox = $('#adAgentBox');
+  if (agentBox) agentBox.addEventListener('click', e => {
+    const t = e.target;
+    const btn = t && t.closest ? t.closest('.ad-agent-cancel') : null;
+    if (btn) cancelAgentTask(Number(btn.dataset.id), s);
+  });
   const annForm = $('#adAnnForm');
   if (annForm) annForm.addEventListener('submit', e => submitAnnouncement(e, s));
   const annRefresh = $('#adAnnRefresh');
@@ -731,7 +904,7 @@ async function boot() {
   $('#adRefresh').addEventListener('click', async () => {
     const btn = $('#adRefresh');
     btn.disabled = true; btn.textContent = '加载中…';
-    await Promise.all([loadBans(s, false), loadStats(s), loadAnnouncements(), loadPosts(s), loadQueueStats(s)]);
+    await Promise.all([loadBans(s, false), loadStats(s), loadAnnouncements(), loadPosts(s), loadQueueStats(s), loadAgent(s)]);
     btn.disabled = false; btn.textContent = '刷新';
   });
   $('#adBanBox').addEventListener('click', e => {
@@ -746,6 +919,7 @@ async function boot() {
   loadQueueStats(s);
   loadAnnouncements();
   loadPosts(s);
+  loadAgent(s);
 }
 
 boot();

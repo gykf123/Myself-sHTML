@@ -116,3 +116,45 @@
 @media (prefers-reduced-motion: reduce) {
   .ad-spark-col { transition: none; }
 }
+
+/* ---------- 给 AI 的指令（后台下发 / 定时取件执行 / 回执可见） ---------- */
+.ad-agent-state {
+  margin: 0 0 12px; padding: 10px 13px; border-radius: 10px;
+  font-size: 12.5px; line-height: 1.7;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-dim);
+}
+.ad-agent-state b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ad-agent-state.ok { color: #7bd88f; border-color: rgba(80, 190, 110, .35); background: rgba(80, 190, 110, .10); }
+.ad-agent-state.wait { color: #e7c26b; border-color: rgba(220, 170, 60, .32); background: rgba(220, 170, 60, .10); }
+.ad-agent-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+  border-radius: 20px; font-size: 11px; color: var(--accent);
+  background: var(--accent-soft); border: 1px solid var(--border); white-space: nowrap;
+}
+.ad-agent-input { min-height: 84px; }
+.ad-agent-list { max-height: 520px; }
+.ad-agent-item { border-left: 3px solid var(--border); }
+.ad-agent-item.st-pending { border-left-color: #d8a23c; }
+.ad-agent-item.st-claimed { border-left-color: #6ea8fe; }
+.ad-agent-item.st-done { border-left-color: #4ebe72; }
+.ad-agent-item.st-failed { border-left-color: #e05a5a; }
+.ad-agent-item.st-cancelled { border-left-color: var(--text-dim); opacity: .82; }
+.ad-agent-item .ad-item-body { max-height: 160px; }
+.ad-agent-result, .ad-agent-error {
+  margin-top: 9px; padding: 9px 11px; border-radius: 8px; font-size: 12px;
+  line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim);
+}
+.ad-agent-result { color: #7bd88f; border-color: rgba(80, 190, 110, .3); background: rgba(80, 190, 110, .08); }
+.ad-agent-error { color: #ff9b9b; border-color: rgba(178, 38, 38, .3); background: rgba(178, 38, 38, .10); }
+.ad-agent-result b, .ad-agent-error b { display: block; margin-bottom: 4px; color: var(--text); }
+.ad-agent-item .ad-item-top { align-items: flex-start; }
+.ad-agent-item .ad-item-top b { font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ad-agent-id { font-size: 11px; color: var(--text-dim); font-weight: 500;
+  font-family: ui-monospace, Menlo, Consolas, monospace; }
+.ad-pill.wait { color: #e7c26b; background: rgba(220, 170, 60, .12);
+  border: 1px solid rgba(220, 170, 60, .32); }
+@media (max-width: 720px) {
+  .ad-agent-list { max-height: 420px; }
+  .ad-agent-item .ad-item-top { flex-direction: column; gap: 6px; }
+}
