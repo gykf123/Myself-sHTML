@@ -411,7 +411,12 @@
   - 分支并发更新（409/422）自动重取 base 重试最多 3 次；只有打印 `OK commit=<sha>` 才算上线，ref 更新失败会明确说「commit 对象已建但未挂到分支，切勿声称已上线」。
   - 硬拒绝改动 `.keepalive-state` / `CNAME`（执行器安全边界在脚本层兜底）。
   - **⚠️ 自己挖的坑（dry-run 抓到）**：路径规范化最初写了 `.lstrip('./')`，会把 `.keepalive-state` 剥成 `keepalive-state`，黑名单形同虚设；改成只在 `startswith('./')` 时循环去前缀，并禁止以 `/` 开头的仓库内路径，才 exit=1 正确拒绝。**以后凡是「规范化路径」都别用 `lstrip` 传字符集，那是按字符剥不是按前缀剥。**
-- **脚本自身是用脚本上线的**：本地写好 `scripts/gh-rest-commit.py` 后，直接用 `GH_AGENT_PAT=… python3 scripts/gh-rest-commit.py --message … --file scripts/gh-rest-commit.py …` 纯 REST 提交，全程没碰 git 客户端。这既验证了通道，也避免了「工具本身还得靠被验证的通道推」的循环论证。
+- **脚本自身是用脚本上线的**：本地写好 `scripts/gh-rest-commit.py` 后，直接用 `GH_AGENT_PAT=… python3 scripts/gh-rest-commit.py --message … --file …` 纯 REST 提交，全程没碰 git 客户端。这既验证了通道，也避免了「工具本身还得靠被验证的通道推」的循环论证。
+- **上线前真实调用又抓到两个坑**（不是读代码看出来的，都是 REST 跑出来的）：
+  1) 权限预检 `gh.call('GET', '')` 拼出 `…/repos/{repo}/`（多余末尾斜杠）→ 404；改成 `path` 为空时不补斜杠。
+  2) **GitHub REST 的 ref 路径单复数不一致**：读 ref 是 `GET /git/ref/heads/main`（单数），更新 ref 是 `PATCH /git/refs/heads/main`（**复数**）。用同一个路径 → PATCH 404。幂等 PATCH 对比实测：复数 200、单数 404。失败时脚本如实打印「commit 对象已创建但未挂到分支，切勿声称已上线」，没有谎报成功；那次留下一个悬挂 commit 对象 `b64c2598…`（未挂分支，GitHub 会自动 GC，无需处理）。
+- **最终线上结果**：`f1075ad2`（3 文件原子提交：`scripts/gh-rest-commit.py` + `REMIND.md` + 探针）、`3acdfc16`（删除探针）。两枚 commit 全走纯 REST；本地工作区随后用 SSH over 443 `git fetch origin main` + `merge --ff-only` 对齐，**先 `git show origin/main:<path> | cmp -` 逐字节确认本地与远端一致**才 stash 并快进（stash 保留作备份，未 drop）。
+- **线上核验 7/7**：两次 commit 的文件清单、裸 `raw.githubusercontent.com` URL 拿到的是**修好的最新版**（8434 bytes，含 `ref_patch_path` / `PROTECTED` / `while path.startswith`）、raw `REMIND.md` 含 ⑲、探针文件 404、`main` 最新为 `3acdfc16`、Pages `built` @ `3acdfc16` 且 `error.message=null`；再按 automation prompt 的姿势「`curl` 裸 raw 下载 → `python3 … --dry-run`」实测成功。所以 prompt 里那条 raw 缓存降级到 `api.github.com/.../contents/...` 的路径是备用、不是必须。
 - **automation `15293863` 已二次更新**（`automation_update`）：description 与 prompt 里「GitHub 推送（专用 PAT）」改成「GitHub 写入（纯 REST）」；【写入怎么做】① 换成 `curl` 从 `raw.githubusercontent.com` 取脚本 + `GH_AGENT_PAT=… python3 … --file …`，并写清 raw 缓存时降级走 `api.github.com/.../contents/...`；明确**禁用 `git push` / `git fetch over HTTPS`**、「上线以 `OK commit=<sha>` 为准，本地 git commit 只算留痕」；保留三枚密钥、代写通道规则、安全边界、心跳 / 取件 / 回执流程不变。任务仍 ACTIVE、每 12 小时、`next_run_at=2026-11-15T00:00:00+08:00`。
 - **轮换清单不变**：`FS_AGENT_TOKEN` / `FS_AGENT_WRITE_TOKEN` / `GH_AGENT_PAT`（本地 600 权限 env + Supabase secrets + automation prompt）。**`GH_AGENT_PAT` 仍是账户级 classic PAT，权限过宽（含 `admin:enterprise` / `admin:org` / `admin:public_key` / `delete:packages` / `workflow`），建议尽快换成只授权该仓库 + Contents 写的 fine-grained PAT 并轮换现有值**——换的时候记得同步 `/root/.supabase/agent-gh.env` 与 automation prompt。
 - 本轮只改脚本、后台自动化配置与文档，访客无感，按 11-09 规矩**没发公告**，只留言板汇报。
