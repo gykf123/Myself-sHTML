@@ -11,6 +11,8 @@
 .sts-updated { margin-right: auto; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .sts-updated.is-stale { color: var(--warn, #d29922); }
 #stsRefresh:disabled { opacity: .55; cursor: not-allowed; }
+/* <a> 套用 .act-btn 时去掉下划线（与 stats/ 的 st-status-link 同理） */
+a.sts-official-link, a.sts-official-link:hover { text-decoration: none; }
 
 /* ---------- 总览 ---------- */
 .sts-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }

@@ -9,7 +9,7 @@
   <link rel="icon" href="../favicon.png" />
   <link rel="stylesheet" href="../style.css?v=20261107b" />
   <link rel="stylesheet" href="../user/user.css?v=20261108" />
-  <link rel="stylesheet" href="./status.css?v=20261114" />
+  <link rel="stylesheet" href="./status.css?v=20261114b" />
   <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
   <script src="/net-guard.js?v=20261107"></script>
   <script src="/site-nav.js?v=20261114"></script>
@@ -35,6 +35,7 @@
         <div class="sts-controls">
           <span class="sts-updated" id="stsUpdated" aria-live="polite">尚未加载</span>
           <button class="act-btn small" id="stsRefresh" type="button">刷新</button>
+          <a class="act-btn small sts-official-link" href="https://stats.uptimerobot.com/mrq4z0O76E" target="_blank" rel="noopener noreferrer" title="UptimeRobot 官方公共状态页（新标签打开）">官方状态页 ↗</a>
         </div>
       </section>
 
@@ -55,6 +56,7 @@
           <li><b>可用率</b>为监控服务统计的历史成功比例；刚创建的监控样本很少，数值波动属正常。</li>
           <li><b>响应时间</b>是探测点到目标的网络往返，不等于实际页面加载速度。</li>
           <li>状态页本身只读，不写入任何数据；接口异常时会明确提示「暂不可用」，不会假装一切正常。</li>
+          <li>想核对监控服务方的原始记录，可以点上方「官方状态页 ↗」。</li>
         </ul>
       </section>
     </main>

@@ -444,3 +444,4 @@
 - **验收**：本地 Playwright **21/21**（3 卡 / 4 总览 / 状态徽标 / 405 原因 / 5 分钟 / 迷你柱图 / 零 console 错误 / 刷新 / stats 链接 / 全站导航 / 首页卡 / 390px 无横向溢出 / 降级不假状态 / XSS 转义 / `javascript:` 拒绝）；线上函数 200 + `X-Cache MISS→HIT` + 反代 `api.fkd.xn--0iv.gay` 200 + 敏感字段泄露检查 8/8 clean；`node --check` / `deno check` 通过。
 - **凭据与轮换清单**：三把只读 key 在 `/root/.supabase/uptimerobot.env`（600）与 Supabase Secrets `UR_MAIN_KEY` / `UR_FKD_KEY` / `UR_QQBOT_KEY`；**绝不进仓库、不进前端、不进公告 / 回执 / 截图**。轮换要两处同步；单独删某把 Secret 只会让该项显示「状态未知」，不影响其他两项。原 zip 之外的 key 一律别贴进 `fs-status` 源码。
 - 本轮是访客可感知的新页面 + 导航入口，按 §0 **发项目公告**并留言板汇报。
+- **同日追加（用户补给官方入口）**：`https://stats.uptimerobot.com/mrq4z0O76E`（实测 HTTP 200）已作为「官方状态页 ↗」外链加进状态页控制条，`target=_blank rel=noopener noreferrer`，并在「关于这些数字」里说明用途；`<a>` 套 `.act-btn` 要显式去掉下划线（与 `stats/` 的 `st-status-link` 同理）。`status.css` 同日第二次改，版本号按规矩从 `?v=20261114` 换成 `?v=20261114b`。本地验收补两条外链断言后 **23/23**。
