@@ -391,3 +391,27 @@
 - **automation `15293863` prompt 已更新**：把上一轮那份「缺写权限」的说明换成「已补齐」；加【写入怎么做】（`git fetch origin && git pull --rebase origin main` → `git push https://gykf123:<PAT>@github.com/... HEAD:main`，推不动如实 fail 并写本地 commit 号；以及代写 curl 示例与白名单规则）；明确**仍无权限**的是部署 Edge Function / DDL / 删数据（需 Management API PAT，未下发），遇到如实 fail。三枚密钥都写了「不复述、不写文件、不提交 git」。任务仍 ACTIVE、每 12 小时、`next_run_at=2026-11-15T00:00:00+08:00`。
 - **轮换清单（更新 ⑰ 那张表）**：现在共三枚——`FS_AGENT_TOKEN`（本地 env + Supabase secret + automation prompt）、`FS_AGENT_WRITE_TOKEN`（本地 env + Supabase secret + automation prompt）、`GH_AGENT_PAT`（本地 env + automation prompt）。撤销代写能力只需删/改 `FS_AGENT_WRITE_TOKEN` secret，不影响取件回执。
 - 本轮只改后端函数与文档，属纯后台事务，按用户 11-09 定的规矩**没发公告**，只留言板汇报。
+
+## 2026-11-14 ⑲ 收尾：git smart HTTP 被挂起，GitHub 写入改走纯 REST
+
+- **⑱ 留下的假闭环**：上一轮在 automation prompt 里写了「GitHub 推送已补齐」，给的是 `git push https://gykf123:<PAT>@github.com/...`。但本沙箱实测 `git ls-remote` 与 `http.extraHeader` 两种写法都 `exit=124`（超时），推不动。这轮把它彻底查清并换掉。
+- **诊断结论：不是断网，是 git 协议端点被针对性挂起**（修正 §2.1 的历史画像）。
+  | 探测 | 结果 |
+  |---|---|
+  | `https://github.com/gykf123/Myself-sHTML`（网页） | HTTP 200，1.7s |
+  | `https://api.github.com/repos/...`（REST） | HTTP 200，0.56–0.67s，**稳定** |
+  | `github.com/.../info/refs?service=git-upload-pack`（curl，首次） | HTTP 200，0.54s |
+  | 同一 smart HTTP 端点（连续重试 / 带 `Git-Protocol: version=2` / 带 `version=0` / `git -c protocol.version=0 ls-remote`） | **全部挂起，收不到响应** |
+  | `GIT_CURL_VERBOSE` | 卡在「Send header: GET …/info/refs?service=git-upload-pack」之后，没有任何 `Recv header` |
+  - 即：`/etc/hosts` 里各域名真实 IP 都在、TLS 握手正常、REST 一直快，只有 git 的 smart HTTP 交互被挂。`git push` 这种走 `git-receive-pack` 的路径更不可能通。**别再试 `-c protocol.version=0` 或换 Basic 头写法，都是死路。**
+  - 沙箱本地推送仍可用 §2 的 SSH over 443（ unchanged）；但**云端 automation 执行器没有 SSH 凭据，也不一定有仓库 clone**，所以它的上线通道必须是 REST。
+- **替代方案：纯 REST 写入，端到端已验证 8/8**（`PUT/GET/DELETE /repos/{o}/{r}/contents/{path}`）：GET 仓库权限 `push=True` → 创建文件 201 → 回读内容一致 → 带 `sha` 更新 200 → 带 `sha` 删除 200 → 复查 404 → `/commits` 里三条真实 commit 都在。探针文件已清理，仓库无残留文件（历史里留了 3 条 `chore: …探针` commit，可接受）。
+- **新增 `scripts/gh-rest-commit.py`**（公开脚本，零密钥）：用 Git Data API（ref → base commit → base tree → blobs → tree → commit → `PATCH ref`）做**多文件一次原子提交**，不依赖 git 协议、不依赖本地 clone。
+  - 凭据只从环境变量 `GH_AGENT_PAT` 读，绝不写入文件 / 命令行参数 / 日志 / 报错；`--file` 可多次、`LOCAL:REMOTE` 映射路径、`--delete` 删文件、`--dry-run` 只预览、`--repo/--branch` 可覆盖、`--message` 必填。
+  - 分支并发更新（409/422）自动重取 base 重试最多 3 次；只有打印 `OK commit=<sha>` 才算上线，ref 更新失败会明确说「commit 对象已建但未挂到分支，切勿声称已上线」。
+  - 硬拒绝改动 `.keepalive-state` / `CNAME`（执行器安全边界在脚本层兜底）。
+  - **⚠️ 自己挖的坑（dry-run 抓到）**：路径规范化最初写了 `.lstrip('./')`，会把 `.keepalive-state` 剥成 `keepalive-state`，黑名单形同虚设；改成只在 `startswith('./')` 时循环去前缀，并禁止以 `/` 开头的仓库内路径，才 exit=1 正确拒绝。**以后凡是「规范化路径」都别用 `lstrip` 传字符集，那是按字符剥不是按前缀剥。**
+- **脚本自身是用脚本上线的**：本地写好 `scripts/gh-rest-commit.py` 后，直接用 `GH_AGENT_PAT=… python3 scripts/gh-rest-commit.py --message … --file scripts/gh-rest-commit.py …` 纯 REST 提交，全程没碰 git 客户端。这既验证了通道，也避免了「工具本身还得靠被验证的通道推」的循环论证。
+- **automation `15293863` 已二次更新**（`automation_update`）：description 与 prompt 里「GitHub 推送（专用 PAT）」改成「GitHub 写入（纯 REST）」；【写入怎么做】① 换成 `curl` 从 `raw.githubusercontent.com` 取脚本 + `GH_AGENT_PAT=… python3 … --file …`，并写清 raw 缓存时降级走 `api.github.com/.../contents/...`；明确**禁用 `git push` / `git fetch over HTTPS`**、「上线以 `OK commit=<sha>` 为准，本地 git commit 只算留痕」；保留三枚密钥、代写通道规则、安全边界、心跳 / 取件 / 回执流程不变。任务仍 ACTIVE、每 12 小时、`next_run_at=2026-11-15T00:00:00+08:00`。
+- **轮换清单不变**：`FS_AGENT_TOKEN` / `FS_AGENT_WRITE_TOKEN` / `GH_AGENT_PAT`（本地 600 权限 env + Supabase secrets + automation prompt）。**`GH_AGENT_PAT` 仍是账户级 classic PAT，权限过宽（含 `admin:enterprise` / `admin:org` / `admin:public_key` / `delete:packages` / `workflow`），建议尽快换成只授权该仓库 + Contents 写的 fine-grained PAT 并轮换现有值**——换的时候记得同步 `/root/.supabase/agent-gh.env` 与 automation prompt。
+- 本轮只改脚本、后台自动化配置与文档，访客无感，按 11-09 规矩**没发公告**，只留言板汇报。
