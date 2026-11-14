@@ -9,6 +9,9 @@
 //     → claim / complete / fail / heartbeat
 //     agent token 是只能操作指令队列的低权限专用密钥，不接触管理员登录态，
 //     也不把 Supabase PAT / service_role 放进定时任务配置里。
+//   · 代写通道：X-Write-Token 头（FS_AGENT_WRITE_TOKEN，独立生成、可单独撤销）
+//     → 只允许对 fs_ 前缀业务表做 insert / upsert / update，用函数内的
+//     service_role 执行。真正的 service_role 永远不下发给 AI。
 //
 // 私有表 fs_agent_tasks 前端零权限（RLS 无 policy + revoke all），
 // 所有读写都走本函数的 service_role；认领走原子 RPC（FOR UPDATE SKIP LOCKED）。
@@ -18,11 +21,12 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const AGENT_TOKEN = Deno.env.get('FS_AGENT_TOKEN') || ''
+const WRITE_TOKEN = Deno.env.get('FS_AGENT_WRITE_TOKEN') || ''
 const db = createClient(SUPABASE_URL, SERVICE_KEY)
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-token',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-token, x-write-token',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
@@ -99,10 +103,60 @@ Deno.serve(async (req: Request) => {
   const action = String(body.action || '').trim()
 
   const agentToken = req.headers.get('x-agent-token') || ''
+  const writeToken = req.headers.get('x-write-token') || ''
   const auth = req.headers.get('authorization') || ''
   const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
   // 带 x-agent-token 的一律走 agent 通道，避免两种身份互相顶替
   const asAgent = agentToken.length > 0
+
+  // ---------- 代写通道：独立密钥，只放行结构化写入 ----------
+  // 真正的 service_role 只存在函数运行时；AI 手里只有这枚可单独撤销的 token。
+  // 不给 delete、不给任意 SQL、不给队列表，避免绕过 complete/fail 状态机。
+  if (!asAgent && writeToken.length > 0) {
+    if (!WRITE_TOKEN || !safeEqual(writeToken, WRITE_TOKEN)) {
+      return json({ ok: false, error: '代写密钥无效' }, 401)
+    }
+    if (action !== 'write') {
+      return json({ ok: false, error: '代写通道只支持 write 操作' }, 400)
+    }
+    const table = String(body.table || '').trim()
+    const op = String(body.op || '').trim()
+    const data = body.data
+    const BLOCKED = new Set(['fs_agent_tasks', 'fs_agent_worker'])
+    if (!/^fs_[a-z0-9_]+$/.test(table) || BLOCKED.has(table)) {
+      return json({ ok: false, error: '目标表不在允许范围内' }, 403)
+    }
+    if (!data || typeof data !== 'object') {
+      return json({ ok: false, error: 'data 必须是对象或对象数组' }, 400)
+    }
+    const reason = String(body.reason || '').slice(0, 300)
+    let q
+    if (op === 'insert') {
+      q = db.from(table).insert(data).select()
+    } else if (op === 'upsert') {
+      const oc = String(body.on_conflict || '').trim().slice(0, 120)
+      q = oc
+        ? db.from(table).upsert(data, { onConflict: oc }).select()
+        : db.from(table).upsert(data).select()
+    } else if (op === 'update') {
+      const match = body.match
+      if (!match || typeof match !== 'object' || Array.isArray(match) || !Object.keys(match).length) {
+        return json({ ok: false, error: 'update 必须带 match 条件，禁止全表更新' }, 400)
+      }
+      q = db.from(table).update(data)
+      for (const [k, v] of Object.entries(match)) {
+        if (!/^[a-z0-9_]+$/.test(k)) return json({ ok: false, error: 'match 列名不合法' }, 400)
+        q = q.eq(k, v)
+      }
+      q = q.select()
+    } else {
+      return json({ ok: false, error: 'op 只支持 insert / upsert / update' }, 400)
+    }
+    const { data: rows, error } = await q
+    if (error) return json({ ok: false, error: error.message }, 400)
+    console.log('[fs-agent write]', JSON.stringify({ table, op, reason, rows: (rows || []).length }))
+    return json({ ok: true, table, op, rows: rows || [] })
+  }
 
   if (asAgent) {
     if (!AGENT_TOKEN || !safeEqual(agentToken, AGENT_TOKEN)) {

@@ -372,3 +372,22 @@
 - 文档提交见下一条 `docs:`；`fs-agent` Edge Function 已 `deno check` 并部署上线，`FS_AGENT_TOKEN` 已写入 Supabase Secret。
 - 生产后台留了一条真实「已完成」示例（id=11）与完整回执，用户登录 `/admin/` 即可看到；心跳与「预计下次检查」为真实自动化任务数据。
 - 按 §0 铁律发项目公告、按惯例留言板汇报；展示线上截图 `verify/admin_agent_live_card.png` 等。
+
+## 2026-11-14 ⑱ 补执行器写权限：新 API key 走不通，改服务端代写通道
+
+- **用户这轮给了两样**：GitHub classic PAT（`ghp_…`，账户级）+ 一句「supabase 那里你自己用手头 PAT 生成一个新的」。意图很明确：别把配置者手里的高权限主凭据交出去，另造一个专用、可单独撤销的给 12 小时执行器。
+- **⚠️ 新坑（重要）：Supabase Management API 建出来的新 API key 在这个项目上不生效。**
+  - `POST /v1/projects/{ref}/api-keys` 的 `type` **只允许 `publishable` / `secret`**（传 `service_role` / `legacy` 都 400：`Invalid option: expected one of "publishable"|"secret"`）；`name` 必须小写字母或下划线开头（连字符 400）。
+  - 建出的 `sb_secret_…` 是**新版 opaque token（无点号）**，而本项目数据网关还在 legacy 模式，只认 JWT 型 `anon` / `service_role`：`apikey=新key` → `401 Invalid API key`；`apikey=publishable + Bearer=新key` → `PGRST301 Expected 3 parts in JWT; got 1`。等 8 秒重试无效，不是同步延迟。
+  - 结论：**别指望「用 PAT 再建一把 API key」给执行器**，这条路在本项目是死的。那把试建的 key 已 `DELETE /api-keys/{id}` 清理，keys 列表恢复原状（`anon` / `service_role` / `publishable default` / `secret default`）。
+  - 现有 `/secrets` 是带明文 value 的（历史 ⑦ 记过），`SUPABASE_SERVICE_ROLE_KEY` 一直由函数运行时持有；**不要把它下发给 AI**。
+- **采用的方案：服务端代写，真正的 service_role 不下发**。用 Management PAT 生成 52 位随机 `FS_AGENT_WRITE_TOKEN` 写进 Supabase secrets（HTTP 201），`fs-agent` 新增 `X-Write-Token` 分支，函数内部用 `db.from()` 执行**结构化写入**：
+  - 白名单：`table` 必须匹配 `/^fs_[a-z0-9_]+$/`，且**排除 `fs_agent_tasks` / `fs_agent_worker`**（回执只能走 complete/fail，不能绕过状态机）；
+  - `op` 只放行 `insert` / `upsert` / `update`；`update` 必须带 `match`（禁止全表更新）；不给 `delete`、不给任意 SQL、不给 DDL；
+  - CORS 白名单头补 `x-write-token`；`safeEqual` 常量时间比对；每次写只记 `table/op/reason/行数` 到 console，不记数据。
+  - 部署：`npx -y supabase@latest functions deploy fs-agent --remote=<ref> --no-verify-jwt --use-api --yes --workdir /workspace`（CLI 3.1.0；历史 ⑦ 记过 `--no-verify-jwt` 必须，本站 JWT 是 login 自签 HS256，网关验不了）。沙箱重置后 CLI 没了，`npx` 现装即可；本地 `deno check` 通过。
+- **验收（线上真实，非 mock）14/14**：伪造/无凭据 401、write token 越权调别的操作 400、agent token 不能读 stats 400、原心跳回归 200；`users` / 队列表 / 注入式表名全 403、`delete` / 无 match 的 update / 缺 data 全 400；临时表 `fs_agent_write_probe` 真 insert + update 落库校验通过，`finally` 里 drop，`information_schema` 复查 0 残留。
+- **GitHub 侧**：新 PAT 实测 `login=gykf123`、仓库 `GET` 200、`permissions.push=true`（`workflow` scope 也在）。但 scopes 很宽（`admin:enterprise` / `admin:org` / `admin:public_key` / `delete:packages` / `workflow` 等），是账户级 classic PAT；已当面提醒用户以后换**只授权该仓库 + Contents/Actions 写**的 fine-grained PAT，并建议把这次明文出现过的 PAT 轮换一次。PAT 与新 token 都只存在于 `/root/.supabase/agent-gh.env` / `agent-writer.env`（600）和 automation prompt 里，**没进仓库、没进公告/报告**。
+- **automation `15293863` prompt 已更新**：把上一轮那份「缺写权限」的说明换成「已补齐」；加【写入怎么做】（`git fetch origin && git pull --rebase origin main` → `git push https://gykf123:<PAT>@github.com/... HEAD:main`，推不动如实 fail 并写本地 commit 号；以及代写 curl 示例与白名单规则）；明确**仍无权限**的是部署 Edge Function / DDL / 删数据（需 Management API PAT，未下发），遇到如实 fail。三枚密钥都写了「不复述、不写文件、不提交 git」。任务仍 ACTIVE、每 12 小时、`next_run_at=2026-11-15T00:00:00+08:00`。
+- **轮换清单（更新 ⑰ 那张表）**：现在共三枚——`FS_AGENT_TOKEN`（本地 env + Supabase secret + automation prompt）、`FS_AGENT_WRITE_TOKEN`（本地 env + Supabase secret + automation prompt）、`GH_AGENT_PAT`（本地 env + automation prompt）。撤销代写能力只需删/改 `FS_AGENT_WRITE_TOKEN` secret，不影响取件回执。
+- 本轮只改后端函数与文档，属纯后台事务，按用户 11-09 定的规矩**没发公告**，只留言板汇报。
