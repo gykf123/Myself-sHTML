@@ -20,8 +20,8 @@
   <link rel="preconnect" href="https://api.fkd.xn--0iv.gay" crossorigin />
   <link rel="stylesheet" href="./style.css?v=20261107b" />
   <link rel="stylesheet" href="./user/user.css?v=20261108" />
-  <link rel="stylesheet" href="./home.css?v=20261114b" />
-  <script>try{var t=localStorage.getItem('theme')||'glass';if(t==='glass')document.documentElement.classList.add('theme-glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+  <link rel="stylesheet" href="./home.css?v=20261114c" />
+  <script>try{var t=localStorage.getItem('theme')||'glass';if(t==='glass')document.documentElement.classList.add('theme-glass');document.documentElement.classList.add('hm-active');}catch(e){document.documentElement.classList.add('theme-glass','hm-active');}</script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -35,12 +35,57 @@
   <script src="/net-guard.js?v=20261107"></script>
   <script src="/site-nav.js?v=20261114b"></script>
 </head>
-<body>
-  <div class="user-page">
-    <header class="user-topbar">
+<body class="hm-body">
+  <div class="hm-curtain" aria-hidden="true"></div>
+  <div class="hm-progress" aria-hidden="true"></div>
+
+  <!-- 线性图标精灵：不用 emoji，避免字体缺字显示成豆腐块 -->
+  <svg class="hm-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <symbol id="i-tool" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.2A1.2 1.2 0 0 1 10.2 4h3.6A1.2 1.2 0 0 1 15 5.2V7"/><path d="M3 12h18"/><path d="M10.5 12v2.2h3V12"/>
+      </symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 12.4a7.4 7.4 0 0 1-7.4 7.4 8 8 0 0 1-3.2-.65L4 21l1.3-4.1A7.4 7.4 0 1 1 20 12.4Z"/><path d="M8.6 12.2h.01M12 12.2h.01M15.4 12.2h.01"/>
+      </symbol>
+      <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="3.6"/><path d="M4.8 20a7.2 7.2 0 0 1 14.4 0"/><path d="M18.6 5.4l1.2 1.2 2-2"/>
+      </symbol>
+      <symbol id="i-stats" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5 20h17"/><rect x="5" y="12" width="3.2" height="5.6" rx="1"/><rect x="10.4" y="8" width="3.2" height="9.6" rx="1"/><rect x="15.8" y="4.6" width="3.2" height="13" rx="1"/>
+      </symbol>
+      <symbol id="i-status" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2.5 12h4l2.2-5.4 3.4 10.8 2.6-7 1.8 3.2h5"/>
+      </symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4.5" y="8" width="15" height="11" rx="3"/><path d="M12 8V4.6"/><circle cx="12" cy="3.8" r="1.1"/><path d="M9 13.2h.01M15 13.2h.01"/><path d="M9.6 16.4h4.8"/><path d="M2 12.6v2.6M22 12.6v2.6"/>
+      </symbol>
+      <symbol id="i-blog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="3.5" width="16" height="17" rx="2.4"/><path d="M8 8h8M8 11.6h8M8 15.2h5"/>
+      </symbol>
+      <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.6 10.4 12 3.6l8.4 6.8"/><path d="M5.6 9.6V20h12.8V9.6"/><path d="M10 20v-5.4h4V20"/>
+      </symbol>
+      <symbol id="i-proj" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7.4a2 2 0 0 1 2-2h4l1.8 2.2H19a2 2 0 0 1 2 2v8.8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 11h18"/>
+      </symbol>
+      <symbol id="i-wall" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 4.5h14v12H11l-5 3.6v-3.6H5Z"/><path d="M8.5 9h7M8.5 12.2h4.2"/>
+      </symbol>
+      <symbol id="i-links" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.2 13.8a3.6 3.6 0 0 0 5.1 0l2.7-2.7a3.6 3.6 0 0 0-5.1-5.1l-1.3 1.3"/><path d="M13.8 10.2a3.6 3.6 0 0 0-5.1 0L6 12.9a3.6 3.6 0 0 0 5.1 5.1l1.3-1.3"/>
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 18 18 6M9 6h9v9"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="user-page hm-page">
+    <header class="user-topbar hm-reveal" style="--d:.02s">
       <a class="user-brand" href="./">
-        <span class="user-logo" aria-hidden="true">F</span>
-        <span class="user-brand-name">FeSui</span>
+        <span class="user-logo hm-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span><span class="hm-brand-tag">/ INDEX</span>
       </a>
       <nav class="user-topnav" aria-label="页面导航">
         <a href="./" class="active" aria-current="page">首页</a>
@@ -52,91 +97,111 @@
     </header>
 
     <main class="user-main">
-      <section class="user-card hm-hero">
-        <span class="hm-kicker">FE SUI · 站点导航</span>
-        <h1 class="hm-title">一个装工具的沙盒，<br />和一些写代码的日常。</h1>
-        <p class="hm-sub">这里是整个站点的入口：在线工具、聊天室、留言墙、博客公告、访问统计与运行状态，都从下面走。想认识我本人，去 <a href="./home/">个人主页</a>。</p>
-        <div class="hm-actions">
-          <a class="act-btn primary" href="./tool/">🧰 逛工具箱 ↗</a>
-          <a class="act-btn" href="./home/">👤 关于我 ↗</a>
-          <a class="act-btn" href="./blog/">📰 最近更新 ↗</a>
+      <section class="hm-hero hm-reveal" style="--d:.10s">
+        <div class="hm-hero-glow" aria-hidden="true"></div>
+        <div class="hm-orbit" aria-hidden="true">
+          <span class="hm-ring r1"></span><span class="hm-ring r2"></span><span class="hm-ring r3"></span>
+          <span class="hm-orbit-dot"></span>
         </div>
+        <div class="hm-hero-inner">
+          <span class="hm-kicker"><i class="hm-dot"></i> FE SUI · SITE DIRECTORY <span class="hm-kicker-num">01</span></span>
+          <h1 class="hm-title">一个装工具的沙盒，<br /><em>和一些写代码的日常。</em></h1>
+          <p class="hm-sub">这里是整个站点的入口：在线工具、聊天室、留言墙、博客公告、访问统计与运行状态，都从下面走。想认识我本人，去 <a href="./home/">个人主页</a>。</p>
+          <div class="hm-actions">
+            <a class="act-btn primary" href="./tool/"><svg class="hm-bico" viewBox="0 0 24 24"><use href="#i-tool"/></svg>逛工具箱<svg class="hm-barrow" viewBox="0 0 24 24"><use href="#i-arrow"/></svg></a>
+            <a class="act-btn" href="./home/"><svg class="hm-bico" viewBox="0 0 24 24"><use href="#i-user"/></svg>关于我</a>
+            <a class="act-btn" href="./blog/"><svg class="hm-bico" viewBox="0 0 24 24"><use href="#i-blog"/></svg>最近更新</a>
+          </div>
+        </div>
+        <div class="hm-hero-meta" aria-hidden="true"><span>PURE STATIC</span><span>ZERO BUILD</span><span>EST. 2026</span></div>
       </section>
 
-      <section class="user-card hm-section">
-        <h2><span class="card-ico" aria-hidden="true">🧭</span>站点功能</h2>
+      <section class="hm-section hm-reveal" style="--d:.20s">
+        <div class="hm-sec-head">
+          <h2>常用功能</h2><span class="hm-sec-count">06</span><span class="hm-sec-line"></span>
+        </div>
         <div class="hm-grid">
-          <a class="hm-card" href="./tool/">
-            <span class="hm-ico" aria-hidden="true">🧰</span>
+          <a class="hm-card hm-reveal" href="./tool/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-tool"/></svg></span>
             <span class="hm-name">工具箱大厅</span>
             <span class="hm-desc">19 个在线工具：时间戳 / JSON / 正则 / 哈希 / 密码 / MC 查询</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
           </a>
-          <a class="hm-card" href="./chat/">
-            <span class="hm-ico" aria-hidden="true">💬</span>
+          <a class="hm-card hm-reveal" href="./chat/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-chat"/></svg></span>
             <span class="hm-name">聊天室</span>
             <span class="hm-desc">公共大厅与私聊，登录后可用</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
           </a>
-          <a class="hm-card" href="./user/">
-            <span class="hm-ico" aria-hidden="true">🧑‍💻</span>
-            <span class="hm-name">个人中心</span>
-            <span class="hm-desc">资料、账号绑定、邮箱订阅与我的留言</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
-          </a>
-          <a class="hm-card" href="./stats/">
-            <span class="hm-ico" aria-hidden="true">📊</span>
-            <span class="hm-name">访问统计</span>
-            <span class="hm-desc">公开聚合数据，不记录个人身份</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
-          </a>
-          <a class="hm-card" href="./status/">
-            <span class="hm-ico" aria-hidden="true">📡</span>
-            <span class="hm-name">服务状态</span>
-            <span class="hm-desc">主站 / FKD / QQ bot 可用性与响应时间</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
-          </a>
-          <a class="hm-card" href="./reopenai/">
-            <span class="hm-ico" aria-hidden="true">🤖</span>
-            <span class="hm-name">Bot 唤醒台</span>
-            <span class="hm-desc">QQ 机器人状态与保活</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
-          </a>
-          <a class="hm-card" href="./blog/">
-            <span class="hm-ico" aria-hidden="true">📰</span>
+          <a class="hm-card hm-reveal" href="./blog/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-blog"/></svg></span>
             <span class="hm-name">博客 / 公告</span>
             <span class="hm-desc">更新记录、文章与项目公告订阅</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
           </a>
-          <a class="hm-card" href="./home/">
-            <span class="hm-ico" aria-hidden="true">👤</span>
-            <span class="hm-name">个人主页</span>
-            <span class="hm-desc">关于我、自定义链接跳转与一点彩蛋</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
+          <a class="hm-card hm-reveal" href="./user/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-user"/></svg></span>
+            <span class="hm-name">个人中心</span>
+            <span class="hm-desc">资料、账号绑定、邮箱订阅与我的留言</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
           </a>
-          <a class="hm-card" href="./home/#proj">
-            <span class="hm-ico" aria-hidden="true">📁</span>
-            <span class="hm-name">项目导航</span>
-            <span class="hm-desc">正在搭建与维护中的一些作品</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
+          <a class="hm-card hm-reveal" href="./stats/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-stats"/></svg></span>
+            <span class="hm-name">访问统计</span>
+            <span class="hm-desc">公开聚合数据，不记录个人身份</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
           </a>
-          <a class="hm-card" href="./home/#wall">
-            <span class="hm-ico" aria-hidden="true">📝</span>
-            <span class="hm-name">留言墙</span>
-            <span class="hm-desc">留句话，或者看看别人写了什么</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
-          </a>
-          <a class="hm-card" href="./home/#links">
-            <span class="hm-ico" aria-hidden="true">🔗</span>
-            <span class="hm-name">友链</span>
-            <span class="hm-desc">朋友们的小站与交换友链说明</span>
-            <span class="hm-go" aria-hidden="true">↗</span>
+          <a class="hm-card hm-reveal" href="./status/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-status"/></svg></span>
+            <span class="hm-name">服务状态</span>
+            <span class="hm-desc">主站 / FKD / QQ bot 可用性与响应时间</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
           </a>
         </div>
       </section>
 
-      <section class="user-card hm-section">
-        <h2><span class="card-ico" aria-hidden="true">ℹ️</span>关于这次调整</h2>
+      <section class="hm-section hm-reveal" style="--d:.30s">
+        <div class="hm-sec-head">
+          <h2>更多</h2><span class="hm-sec-count">05</span><span class="hm-sec-line"></span>
+        </div>
+        <div class="hm-grid hm-grid--mini">
+          <a class="hm-card hm-reveal" href="./home/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-home"/></svg></span>
+            <span class="hm-name">个人主页</span>
+            <span class="hm-desc">关于我、自定义链接跳转与一点彩蛋</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
+          </a>
+          <a class="hm-card hm-reveal" href="./reopenai/">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-bot"/></svg></span>
+            <span class="hm-name">Bot 唤醒台</span>
+            <span class="hm-desc">QQ 机器人状态与保活</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
+          </a>
+          <a class="hm-card hm-reveal" href="./home/#proj">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-proj"/></svg></span>
+            <span class="hm-name">项目导航</span>
+            <span class="hm-desc">正在搭建与维护中的一些作品</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
+          </a>
+          <a class="hm-card hm-reveal" href="./home/#wall">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-wall"/></svg></span>
+            <span class="hm-name">留言墙</span>
+            <span class="hm-desc">留句话，或者看看别人写了什么</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
+          </a>
+          <a class="hm-card hm-reveal" href="./home/#links">
+            <span class="hm-ico"><svg viewBox="0 0 24 24"><use href="#i-links"/></svg></span>
+            <span class="hm-name">友链</span>
+            <span class="hm-desc">朋友们的小站与交换友链说明</span>
+            <svg class="hm-go" viewBox="0 0 24 24"><use href="#i-arrow"/></svg>
+          </a>
+        </div>
+      </section>
+
+      <section class="hm-section hm-notes-sec hm-reveal" style="--d:.38s">
+        <div class="hm-sec-head">
+          <h2>关于这次调整</h2><span class="hm-sec-line"></span>
+        </div>
         <ul class="hm-notes">
           <li>根路径 <code>/</code> 现在是<b>站点首页</b>，集中展示所有功能入口；不再一进来就是我的个人名片。</li>
           <li>原来的个人信息、项目导航、工具箱精选、友链与留言墙整套搬到了 <a href="./home/">/home/</a>，内容一点没少；旧书签和站内「返回主页」仍会回到站点首页。</li>
@@ -146,7 +211,7 @@
       </section>
     </main>
 
-    <footer class="user-foot">
+    <footer class="user-foot hm-reveal" style="--d:.44s">
       <span>© <span id="footYear">2026</span> FeSui</span>
       <span class="user-foot-sep">·</span>
       <a href="./home/">个人主页</a>
@@ -162,6 +227,7 @@
   </div>
 
   <script>document.getElementById('footYear').textContent = String(new Date().getFullYear());</script>
+  <script src="./home.js?v=20261114" defer></script>
   <script src="/visit.js?v=20261107" defer></script>
 </body>
 </html>

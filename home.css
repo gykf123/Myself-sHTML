@@ -1,87 +1,349 @@
 /* ============================================================
-   站点首页（根 /）增量样式
-   骨架复用 ./style.css 与 ./user/user.css；配色走主站 CSS 变量，
-   随「标准 / 液态玻璃」主题与深浅色自动切换。类名统一 hm- 前缀。
-   个人主页整套已搬到 /home/，这里只负责门户卡片网格。
+   站点首页（根 /）专属视觉
+   · 固定深色影调，不随站点主题切换，避免与「液态玻璃」的大面积
+     紫色渐变糊成一片；仅复用 style.css / user.css 的骨架与令牌。
+   · 图标全部走内联 SVG sprite，不用 emoji（字体缺字会显示豆腐块）。
+   · 进场分层动画纯 CSS，离场动画由 home.js 拦截站内导航后加类。
    ============================================================ */
 
-.hm-hero { position: relative; overflow: hidden; padding: 28px 26px 26px; }
+.hm-body {
+  background-color: #080b16;
+  background-image:
+    radial-gradient(900px 520px at 8% -10%, rgba(96, 130, 255, .17), transparent 62%),
+    radial-gradient(760px 480px at 94% 2%, rgba(168, 110, 255, .13), transparent 64%),
+    radial-gradient(700px 420px at 52% 108%, rgba(110, 130, 255, .06), transparent 66%);
+  background-attachment: fixed;
+  color: #eef1fb;
+}
+/* 极淡的网格纹理，给深色底一点结构感，不影响文字可读性 */
+.hm-body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent 78%);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), transparent 78%);
+}
+/* 首页自带背景光晕，关掉主题那层流动光斑（它带绿色，会和蓝紫主色调打架） */
+html.hm-active.theme-glass::before { display: none; }
+
+.hm-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.hm-page { position: relative; z-index: 1; max-width: 1080px; padding: 26px 24px 46px; }
+
+/* ---------- 顶栏 ---------- */
+.hm-body .user-topbar {
+  padding: 6px 2px 22px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  margin-bottom: 22px;
+}
+.hm-body .user-brand { color: #f2f5ff; font-size: 15px; letter-spacing: .3px; }
+.hm-logo {
+  background: linear-gradient(140deg, #6f8cff, #b98cff);
+  box-shadow: 0 6px 20px rgba(111, 140, 255, .38), inset 0 1px 0 rgba(255,255,255,.35);
+  border-radius: 11px;
+}
+.hm-brand-tag {
+  margin-left: -4px; font-size: 10px; font-weight: 600; letter-spacing: 1.3px;
+  color: rgba(180,190,220,.55);
+}
+.hm-body .user-topnav a {
+  font-size: 12.5px; padding: 7px 14px; color: rgba(198,206,232,.72);
+  border: 1px solid transparent;
+}
+.hm-body .user-topnav a:hover {
+  color: #fff; background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.10);
+}
+.hm-body .user-topnav a.active {
+  color: #dbe4ff; background: rgba(120,150,255,.13);
+  border-color: rgba(140,170,255,.28);
+}
+
+/* ---------- Hero ---------- */
+.hm-hero {
+  position: relative; overflow: hidden;
+  padding: 46px 44px 30px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.09);
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.055), rgba(255,255,255,.018) 58%, rgba(120,140,255,.035));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.09),
+    0 26px 70px rgba(0,0,0,.42);
+}
 .hm-hero::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(135deg,
-    rgba(88, 101, 242, .20) 0%,
-    rgba(168, 85, 247, .16) 46%,
-    rgba(46, 160, 67, .10) 100%);
+  content: ''; position: absolute; top: 0; left: 8%; right: 8%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(160,185,255,.55), transparent);
 }
-.hm-hero > * { position: relative; }
+.hm-hero-glow {
+  position: absolute; width: 620px; height: 420px; right: -170px; top: -230px;
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(130,150,255,.22), transparent 65%);
+  filter: blur(18px);
+}
+.hm-hero-inner { position: relative; z-index: 2; }
 .hm-kicker {
-  display: inline-block; margin-bottom: 12px; padding: 4px 10px;
-  border-radius: 999px; border: 1px solid var(--border);
-  background: var(--surface-2);
-  font-size: 10.5px; font-weight: 700; letter-spacing: 1.4px; color: var(--text-dim);
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 10px; margin-bottom: 20px;
+  border-radius: 999px; border: 1px solid rgba(255,255,255,.13);
+  background: rgba(255,255,255,.045);
+  font-size: 10px; font-weight: 700; letter-spacing: 1.9px;
+  color: rgba(200,210,240,.82); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+.hm-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #5ce0c0;
+  box-shadow: 0 0 0 3px rgba(92,224,192,.16), 0 0 12px rgba(92,224,192,.7);
+  animation: hmPulse 2.4s ease-in-out infinite;
+}
+.hm-kicker-num { color: rgba(140,160,220,.6); border-left: 1px solid rgba(255,255,255,.16); padding-left: 9px; }
 .hm-title {
-  margin: 0 0 10px; font-size: clamp(23px, 3.4vw, 34px);
-  line-height: 1.35; font-weight: 800; color: var(--text);
+  margin: 0 0 16px; font-size: clamp(28px, 4.1vw, 46px);
+  line-height: 1.32; font-weight: 800; letter-spacing: -.6px;
+  color: #f4f7ff;
+  animation: hmTitleIn .95s cubic-bezier(.22,1,.36,1) backwards;
+  animation-delay: .16s;
 }
-.hm-sub { margin: 0; max-width: 720px; font-size: 13.5px; line-height: 1.85; color: var(--text-dim); }
-.hm-sub a { color: var(--accent); text-decoration: none; }
-.hm-sub a:hover { text-decoration: underline; }
-.hm-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
-.hm-actions .act-btn { text-decoration: none; }
+.hm-title em {
+  font-style: normal;
+  background: linear-gradient(100deg, #b9c8ff 4%, #a99aff 52%, #7fe0d0 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.hm-sub {
+  margin: 0; max-width: 620px; font-size: 13.5px; line-height: 1.9;
+  color: rgba(190,199,226,.78);
+}
+.hm-sub a { color: #a8c0ff; text-decoration: none; border-bottom: 1px dashed rgba(168,192,255,.45); }
+.hm-sub a:hover { color: #d6e1ff; border-bottom-style: solid; }
+.hm-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.hm-actions .act-btn {
+  font-size: 13px; font-weight: 650; border-radius: 11px; padding: 10px 17px;
+  background: rgba(255,255,255,.055); border-color: rgba(255,255,255,.14);
+  color: #dbe2f7; text-decoration: none;
+  transition: transform .2s cubic-bezier(.22,1,.36,1), border-color .2s, background .2s, box-shadow .2s;
+}
+.hm-actions .act-btn:hover {
+  transform: translateY(-2px); color: #fff;
+  background: rgba(255,255,255,.10); border-color: rgba(160,185,255,.5);
+}
+.hm-actions .act-btn.primary {
+  color: #fff; border-color: transparent;
+  background: linear-gradient(120deg, #5f7ff5, #a071f0);
+  box-shadow: 0 10px 26px rgba(105,120,245,.34), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.hm-actions .act-btn.primary:hover {
+  background: linear-gradient(120deg, #6d8bff, #ad80f8);
+  box-shadow: 0 14px 32px rgba(105,120,245,.46);
+}
+.hm-bico { width: 15px; height: 15px; flex: none; }
+.hm-barrow { width: 13px; height: 13px; flex: none; opacity: .8; }
+.hm-hero-meta {
+  position: relative; z-index: 2; display: flex; gap: 20px;
+  margin-top: 38px; padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,.075);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9.5px; letter-spacing: 1.5px; color: rgba(150,162,200,.5);
+}
+/* 右侧装饰：缓慢旋转的同心环，纯装饰、不抢文字 */
+.hm-orbit {
+  position: absolute; right: -130px; top: -150px; width: 420px; height: 420px;
+  z-index: 1; pointer-events: none; opacity: .34;
+}
+.hm-ring {
+  position: absolute; inset: 0; margin: auto; border-radius: 50%;
+  border: 1px solid rgba(150,175,255,.16);
+}
+.hm-ring.r1 { width: 100%; height: 100%; animation: hmSpin 38s linear infinite; }
+.hm-ring.r2 { width: 70%; height: 70%; border-color: rgba(170,140,255,.18); animation: hmSpin 26s linear infinite reverse; }
+.hm-ring.r3 { width: 42%; height: 42%; border-color: rgba(92,224,192,.15); }
+.hm-orbit-dot {
+  position: absolute; left: 50%; top: 0; width: 7px; height: 7px; margin-left: -3.5px;
+  border-radius: 50%; background: #9fb6ff;
+  box-shadow: 0 0 14px rgba(159,182,255,.9);
+  transform-origin: 50% 210px; animation: hmSpin 18s linear infinite;
+}
 
-.hm-section h2 { margin-bottom: 14px; }
-.hm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 12px; }
+/* ---------- 分区标题 ---------- */
+.hm-section { margin-top: 26px; }
+.hm-sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.hm-sec-head h2 {
+  margin: 0; font-size: 13px; font-weight: 700; letter-spacing: 1.4px;
+  color: #dfe6fb; white-space: nowrap;
+}
+.hm-sec-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px; letter-spacing: 1px; color: rgba(150,165,215,.65);
+  padding: 2px 7px; border-radius: 5px; border: 1px solid rgba(255,255,255,.10);
+}
+.hm-sec-line {
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,.14), transparent);
+}
+
+/* ---------- 卡片网格 ---------- */
+.hm-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .hm-card {
-  position: relative; display: block; min-width: 0; padding: 14px;
-  border-radius: 12px; border: 1px solid var(--border);
-  background: var(--surface-2); text-decoration: none;
-  transition: transform .18s var(--ease), border-color .18s var(--ease);
+  position: relative; display: flex; flex-direction: column; min-width: 0;
+  padding: 17px 17px 18px; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.085);
+  background: linear-gradient(155deg, rgba(255,255,255,.055), rgba(255,255,255,.022));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+  text-decoration: none; overflow: hidden;
+  transition: transform .24s cubic-bezier(.22,1,.36,1), border-color .24s, box-shadow .24s;
+  --mx: 50%; --my: 0%;
 }
-.hm-card:hover, .hm-card:focus-visible { transform: translateY(-2px); border-color: var(--accent); text-decoration: none; }
-.hm-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.hm-ico { display: block; font-size: 22px; line-height: 1.25; margin-bottom: 8px; }
-.hm-name { display: block; padding-right: 18px; font-size: 14px; font-weight: 700; color: var(--text); }
-.hm-desc { display: block; margin-top: 5px; font-size: 11.5px; line-height: 1.65; color: var(--text-dim); }
-.hm-go { position: absolute; right: 12px; top: 13px; font-size: 12px; color: var(--text-dim); }
-.hm-card:hover .hm-go { color: var(--accent); }
+.hm-card::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(220px circle at var(--mx) var(--my), rgba(150,175,255,.16), transparent 62%);
+  transition: opacity .28s;
+}
+.hm-card:hover, .hm-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(160,185,255,.42);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.09), 0 16px 34px rgba(0,0,0,.34);
+  text-decoration: none;
+}
+.hm-card:hover::after { opacity: 1; }
+.hm-card:focus-visible { outline: 2px solid #8fb0ff; outline-offset: 2px; }
+.hm-ico {
+  display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 14px;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.11);
+  background: rgba(130,155,255,.09); color: #a8bdf5;
+  transition: transform .24s cubic-bezier(.22,1,.36,1), color .24s, background .24s, border-color .24s;
+}
+.hm-ico svg { width: 19px; height: 19px; }
+.hm-card:hover .hm-ico {
+  transform: translateY(-2px) rotate(-4deg) scale(1.05);
+  color: #dce6ff; background: rgba(140,165,255,.2); border-color: rgba(170,195,255,.4);
+}
+.hm-name { display: block; padding-right: 20px; font-size: 14px; font-weight: 700; color: #eef2ff; letter-spacing: .2px; }
+.hm-desc { display: block; margin-top: 7px; font-size: 11.5px; line-height: 1.7; color: rgba(174,184,212,.7); }
+.hm-go {
+  position: absolute; right: 15px; top: 16px; width: 14px; height: 14px;
+  color: rgba(160,175,215,.45);
+  transition: transform .24s cubic-bezier(.22,1,.36,1), color .24s;
+}
+.hm-card:hover .hm-go { transform: translate(2px, -2px); color: #b8caff; }
 
-.hm-notes { margin: 0; padding-left: 20px; font-size: 12.5px; line-height: 1.95; color: var(--text-dim); }
-.hm-notes b { color: var(--text); }
-.hm-notes a { color: var(--accent); text-decoration: none; }
+/* 次要入口：一行 5 张紧凑卡，收短描述，避免主区被稀释 */
+.hm-grid--mini { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.hm-grid--mini .hm-card { padding: 13px; }
+.hm-grid--mini .hm-ico { width: 29px; height: 29px; border-radius: 8px; margin-bottom: 10px; }
+.hm-grid--mini .hm-ico svg { width: 16px; height: 16px; }
+.hm-grid--mini .hm-name { font-size: 12.5px; padding-right: 13px; }
+.hm-grid--mini .hm-desc {
+  font-size: 10.5px; line-height: 1.55; margin-top: 5px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.hm-grid--mini .hm-go { right: 11px; top: 12px; width: 12px; height: 12px; }
+
+/* ---------- 说明区 ---------- */
+.hm-notes-sec {
+  margin-top: 30px; padding: 18px 20px;
+  border-radius: 14px; border: 1px solid rgba(255,255,255,.07);
+  background: rgba(255,255,255,.022);
+}
+.hm-notes { margin: 0; padding-left: 19px; font-size: 12px; line-height: 2; color: rgba(180,189,216,.72); }
+.hm-notes b { color: #e6ecff; }
+.hm-notes a { color: #a8c0ff; text-decoration: none; }
 .hm-notes a:hover { text-decoration: underline; }
 .hm-notes code {
-  padding: 1px 5px; border-radius: 5px; background: var(--surface-2);
-  border: 1px solid var(--border); font-size: 11.5px;
+  padding: 1px 5px; border-radius: 5px; background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.10); font-size: 11px;
+}
+.hm-body .user-foot { padding-top: 28px; font-size: 11.5px; color: rgba(150,160,190,.55); }
+.hm-body .user-foot a { color: rgba(160,172,205,.7); }
+
+/* ---------- 进场动画 ---------- */
+@keyframes hmIn {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes hmTitleIn {
+  from { opacity: 0; filter: blur(9px); transform: translate3d(0, 12px, 0); letter-spacing: 2px; }
+  to   { opacity: 1; filter: none; transform: none; letter-spacing: -.6px; }
+}
+@keyframes hmPulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+@keyframes hmSpin { to { transform: rotate(360deg); } }
+/* 用 backwards 而不是 both：动画结束后不保留 to 帧，
+   否则 forwards 的 transform:none 会压掉 .hm-card:hover 的位移。 */
+.hm-reveal {
+  animation: hmIn .72s cubic-bezier(.22,1,.36,1) backwards;
+  animation-delay: var(--d, 0s);
+}
+.hm-curtain {
+  position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+  background: #080b16;
+  animation: hmCurtainOut .68s cubic-bezier(.4,0,.2,1) both;
+}
+@keyframes hmCurtainOut {
+  0%   { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+.hm-progress {
+  position: fixed; top: 0; left: 0; height: 2px; width: 0; z-index: 10001;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, #6f8cff, #b98cff, #5ce0c0);
+  box-shadow: 0 0 12px rgba(140,160,255,.6);
 }
 
-@media (max-width: 720px) {
-  .hm-grid { grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 10px; }
+/* ---------- 离场动画（由 home.js 加 html.hm-leaving） ---------- */
+.hm-page { transition: opacity .3s ease, transform .3s cubic-bezier(.4,0,1,1), filter .3s ease; }
+html.hm-leaving .hm-page { opacity: 0; filter: blur(3px); transform: translate3d(0, -14px, 0) scale(.988); }
+html.hm-leaving .hm-progress {
+  opacity: 1; width: 88%;
+  transition: width .34s cubic-bezier(.2,.8,.3,1), opacity .1s;
+}
+html.hm-leaving .hm-body::before { opacity: 0; transition: opacity .3s; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 900px) {
+  .hm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hm-grid--mini { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hm-hero { padding: 34px 28px 26px; }
+  .hm-orbit { opacity: .3; }
 }
 @media (max-width: 640px) {
-  /* user.css 的顶栏导航默认可换行，5 个入口在窄屏会被拆成两行；改成横向滚动 + 不折行 */
-  .user-topnav { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .user-topnav::-webkit-scrollbar { display: none; }
-  .user-topnav a { flex: none; white-space: nowrap; font-size: 11.5px; }
+  .hm-body .user-topnav { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .hm-body .user-topnav::-webkit-scrollbar { display: none; }
+  .hm-body .user-topnav a { flex: none; white-space: nowrap; font-size: 11.5px; padding: 7px 11px; }
+  .hm-page { padding: 18px 16px 34px; }
+  .hm-hero { padding: 26px 20px 22px; border-radius: 16px; }
+  .hm-hero-meta { gap: 12px; font-size: 8.5px; flex-wrap: wrap; }
 }
 @media (max-width: 560px) {
-  .hm-hero { padding: 20px 16px; }
-  .hm-title { font-size: 22px; }
+  .hm-title { font-size: 25px; }
   .hm-sub { font-size: 12.5px; }
-  /* user.css 在 560px 以下给所有 .act-btn 设 flex:1，会把三个按钮各撑一整行；
-     改成两列网格，前两个并排、第三个占满一行，比 flex 换行整齐 */
   .hm-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .hm-actions .act-btn { flex: none; justify-content: center; text-align: center; }
+  .hm-actions .act-btn { flex: none; justify-content: center; text-align: center; padding: 10px 12px; }
   .hm-actions .act-btn:last-child { grid-column: 1 / -1; }
   .hm-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-  .hm-card { padding: 11px; }
-  .hm-ico { font-size: 19px; margin-bottom: 6px; }
-  .hm-desc { font-size: 11px; }
+  .hm-grid--mini { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hm-card { padding: 12px; }
+  .hm-ico { width: 30px; height: 30px; margin-bottom: 10px; }
+  .hm-ico svg { width: 16px; height: 16px; }
+  .hm-name { font-size: 12.5px; }
+  .hm-desc { font-size: 10.5px; }
+  .hm-notes { font-size: 11.5px; padding-left: 16px; }
 }
 @media (max-width: 360px) {
-  .hm-grid { grid-template-columns: 1fr; }
+  .hm-grid, .hm-grid--mini { grid-template-columns: 1fr; }
+  .hm-orbit, .hm-hero-meta { display: none; }
 }
+@media (hover: none) {
+  .hm-card::after { display: none; }
+}
+
+/* ---------- 无障碍：尊重减少动态效果 ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .hm-card { transition: none !important; }
-  .hm-card:hover { transform: none; }
+  .hm-reveal, .hm-title, .hm-curtain, .hm-dot, .hm-ring, .hm-orbit-dot {
+    animation: none !important;
+  }
+  .hm-reveal, .hm-title { opacity: 1 !important; transform: none !important; filter: none !important; letter-spacing: -.6px !important; }
+  .hm-curtain, .hm-progress { display: none !important; }
+  html.hm-active.theme-glass::before { animation: none !important; }
+  .hm-page, .hm-card, .hm-ico, .hm-go, .hm-actions .act-btn { transition: none !important; }
+  .hm-card:hover { transform: none !important; }
+  html.hm-leaving .hm-page { opacity: 1; filter: none; transform: none; }
 }

@@ -477,4 +477,40 @@
 - **移动端两个坑（截图里抓到的）**：`user.css` 的 `.user-topnav` 默认可换行，5 个入口在 390px 被拆成「个人主 / 页」「访问统 / 计」，改成 `flex-wrap:nowrap` + `overflow-x:auto` + `white-space:nowrap`；`user.css` 在 560px 以下给所有 `.act-btn` 设 `flex:1`，三个 Hero 按钮各撑一整行，改成两列 grid（前两个并排、第三个 `grid-column:1/-1`）。和 ⑳ 的 `.sts-controls .act-btn` 是同一类坑。
 - **验收**：本地 Playwright **26/26**（11 个功能入口逐条 HTTP 200、门户首页零 SPA 导航、零 console 错误、全站导航含新入口、`/home/` 五视图与相对路径全根相对、三条深链直达、站点首页与个人主页 390px 均无横向溢出、顶栏不折行、状态页导航回归）。截图 `verify/home_desktop.png` / `home_mobile.png` / `home_personal.png`。
   - 无头 Chromium 缺 emoji 字体，截图里图标是方框，真实浏览器正常（同 ⑳，未改代码）。
-- 本轮是访客可感知的首页大改，按 §0 **发项目公告**并留言板汇报。
+- 本轮是访客可感知的首页大改，按 §0 **发项目公告**并留言板汇报。（补记：当时推送后等 Pages 的线上核验被用户新需求打断，公告没来得及发；已在 ㉓ 的公告 id=14 里把首页改版一并交代，承诺兑现。）
+
+## 2026-11-14 ㉓ 邮件通道改走 Resend 直发（自有域名 fsem 已验证）
+
+- **需求**：「现在邮件一直发不到，所以。。。RESEND <key>」；随后「已经开始了 `fsem.xn--0iv.gay` 的验证，要等一会，你先推进」。按「自己判断、不要中断」的约定，先把不依赖域名验证的部分全做完，最后探测到验证生效再切发件地址。
+- **根因（不是新问题，是 ⑮⑯ 的遗留后果）**：旧链路「`announce` → 私有队列 `fs_mail_queue` → GitHub Actions `mail-queue.yml` → 新浪 SMTP」。队列每封都标 `sent`，但那只是 **SMTP 接受了**，不等于送达：新浪自发自收被静默丢弃，163 / QQ 易被反垃圾分类，且本仓库 `schedule` 实测 0 次触发（靠主动 `workflow_dispatch` 兜着）。换 Resend 走专业发信池，实测邮件直接落进新浪 `INBOX`。
+- **⚠️ 诊断到的三个 Resend 坑（都会误导成「key 无效」）**：
+  1) `GET /domains` / `/api-keys` 返回 `401 restricted_api_key` —— 用户给的是 **sending-only key**，不是失效；`POST /emails` 返回 200 才是有效判据。
+  2) Python `urllib` 默认 UA 直连 `api.resend.com` 返回 `403 "error code: 1010"` —— 是前面 CDN 拦无 UA 请求，**不是 key 问题也不是断网**。curl / Deno fetch 必须显式带浏览器风格 `User-Agent`（本项目统一 `Mozilla/5.0 (compatible; FeSuiMail/1.0)`）。
+  3) 用未验证域名当 `from` 返回 `403 validation_error: domain is not verified`；用 `onboarding@resend.dev` 发给非账号邮箱返回 `403 You can only send testing emails to your own email address (fesui_a@sina.com)`。**所以自有域名验证是必需项，不是优化项**；用户给的 `fsem.xn--0iv.gay` 不是笔误，实测 `notify@fsem.xn--0iv.gay` 试发 200，`fesui.xn--0iv.gay` 仍未验证。sending-only key 查不了域名列表，只能用「试发到 `delivered@resend.dev`」反推验证状态。
+- **方案**：
+  - `fs-notify` 默认 `FS_MAIL_PROVIDER` 从 `queue` **改为 `resend`**（仍可显式切回 `queue` / `none`）；`sendResend()` 重写为**逐封并发**（每批 8 封、单封 12 秒超时）而非 `/emails/batch` —— batch 一封被拒影响整批且拿不到逐封失败原因。带 `List-Unsubscribe` 规范头。
+  - `announce` 只按**真实成功数**回写 `mailed_count` / `mailed_at`，响应带 `mailed` / `failed` / `errors` / `note`，失败原因原样返回，**不把「已提交」当「已送达」**。`mail_test` 在 resend 模式下当场直发，不再入队、不再提示「去 Actions 手动触发」。`mail_status` 新增 `direct` 字段。
+  - 新增 `mail_retry` 动作：按 `announcement_id` 复用 `buildMail()` 的同一套 HTML 补发指定邮箱，累加 `mailed_count`，**不重复发布站内公告**。用于域名验证通过这类「先发一部分、后面补齐」的场景。
+  - `supabase/mail-relay/send-queue.mjs` 保留为兜底，默认同样走 Resend（`MAIL_PROVIDER=smtp` 才回退 SMTP）；`mail-queue.yml` 加 `RESEND_API_KEY` Secret 与 `MAIL_PROVIDER` / `FS_MAIL_FROM` Variables。worker 是纯 HTTPS，没有可 `verify()` 的长连接，sending-only key 也无 `/domains` 读权限，别加「假连通性检查」。
+  - 前端写死的「GitHub Actions 队列」文案全部按 provider 动态化：`admin/admin.js`（卡片说明 / 通道状态 / 队列栏注明「仅历史记录」/ 测试邮件按钮 / 发布确认框）、`user/user.js`（新增 resend 分支）、`blog/index.html`（改中性表述）。`admin.js?v=20261108b → ?v=20261114`、`user.js?v=20261108a → ?v=20261114`。
+- **凭据（仓库外，绝不进 git / 前端 / 公告 / 留言板）**：`/root/.supabase/resend.env`（600）→ Supabase Secrets `RESEND_API_KEY` / `FS_MAIL_PROVIDER=resend` / `FS_MAIL_FROM=FeSui 项目公告 <notify@fsem.xn--0iv.gay>`；GitHub Secret `RESEND_API_KEY` + Variable `FS_MAIL_FROM`（两处必须同步，主通道与兜底 worker 各读一份）。**换发件域名只需改这两个值，代码不用动。**
+- **验收**：`mail_status` / `mail_test` / `announce` 端到端 **11/11**（`provider=resend`、`direct=true`、`sent=1`）；IMAP 实测公告 id=14 落在**新浪 INBOX 而非垃圾箱**；`mail_retry` 补发 163 / QQ **8/8**，`mailed_count` 由 1 累加到 3、站内公告仍只有一条、`fs_mail_queue` 保持 16 条全 `sent`（直发不污染队列）；前端文案 Playwright 验收；首页改版线上核验补到 **23/23**（修掉验收脚本两处误报：`sitemap` 单次网络抖动、只拦 `supabase.co` 没拦反代 `api.fkd.xn--0iv.gay`；`get()` 内置重试；另一次 FAIL 是 `email_get` 异步未渲染完就断言，改 `wait_for_function`）。
+- **公告 id=14**：一条合并交代「首页改版（补 ㉒ 被中断的公告）+ 邮件通道换 Resend + 状态页 405 浅绿小修」，避免一小时内群发三次打扰订阅用户。管理员态照旧「临时提权 `fe_probe_dev` → 线上 `login` 真实 JWT → `finally` 还原」，复核 `role=user` 无残留（**不要用 `/secrets` 自签**，见 ⑯）。
+- 本轮是访客可感知的大改动（首页 + 邮件），按 §0 发公告并留言板汇报。
+
+## 2026-11-14 ㉔ 首页视觉升级：去 emoji、深色质感、进场 / 离场动画
+
+- **需求**：「首页丑死啦，首页就搞高级点吧，什么进入动画，退出动画都加上」。用户确认 `fsem.xn--0iv.gay` 域名验证完成（实测 `notify@fsem.xn--0iv.gay` 试发 200，`fesui.xn--0iv.gay` 仍未验证），线上 `mail_status` 已是 `provider=resend / configured=true / direct=true`，发件地址已切自有域名。
+- **丑在哪（看截图定位，不是凭感觉改）**：① 无头 Chromium 与部分系统缺 emoji 字体，11 个图标 + 按钮图标全渲染成**方框豆腐块**，这是最刺眼的廉价感来源（㉒ 当时记成「真实浏览器正常、未改代码」，这次直接根治）；② `theme-glass` 的大面积紫色糊渐变铺满全屏，卡片又是同色方块，零层次；③ 11 张一模一样的卡片密集平铺，无主次；④ 完全静止、没有动效。
+- **方案**：
+  - **图标全部换成内联 SVG**：`index.html` 里放一组 `<symbol id="i-*" viewBox="0 0 24 24">` 精灵（12 个：11 类功能 + 箭头），卡片 / 按钮用 `<svg viewBox="0 0 24 24"><use href="#i-*"/></svg>` 引用，`currentColor` 随主题变色。**坑**：最初写成 `<g id>` 没有 `viewBox`，`<use>` 按 24 用户单位原样渲染，外层 svg 设 18px 会把图标裁掉；必须改成带 `viewBox` 的 `<symbol>`，外层 svg 也补 `viewBox` 兜底不同浏览器。
+  - **首页固定深色影调**（不随站点主题切）：`.hm-body` 用近黑蓝 `#080b16` + 三处极淡蓝紫径向光晕 + 46px 网格纹理；`html.hm-active.theme-glass::before { display:none }` 关掉主题那层带绿色、会打架的流动光斑（`hm-active` 由 head 内联脚本加）。Hero 改成暗玻璃 + 顶部一道高光线 + 右侧缓慢旋转同心环，标题第二行渐变文字。全站仍复用 `style.css` / `user.css` 的骨架与令牌，只是首页专属覆盖。
+  - **信息分层**：11 个入口不删，拆成「常用功能」6 张三列 + 「更多」5 张紧凑一行（描述两行截断），主次分明；分区标题用编号 + 渐隐细线。
+  - **进场动画（纯 CSS，JS 挂了也不白屏）**：`.hm-curtain` 全屏遮罩 0.68s 退场；`.hm-reveal` 统一 `hmIn` 淡入上移，`--d` 错峰（section 内联写死、卡片由 `home.js` 按索引注入，保证卡片延迟 ≥ 其父 section）；`.hm-title` 单独 `hmTitleIn`（blur → 清晰 + 字距收敛）；绿点脉冲、圆环自转。
+  - **⚠️ 关键坑：`animation-fill-mode` 不能用 `both`**。`both` 结束后会保留 `to` 帧的 `transform:none`，**优先级压掉 `.hm-card:hover` 的 `translateY(-4px)`**，卡片 hover 完全不动。改成 `backwards`（只在 delay 期间应用 `from`，结束后回到基础样式），并从 `.hm-reveal` 移除 `opacity:0` 基础声明。验收专门加了一条 computed transform 断言防回归。
+  - **离场动画**：新增 `home.js`，在**捕获阶段** `document` 事件委托（右下角 `site-nav.js` 是动态注入的，普通元素级绑定漏掉它）。`shouldTransition()` 只对「同源、整页、左键、无修饰键、非下载、非新标签、非纯 hash、非 `data-no-transition`」的链接返回 true；通过则 `preventDefault` → 加 `html.hm-leaving`（`.hm-page` 300ms 淡出 + 上移 + 模糊，顶部 2px 渐变进度条走 88%）→ 320ms 后 `location.href`。`pageshow(e.persisted)` 清状态防 bfcache 回来时页面卡在淡出态；另有 1.5s 兜底复位。`prefers-reduced-motion` 时直接跳转、不动画。
+  - 卡片 hover **追光**：`pointermove` 把鼠标位置写进 `--mx/--my`，`::after` 用 radial-gradient 局部提亮；`(hover:none)` 设备禁用。
+- **版本号**：同日第三次改 `home.css` → `?v=20261114c`；新增 `/home.js?v=20261114`。`site-nav.js?v=20261114b` 本轮没动，保持。
+- **验收**：本地 Playwright **42/42**（含原 ㉒ 的 26 条回归 + SVG 图标 11 张非零星笔画、主次分组、渐变文字、错峰延迟 ≥8 个不同值、动画结束后 opacity=1、遮罩已隐藏、**hover 位移未被覆盖**、离场判定 8 种情形、点站内链接真的先播动画再跳 `/tool/`、点外链不触发、reduced-motion 下动画关闭且内容立即可见、移动端 2 列无溢出、深链与全站导航回归）。截图 `verify/home_desktop.png` / `home_lower.png` / `home_mobile.png` / `home_motion_enter.png` / `home_motion_leave.png`。
+- **范围说明**：动效脚本只在首页加载，所以**从首页点出去有离场动画、进首页有进场动画；其它页面之间互跳仍是无过渡的普通导航**。要全站通用得改 40 个页面的引用并全量回归，本轮按「首页」的字面范围控制住，没擅自扩大。
+- 本轮是访客可感知的首页大改，按 §0 发公告并留言板汇报；与 ㉓ 的收尾合并成一次交付（避免一小时内反复群发）。
