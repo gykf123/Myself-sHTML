@@ -175,6 +175,191 @@
     document.body.appendChild(root);
   }
 
+  /* ============================================================
+     跨站链接确认守卫（全站生效，2026-11-15 上线）
+     ------------------------------------------------------------
+     需求：所有跨站（外域）链接跳转前弹窗确认，避免误触离站。
+     实现：document 捕获阶段拦截所有 <a href> 的点击，目标域与当前
+     域不同（且是 http/https）就 preventDefault，弹玻璃风确认模态，
+     用户确认后才用 window.open(..., 'noopener,noreferrer') 打开。
+     豁免：链接位于 [data-ext-confirm="off"] 容器内则直接放行
+     （供「新版/旧版选择」这类本身就是确认步骤的交互复用）。
+     对外 API：window.FeSuiLinkGuard.open(url, opts)
+       - opts.skip = true 时跳过确认直接打开（站内地址自动跳过）。
+       - 供 script.js 的彩蛋 / 自定义跳转等 window.open 调用点统一走确认。
+     ============================================================ */
+  var guardModal = null;
+  var guardTarget = '';
+  var guardLastFocus = null;
+
+  function guardStyles() {
+    if (document.getElementById('flgStyle')) return;
+    var dark = isDark();
+    var vars = dark
+      ? '--flg-bg:rgba(22,27,34,.96);--flg-border:rgba(255,255,255,.16);'
+      + '--flg-text:#e6edf3;--flg-dim:#9aa4b2;--flg-accent:#58a6ff;'
+      + '--flg-hover:rgba(255,255,255,.08);--flg-veil:rgba(0,0,0,.55);'
+      + '--flg-chip:rgba(88,166,255,.14);'
+      + '--flg-ok:#3fb950;--flg-ok-hover:#46c458;'
+      + '--flg-shadow:0 18px 48px rgba(0,0,0,.45)'
+      : '--flg-bg:rgba(255,255,255,.98);--flg-border:rgba(0,0,0,.14);'
+      + '--flg-text:#1f2328;--flg-dim:#57606a;--flg-accent:#0969da;'
+      + '--flg-hover:rgba(0,0,0,.06);--flg-veil:rgba(0,0,0,.45);'
+      + '--flg-chip:rgba(9,105,218,.1);'
+      + '--flg-ok:#1a7f37;--flg-ok-hover:#1c8437;'
+      + '--flg-shadow:0 18px 48px rgba(0,0,0,.25)';
+    var css = [
+      '.flg-root{' + vars + ';font:14px/1.6 -apple-system,BlinkMacSystemFont,',
+        '"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}',
+      '.flg-veil{position:fixed;inset:0;z-index:9500;background:var(--flg-veil);',
+        'display:flex;align-items:center;justify-content:center;padding:20px;',
+        'backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}',
+      '.flg-modal{width:min(420px,100%);border-radius:16px;padding:22px 22px 18px;',
+        'border:1px solid var(--flg-border);background:var(--flg-bg);',
+        'color:var(--flg-text);box-shadow:var(--flg-shadow);',
+        'animation:flgIn .18s ease}',
+      '@keyframes flgIn{from{opacity:0;transform:translateY(10px) scale(.98)}',
+        'to{opacity:1;transform:none}}',
+      '.flg-title{margin:0 0 10px;font-size:16px;font-weight:700}',
+      '.flg-host{display:inline-block;max-width:100%;padding:3px 10px;margin:0 0 10px;',
+        'border-radius:999px;font-size:13px;font-weight:600;word-break:break-all;',
+        'color:var(--flg-accent);background:var(--flg-chip)}',
+      '.flg-text{margin:0 0 16px;color:var(--flg-dim);font-size:13px;word-break:break-all}',
+      '.flg-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}',
+      '.flg-btn{padding:8px 16px;border-radius:10px;font-size:13.5px;font-weight:600;',
+        'cursor:pointer;border:1px solid var(--flg-border);background:transparent;',
+        'color:var(--flg-text);transition:background .15s ease,border-color .15s ease}',
+      '.flg-btn:hover{background:var(--flg-hover)}',
+      '.flg-btn:focus-visible{outline:2px solid var(--flg-accent);outline-offset:2px}',
+      '.flg-btn-ok{border-color:transparent;background:var(--flg-ok);color:#fff}',
+      '.flg-btn-ok:hover{background:var(--flg-ok-hover)}',
+      '@media (prefers-reduced-motion:reduce){.flg-modal{animation:none}}'
+    ].join('');
+    var style = document.createElement('style');
+    style.id = 'flgStyle';
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  // 用临时 <a> 打开：target=_blank + rel=noopener noreferrer，既避弹窗拦截，
+  // 也不把 opener 暴露给目标站。注意不能靠 window.open 返回值做兜底 ——
+  // 带 noopener 时规范要求返回 null，误判会导致当前页被一起导航走。
+  function guardOpenReal(url) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.display = 'none';
+    a.setAttribute('data-ext-confirm', 'off');   // 合成点击不再触发守卫，避免死循环
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function guardShowModal(url) {
+    guardStyles();
+    guardCloseModal();
+    guardTarget = url;
+    guardLastFocus = document.activeElement;
+    var host = '';
+    try { host = new URL(url).hostname; } catch (e) { host = url; }
+
+    var veil = el('div', 'flg-root flg-veil');
+    veil.id = 'flgVeil';
+    veil.setAttribute('data-ext-confirm', 'off');
+    var modal = el('div', 'flg-modal');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', '即将离开本站');
+
+    var t = el('p', 'flg-title', '即将离开本站');
+    var chip = el('span', 'flg-host', host);
+    var desc = el('p', 'flg-text',
+      '你即将访问外部站点，内容不受本站控制。确认要继续吗？目标地址：' + url);
+    var acts = el('div', 'flg-actions');
+    var cancel = el('button', 'flg-btn', '留在本站');
+    cancel.type = 'button';
+    var ok = el('button', 'flg-btn flg-btn-ok', '继续访问');
+    ok.type = 'button';
+
+    cancel.addEventListener('click', guardCloseModal);
+    ok.addEventListener('click', function () {
+      guardCloseModal();
+      guardOpenReal(guardTarget);
+    });
+    veil.addEventListener('click', function (e) {
+      if (e.target === veil) guardCloseModal();
+    });
+
+    acts.appendChild(cancel);
+    acts.appendChild(ok);
+    modal.appendChild(t);
+    modal.appendChild(chip);
+    modal.appendChild(desc);
+    modal.appendChild(acts);
+    veil.appendChild(modal);
+    document.body.appendChild(veil);
+    guardModal = veil;
+    document.addEventListener('keydown', guardEsc, true);
+    ok.focus();
+  }
+
+  function guardEsc(e) {
+    if (e.key === 'Escape' && guardModal) {
+      e.stopPropagation();
+      guardCloseModal();
+    }
+  }
+
+  function guardCloseModal() {
+    if (!guardModal) return;
+    var v = guardModal;
+    guardModal = null;
+    document.removeEventListener('keydown', guardEsc, true);
+    v.remove();
+    if (guardLastFocus && guardLastFocus.focus) {
+      try { guardLastFocus.focus({ preventScroll: true }); } catch (e) {}
+    }
+  }
+
+  function guardIsExternal(url) {
+    try {
+      var u = new URL(url, location.href);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+      return u.hostname !== location.hostname;
+    } catch (e) { return false; }
+  }
+
+  // 捕获阶段拦截：先于页面自身监听器执行，拦下就 preventDefault
+  document.addEventListener('click', function (e) {
+    if (guardModal) return;               // 模态内的按钮自己处理
+    if (e.defaultPrevented) return;
+    var node = e.target;
+    while (node && node !== document) {
+      if (node.getAttribute && node.getAttribute('data-ext-confirm') === 'off') return;
+      node = node.parentNode;
+    }
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    if (!href || href.charAt(0) === '#') return;
+    if (!guardIsExternal(href)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var abs;
+    try { abs = new URL(href, location.href).href; } catch (err) { return; }
+    guardShowModal(abs);
+  }, true);
+
+  window.FeSuiLinkGuard = {
+    open: function (url, opts) {
+      opts = opts || {};
+      if (!guardIsExternal(url) || opts.skip) { guardOpenReal(url); return; }
+      guardShowModal(url);
+    },
+    isExternal: guardIsExternal
+  };
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {

@@ -347,3 +347,92 @@ html.hm-leaving .hm-body::before { opacity: 0; transition: opacity .3s; }
   .hm-card:hover { transform: none !important; }
   html.hm-leaving .hm-page { opacity: 1; filter: none; transform: none; }
 }
+
+/* ---------- 正在开发横幅（MCP · mc-cloud-platform） ---------- */
+.hm-dev-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -2px 0 30px;
+  padding: 15px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(139, 118, 255, .38);
+  background:
+    linear-gradient(100deg, rgba(124, 96, 255, .16), rgba(88, 120, 255, .08) 55%, rgba(168, 110, 255, .12));
+  box-shadow: 0 10px 34px rgba(94, 82, 255, .14), inset 0 1px 0 rgba(255, 255, 255, .07);
+  color: #eef1fb;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.hm-dev-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .08) 48%, transparent 62%);
+  transform: translateX(-120%);
+  animation: hmDevSweep 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes hmDevSweep {
+  0%, 55% { transform: translateX(-120%); }
+  75%, 100% { transform: translateX(120%); }
+}
+.hm-dev-banner:hover, .hm-dev-banner:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(160, 140, 255, .6);
+  box-shadow: 0 14px 42px rgba(104, 88, 255, .22), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.hm-dev-banner:focus-visible { outline: 2px solid #8fb0ff; outline-offset: 3px; }
+.hm-dev-pulse {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7c9dff;
+  box-shadow: 0 0 0 0 rgba(124, 157, 255, .55);
+  animation: hmDevPulse 1.8s ease-out infinite;
+}
+@keyframes hmDevPulse {
+  0% { box-shadow: 0 0 0 0 rgba(124, 157, 255, .55); }
+  70% { box-shadow: 0 0 0 9px rgba(124, 157, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 157, 255, 0); }
+}
+.hm-dev-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hm-dev-badge {
+  flex: none;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #cdd6ff;
+  background: rgba(124, 96, 255, .28);
+  border: 1px solid rgba(160, 140, 255, .5);
+}
+.hm-dev-name { font-size: 16px; font-weight: 800; letter-spacing: .2px; color: #f2f5ff; white-space: nowrap; }
+.hm-dev-desc { font-size: 12.5px; color: rgba(228, 232, 250, .72); min-width: 200px; flex: 1; }
+.hm-dev-more {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b8caff;
+  transition: color .2s ease;
+}
+.hm-dev-banner:hover .hm-dev-more { color: #d6e0ff; }
+.hm-dev-more .hm-go { width: 15px; height: 15px; }
+@media (max-width: 720px) {
+  .hm-dev-banner { flex-wrap: wrap; gap: 10px 12px; padding: 14px 15px; }
+  .hm-dev-name { font-size: 14.5px; white-space: normal; }
+  .hm-dev-desc { min-width: 0; flex-basis: 100%; font-size: 12px; }
+  .hm-dev-more { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hm-dev-banner::before, .hm-dev-pulse { animation: none !important; }
+  .hm-dev-banner { transition: none !important; }
+  .hm-dev-banner:hover { transform: none !important; }
+}

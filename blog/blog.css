@@ -168,3 +168,36 @@
   .blog-post { transition: none; }
   .blog-post:hover { transform: none; }
 }
+
+/* ---------- 文章 / 公告 tab（20261115） ----------
+   博客页默认只看文章，公告收进第二个标签，不再混排刷屏 */
+
+.blog-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.blog-tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.blog-tab:hover { background: var(--surface-2); }
+.blog-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.blog-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .blog-tab { transition: none; }
+}

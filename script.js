@@ -37,10 +37,18 @@ const CONFIG = {
     }
   ],
   // 友链（大卡片，参考 blym.top 的友链网格样式；favicon 取站点自身，加载失败回退为站点首字）
+  // versions 存在的友链（如模拟飞行）点击后弹「新版 / 旧版」选择模态，而不是直接跳转
   friendLinks: [
     { name: '白鹿原嚒', url: 'https://blym.top/', desc: '技术博客与开源项目分享，Minecraft 玩家的自留地。', favicon: 'https://blym.top/favicon.ico' },
     { name: 'MCJS', url: 'https://mcjs.link', desc: '网页版 Minecraft 最佳中文版，无需下载即可在浏览器里游玩。', favicon: 'https://mcjs.link/favicon.ico' },
-    { name: 'DJI 虚拟飞行模拟器', url: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/', desc: '网页版无人机飞行模拟器：自由飞行、天气操控与联机约飞广场。', favicon: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/favicon.ico' }
+    {
+      name: 'DJI 虚拟飞行模拟器', desc: '网页版无人机飞行模拟器：自由飞行、天气操控与联机约飞广场。',
+      favicon: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/favicon.ico',
+      versions: [
+        { label: '新版', url: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/?sharecode=7BLCD57WYW', note: '带邀请码的最新版本' },
+        { label: '旧版', url: 'https://7acd260d14174821b478798a0599c182.app.workbuddy.host/', note: '原链接，不加邀请码' }
+      ]
+    }
   ],
   // 自定义链接跳转的预设站点（与手动输入共用同一套 URL 白名单校验）
   jumpPresets: [
@@ -121,9 +129,21 @@ function renderFriendLinks() {
   if (!box) return;
   const frag = document.createDocumentFragment();
   CONFIG.friendLinks.forEach(f => {
+    const hasVersions = Array.isArray(f.versions) && f.versions.length > 0;
     const a = document.createElement('a');
     a.className = 'friend-card glass';
-    a.href = f.url;
+    if (hasVersions) {
+      // 带版本选择的友链：点击弹「新版 / 旧版」选择模态（本身就是确认步骤，
+      // 标记 data-ext-confirm="off" 让全站外链守卫放行，选中后跳转不再二次确认）
+      a.href = f.versions[0].url;
+      a.dataset.extConfirm = 'off';
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        showVersionModal(f);
+      });
+    } else {
+      a.href = f.url;
+    }
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
     // 站点首字（favicon 加载失败时回退）
@@ -138,9 +158,9 @@ function renderFriendLinks() {
     logo.appendChild(img);
     const body = document.createElement('div');
     body.className = 'friend-body';
-    const host = (() => { try { return new URL(f.url).hostname; } catch (e) { return f.url; } })();
+    const host = (() => { try { return new URL(f.versions ? f.versions[0].url : f.url).hostname; } catch (e) { return f.url; } })();
     body.innerHTML =
-      `<h4 class="friend-name">${f.name}<span class="go" aria-hidden="true">↗</span></h4>` +
+      `<h4 class="friend-name">${f.name}${hasVersions ? '<span class="friend-versions">新版/旧版</span>' : ''}<span class="go" aria-hidden="true">↗</span></h4>` +
       `<p class="friend-desc">${f.desc}</p>` +
       `<p class="friend-url">${host}</p>`;
     a.appendChild(logo);
@@ -148,6 +168,132 @@ function renderFriendLinks() {
     frag.appendChild(a);
   });
   box.appendChild(frag);
+}
+
+/* ---------- 友链「新版 / 旧版」选择模态 ----------
+   点击带 versions 的友链（模拟飞行）时弹出；选中后经
+   FeSuiLinkGuard.open(url, {skip:true}) 直接打开（选择即确认，不二次弹窗）。 */
+
+// 友链卡上的「新版/旧版」小徽标样式：script.js 常驻注入，不改全站 style.css
+(function ensureFriendBadgeStyle() {
+  if (document.getElementById('friendBadgeStyle')) return;
+  const style = document.createElement('style');
+  style.id = 'friendBadgeStyle';
+  style.textContent =
+    '.friend-versions{display:inline-block;margin-left:8px;padding:1px 8px;' +
+    'border-radius:999px;font-size:11px;font-weight:600;vertical-align:2px;' +
+    'color:#58a6ff;background:rgba(88,166,255,.14);border:1px solid rgba(88,166,255,.35)}';
+  (document.head || document.documentElement).appendChild(style);
+})();
+
+let flvModal = null;
+let flvLastFocus = null;
+
+function flvEnsureStyles() {
+  if (document.getElementById('flvStyle')) return;
+  const dark = document.documentElement.classList.contains('theme-glass') ||
+    (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const style = document.createElement('style');
+  style.id = 'flvStyle';
+  style.textContent = [
+    '.flv-veil{position:fixed;inset:0;z-index:9600;display:flex;',
+      'align-items:center;justify-content:center;padding:20px;',
+      'background:' + (dark ? 'rgba(0,0,0,.55)' : 'rgba(0,0,0,.45)') + ';',
+      'backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);',
+      'font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",',
+      '"Microsoft YaHei",sans-serif}',
+    '.flv-modal{width:min(400px,100%);border-radius:16px;padding:22px;',
+      'animation:flvIn .18s ease;' + (dark
+        ? 'background:rgba(22,27,34,.97);border:1px solid rgba(255,255,255,.16);color:#e6edf3;box-shadow:0 18px 48px rgba(0,0,0,.45)'
+        : 'background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.14);color:#1f2328;box-shadow:0 18px 48px rgba(0,0,0,.25)') + '}',
+    '@keyframes flvIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}',
+    '.flv-title{margin:0 0 4px;font-size:16px;font-weight:700}',
+    '.flv-sub{margin:0 0 14px;font-size:12.5px;opacity:.65}',
+    '.flv-opt{display:block;width:100%;text-align:left;margin:0 0 10px;padding:12px 14px;',
+      'border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;',
+      'border:1px solid ' + (dark ? 'rgba(255,255,255,.16)' : 'rgba(0,0,0,.14)') + ';',
+      'background:transparent;color:inherit;transition:background .15s ease,border-color .15s ease}',
+    '.flv-opt:hover{border-color:#58a6ff;background:' + (dark ? 'rgba(88,166,255,.12)' : 'rgba(9,105,218,.08)') + '}',
+    '.flv-opt:focus-visible{outline:2px solid #58a6ff;outline-offset:2px}',
+    '.flv-opt-note{display:block;font-size:12px;font-weight:400;opacity:.65;margin-top:2px}',
+    '.flv-cancel{display:block;width:100%;margin-top:2px;padding:9px;border-radius:10px;',
+      'cursor:pointer;font-size:13px;font-weight:600;border:1px solid transparent;',
+      'background:transparent;color:inherit;opacity:.7}',
+    '.flv-cancel:hover{opacity:1;background:' + (dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)') + '}',
+    '@media (prefers-reduced-motion:reduce){.flv-modal{animation:none}}'
+  ].join('');
+  document.head.appendChild(style);
+}
+
+function flvClose() {
+  if (!flvModal) return;
+  const v = flvModal;
+  flvModal = null;
+  document.removeEventListener('keydown', flvEsc, true);
+  v.remove();
+  if (flvLastFocus && flvLastFocus.focus) {
+    try { flvLastFocus.focus({ preventScroll: true }); } catch (e) {}
+  }
+}
+
+function flvEsc(e) {
+  if (e.key === 'Escape' && flvModal) { e.stopPropagation(); flvClose(); }
+}
+
+function showVersionModal(f) {
+  flvEnsureStyles();
+  flvClose();
+  flvLastFocus = document.activeElement;
+  const veil = document.createElement('div');
+  veil.className = 'flv-veil';
+  veil.setAttribute('data-ext-confirm', 'off');
+  veil.setAttribute('role', 'dialog');
+  veil.setAttribute('aria-modal', 'true');
+  veil.setAttribute('aria-label', '选择要打开的版本');
+  const modal = document.createElement('div');
+  modal.className = 'flv-modal';
+  const title = document.createElement('p');
+  title.className = 'flv-title';
+  title.textContent = f.name;
+  const sub = document.createElement('p');
+  sub.className = 'flv-sub';
+  sub.textContent = '选择要打开的版本，将在新标签页打开';
+  modal.appendChild(title);
+  modal.appendChild(sub);
+  f.versions.forEach(v => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'flv-opt';
+    const lab = document.createElement('span');
+    lab.textContent = v.label;
+    const note = document.createElement('span');
+    note.className = 'flv-opt-note';
+    note.textContent = v.note || v.url;
+    btn.appendChild(lab);
+    btn.appendChild(note);
+    btn.addEventListener('click', () => {
+      const url = v.url;
+      flvClose();
+      if (window.FeSuiLinkGuard && window.FeSuiLinkGuard.open) {
+        window.FeSuiLinkGuard.open(url, { skip: true });
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
+    modal.appendChild(btn);
+  });
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'flv-cancel';
+  cancel.textContent = '取消';
+  cancel.addEventListener('click', flvClose);
+  modal.appendChild(cancel);
+  veil.appendChild(modal);
+  veil.addEventListener('click', e => { if (e.target === veil) flvClose(); });
+  document.body.appendChild(veil);
+  flvModal = veil;
+  document.addEventListener('keydown', flvEsc, true);
+  modal.querySelector('.flv-opt').focus();
 }
 
 /* ---------- 渲染工具箱卡片 ---------- */
@@ -277,9 +423,13 @@ function normalizeJumpUrl(raw) {
   return { ok: true, url: u.href };
 }
 
-// 用临时 <a> 打开并固定 rel=noopener noreferrer，避免反向 tabnabbing；
-// 比 window.open 更少受弹窗拦截影响，也不会把 opener 暴露给目标站。
+// 经全站外链守卫打开：跨站链接会先弹确认模态，站内地址直接新标签页打开。
+// 固定 rel=noopener noreferrer，避免反向 tabnabbing，也不把 opener 暴露给目标站。
 function openJump(url) {
+  if (window.FeSuiLinkGuard && window.FeSuiLinkGuard.open) {
+    window.FeSuiLinkGuard.open(url);
+    return;
+  }
   const a = document.createElement('a');
   a.href = url;
   a.target = '_blank';
@@ -330,7 +480,7 @@ function bindJump() {
     const input = $('#jumpInput');
     const r = normalizeJumpUrl(input && input.value);
     if (!r.ok) { setJumpMsg(r.msg, true); return; }
-    setJumpMsg('已在新标签页打开：' + r.url, false);
+    setJumpMsg('已发起跳转（跨站链接需在弹窗中确认）', false);
     openJump(r.url);
   });
   const input = $('#jumpInput');
@@ -341,7 +491,7 @@ function bindJump() {
     if (!btn) return;
     const r = normalizeJumpUrl(btn.dataset.url);
     if (!r.ok) { setJumpMsg('预设链接配置有误：' + r.msg, true); return; }
-    setJumpMsg('已在新标签页打开：' + r.url, false);
+    setJumpMsg('已发起跳转（跨站链接需在弹窗中确认）', false);
     openJump(r.url);
   });
 }
@@ -366,7 +516,10 @@ function bindEgg() {
     btn.addEventListener('animationend', () => btn.classList.remove('celebrate'), { once: true });
     btn.innerHTML = '<span class="egg-ico" aria-hidden="true">🎲</span><span class="egg-label">传送中…</span>';
     setTimeout(() => {
-      if (url !== '#') window.open(url, '_blank', 'noopener,noreferrer');
+      if (url !== '#') {
+        if (window.FeSuiLinkGuard && window.FeSuiLinkGuard.open) window.FeSuiLinkGuard.open(url);
+        else window.open(url, '_blank', 'noopener,noreferrer');
+      }
       btn.disabled = false;
       btn.innerHTML = '<span class="egg-ico" aria-hidden="true">🎲</span><span class="egg-label">再来一次</span>';
     }, 500);

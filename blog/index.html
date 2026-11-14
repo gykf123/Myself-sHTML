@@ -9,10 +9,10 @@
   <link rel="icon" href="../favicon.png" />
   <link rel="stylesheet" href="../style.css?v=20261107b" />
   <link rel="stylesheet" href="../user/user.css?v=20261108" />
-  <link rel="stylesheet" href="./blog.css?v=20261108a" />
+  <link rel="stylesheet" href="./blog.css?v=20261115" />
   <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
   <script src="/net-guard.js?v=20261107"></script>
-  <script src="/site-nav.js?v=20261114b"></script>
+  <script src="/site-nav.js?v=20261115"></script>
 </head>
 <body>
   <div class="user-page">
@@ -34,9 +34,22 @@
       <section class="user-card blog-head">
         <h1 class="blog-title">📰 博客 &amp; 项目公告</h1>
         <p class="blog-sub">站点更新、技术笔记和随笔都放这儿。公告由管理员发布，在<a href="../user/">个人中心绑定邮箱</a>即可订阅（公告发布后也会直接发到已订阅邮箱）。</p>
+        <!-- 文章与公告分 tab 显示：进页默认看文章，公告切一下才出现（不再混排刷屏） -->
+        <div class="blog-tabs" id="blogTabs" role="tablist" aria-label="博客内容切换">
+          <button class="blog-tab active" id="tabPosts" type="button" role="tab" aria-selected="true" aria-controls="listCard">✍️ 文章</button>
+          <button class="blog-tab" id="tabAnns" type="button" role="tab" aria-selected="false" aria-controls="annCard">📢 项目公告</button>
+        </div>
       </section>
 
-      <section class="user-card">
+      <section class="user-card" id="listCard">
+        <div class="blog-card-head">
+          <h2>✍️ 文章</h2>
+          <span class="blog-count" id="postCount">…</span>
+        </div>
+        <div id="postList" class="blog-post-list"><div class="user-loading">加载中…</div></div>
+      </section>
+
+      <section class="user-card" id="annCard" hidden>
         <div class="blog-card-head">
           <h2>📢 项目公告</h2>
           <div class="blog-head-actions">
@@ -46,14 +59,6 @@
           </div>
         </div>
         <div id="annList" class="blog-ann-list"><div class="user-loading">加载中…</div></div>
-      </section>
-
-      <section class="user-card" id="listCard">
-        <div class="blog-card-head">
-          <h2>✍️ 文章</h2>
-          <span class="blog-count" id="postCount">…</span>
-        </div>
-        <div id="postList" class="blog-post-list"><div class="user-loading">加载中…</div></div>
       </section>
 
       <section class="user-card" id="postCard" hidden>
@@ -69,7 +74,7 @@
     </footer>
   </div>
 
-  <script src="./blog.js?v=20261108a" defer></script>
+  <script src="./blog.js?v=20261115" defer></script>
   <script src="/visit.js?v=20261107" defer></script>
 </body>
 </html>

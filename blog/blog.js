@@ -317,6 +317,33 @@ async function loadPost(slug) {
   } catch (e) { renderError(box, '文章暂时读不到，稍后再试'); }
 }
 
+/* ---------- 文章 / 公告 tab 切换 ----------
+   默认显示文章列表；公告切到「项目公告」标签才出现，
+   避免公告全文平铺把文章挤到很下面。 */
+function bindBlogTabs() {
+  const tabs = $('#blogTabs');
+  const annCard = $('#annCard'), listCard = $('#listCard');
+  if (!tabs || !annCard || !listCard) return;
+  const postsTab = $('#tabPosts'), annsTab = $('#tabAnns');
+  function selectTab(which) {
+    const showAnns = which === 'anns';
+    annCard.hidden = !showAnns;
+    listCard.hidden = showAnns;
+    if (postsTab) { postsTab.classList.toggle('active', !showAnns); postsTab.setAttribute('aria-selected', String(!showAnns)); }
+    if (annsTab) { annsTab.classList.toggle('active', showAnns); annsTab.setAttribute('aria-selected', String(showAnns)); }
+  }
+  postsTab && postsTab.addEventListener('click', () => selectTab('posts'));
+  annsTab && annsTab.addEventListener('click', () => selectTab('anns'));
+  tabs.addEventListener('keydown', e => {
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.target.getAttribute('role') === 'tab') {
+      e.preventDefault();
+      const next = e.target === postsTab ? annsTab : postsTab;
+      next && next.focus();
+      selectTab(next === annsTab ? 'anns' : 'posts');
+    }
+  });
+}
+
 /* ---------- 启动 ---------- */
 (async function init() {
   const y = $('#footYear');
@@ -324,9 +351,12 @@ async function loadPost(slug) {
   const slug = new URLSearchParams(location.search).get('p') || '';
   await Promise.all([loadAnnouncements(), loadPosts()]);
   if (slug) {
-    const listCard = $('#listCard'), postCard = $('#postCard');
+    const tabs = $('#blogTabs'), listCard = $('#listCard'), postCard = $('#postCard');
+    if (tabs) tabs.hidden = true;        // 详情页不需要 tab 切换
     if (listCard) listCard.hidden = true;
     if (postCard) postCard.hidden = false;
     await loadPost(slug);
+  } else {
+    bindBlogTabs();
   }
 })();
