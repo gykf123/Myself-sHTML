@@ -71,24 +71,31 @@
     var total = Number(sum.total || (d.services || []).length || 0);
     var up = Number(sum.up || 0);
     var issues = Number(sum.issues || 0);
+    var likely = Number(sum.likely || 0);
     var allOk = !!sum.all_ok && !d.partial;
     var box = $('stsOverview');
     if (!box) return;
 
+    // 「大概率正常」不是异常，但也不是确证在线 —— 整体状态写「基本正常」，
+    // 并在异常卡里单独标出，避免把带保留的判定混进「全部正常」。
+    var headline = allOk
+      ? (likely ? '基本正常' : '全部正常')
+      : (d.partial && !issues ? '部分未知' : '需关注');
+
     box.innerHTML =
       '<div class="sts-ov-card' + (allOk ? '' : ' is-bad') + '">' +
         '<div class="sts-ov-label">整体状态</div>' +
-        '<div class="sts-ov-value ' + (allOk ? 'is-good' : '') + '">' +
-          (allOk ? '全部正常' : (d.partial && !issues ? '部分未知' : '需关注')) +
-        '</div>' +
+        '<div class="sts-ov-value ' + (allOk ? 'is-good' : '') + '">' + headline + '</div>' +
       '</div>' +
       '<div class="sts-ov-card">' +
         '<div class="sts-ov-label">在线服务</div>' +
         '<div class="sts-ov-value">' + up + ' / ' + total + '</div>' +
+        (likely ? '<div class="sts-ov-hint">另有 ' + likely + ' 项「大概率正常」</div>' : '') +
       '</div>' +
       '<div class="sts-ov-card' + (issues ? ' is-bad' : '') + '">' +
         '<div class="sts-ov-label">异常 / 需关注</div>' +
         '<div class="sts-ov-value">' + issues + '</div>' +
+        (likely ? '<div class="sts-ov-hint">' + likely + ' 项已按 405 重新解读，未计入异常</div>' : '') +
       '</div>' +
       '<div class="sts-ov-card">' +
         '<div class="sts-ov-label">数据生成于</div>' +
@@ -149,6 +156,16 @@
       ? '<div class="sts-svc-error">' + esc(s.error) + '</div>'
       : '';
 
+    // 服务端把「405 Method Not Allowed」重新解读为「大概率正常」时，
+    // 必须同时把探针原始判定与原因摆出来，不能只留一个好看的绿色徽标。
+    var assessHtml = s.assessment
+      ? '<div class="sts-assess">' +
+          '<span class="sts-assess-line"><b>探针原始状态：' + esc(s.probe_status_text || '未知') +
+            '</b> · ' + esc(s.assessment.reason || '') + '</span>' +
+          '<span class="sts-assess-note">' + esc(s.assessment.note || '') + '</span>' +
+        '</div>'
+      : '';
+
     // 字段缺失（接口部分失败）时，指标显示占位而不是编造 0
     var hasData = s.status != null && s.uptime_all != null;
     var metrics = hasData
@@ -167,7 +184,7 @@
         '</div>' +
         '<span class="sts-badge" data-state="' + esc(state) + '">' + esc(text) + '</span>' +
       '</div>' +
-      metrics + errHtml +
+      assessHtml + metrics + errHtml +
       (hasData ? '<div class="sts-spark"><div class="sts-spark-head">最近响应时间 · 均值 <b>' + esc(ms(s.avg_ms)) + '</b></div>' + renderBars(s) + '</div>' : '') +
       (hasData ? '<div class="sts-events">' + renderEvents(s) + '</div>' : '') +
     '</article>';

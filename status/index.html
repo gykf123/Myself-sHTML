@@ -9,7 +9,7 @@
   <link rel="icon" href="../favicon.png" />
   <link rel="stylesheet" href="../style.css?v=20261107b" />
   <link rel="stylesheet" href="../user/user.css?v=20261108" />
-  <link rel="stylesheet" href="./status.css?v=20261114b" />
+  <link rel="stylesheet" href="./status.css?v=20261114c" />
   <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
   <script src="/net-guard.js?v=20261107"></script>
   <script src="/site-nav.js?v=20261114"></script>
@@ -53,6 +53,7 @@
         <h2><span class="card-ico" aria-hidden="true">ℹ️</span>关于这些数字</h2>
         <ul class="sts-notes">
           <li><b>状态</b>由监控服务判定：在线 / 疑似离线 / 离线 / 已暂停 / 待首次检测。</li>
+          <li><b>大概率正常</b>（浅绿）：探针判离线，但故障原因明确是 <code>405 · Method Not Allowed</code> —— 健康检查端点不接受该探测方法，服务在网络层其实有响应。这类会标浅绿并<b>保留原始探针状态和原因</b>，不等于已确证在线；其它错误码、超时、DNS 等一律按原判显示，不放宽。</li>
           <li><b>可用率</b>为监控服务统计的历史成功比例；刚创建的监控样本很少，数值波动属正常。</li>
           <li><b>响应时间</b>是探测点到目标的网络往返，不等于实际页面加载速度。</li>
           <li>状态页本身只读，不写入任何数据；接口异常时会明确提示「暂不可用」，不会假装一切正常。</li>
@@ -70,7 +71,7 @@
     </footer>
   </div>
 
-  <script src="./status.js?v=20261114" defer></script>
+  <script src="./status.js?v=20261114b" defer></script>
   <script src="/visit.js?v=20261107" defer></script>
 </body>
 </html>

@@ -38,6 +38,8 @@ a.sts-official-link, a.sts-official-link:hover { text-decoration: none; }
 }
 .sts-svc[data-state="down"] { border-color: rgba(248, 81, 73, .5); }
 .sts-svc[data-state="seems_down"] { border-color: rgba(210, 153, 34, .5); }
+/* 浅绿：探针判离线但原因是 405 —— 带保留的乐观判定，与「在线」的实绿区分开 */
+.sts-svc[data-state="likely_ok"] { border-color: rgba(58, 168, 118, .32); }
 .sts-svc[data-state="unknown"], .sts-svc[data-state="error"] { border-color: var(--border); }
 
 .sts-svc-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
@@ -58,12 +60,24 @@ a.sts-official-link, a.sts-official-link:hover { text-decoration: none; }
 }
 .sts-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .sts-badge[data-state="up"] { color: #2ea043; background: rgba(46, 160, 67, .12); border-color: rgba(46, 160, 67, .3); }
+/* 「大概率正常」用更浅的绿，视觉上比确证「在线」弱一档 */
+.sts-badge[data-state="likely_ok"] { color: #3aa876; background: rgba(58, 168, 118, .10); border-color: rgba(58, 168, 118, .30); }
 .sts-badge[data-state="down"] { color: #f85149; background: rgba(248, 81, 73, .12); border-color: rgba(248, 81, 73, .3); }
 .sts-badge[data-state="seems_down"] { color: #d29922; background: rgba(210, 153, 34, .12); border-color: rgba(210, 153, 34, .3); }
 .sts-badge[data-state="paused"], .sts-badge[data-state="pending"],
 .sts-badge[data-state="unknown"], .sts-badge[data-state="error"] {
   color: var(--text-dim); background: var(--surface); border-color: var(--border);
 }
+
+/* 重新解读说明条：永远和原始探针状态一起出现，避免「只报喜」 */
+.sts-assess {
+  display: block; margin-top: 12px; padding: 9px 11px; border-radius: 9px;
+  background: rgba(58, 168, 118, .07); border: 1px solid rgba(58, 168, 118, .22);
+  font-size: 12px; line-height: 1.7; color: var(--text);
+}
+.sts-assess-line { display: block; }
+.sts-assess-line b { color: var(--text); }
+.sts-assess-note { display: block; margin-top: 3px; color: var(--text-dim); }
 
 .sts-metrics {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));

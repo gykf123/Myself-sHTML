@@ -52,6 +52,14 @@ const LOG_TYPE: Record<number, string> = {
   99: '暂停监控',
 }
 
+// 「405 · Method Not Allowed」的常见成因：目标在线但健康检查端点不接受探针
+// 使用的探测方法，于是把请求挡了回来 —— 服务在网络层是有响应的，并不是故障。
+// 只在「当前被判离线」且「最新故障事件原因就是它」时才重新解读为「大概率正常」；
+// 其它 4xx/5xx、超时、DNS 等一律保留探针原始判定，绝不放宽。
+const METHOD_405 = /\b405\b[\s\S]*method\s*not\s*allowed|\bmethod\s*not\s*allowed[\s\S]*\b405\b/i
+const ASSESS_NOTE = '探针请求被目标拒绝（健康检查端点不接受该探测方法），说明服务在网络层有响应。这不等于服务故障，但也不等于已确证在线，仍建议核对监控配置。'
+const ASSESS_TEXT = '大概率正常'
+
 type CacheEntry = { at: number; body: unknown } | null
 let cache: CacheEntry = null
 
@@ -81,7 +89,8 @@ function reasonText(r: unknown): string {
 
 /** 从上游 monitor 里挑出「可公开展示」的字段，其余一律丢弃。 */
 function pick(m: Record<string, unknown>) {
-  const st = STATUS[num(m.status)] || { state: 'unknown', text: '未知' }
+  const rawStatus = num(m.status)
+  const st = STATUS[rawStatus] || { state: 'unknown', text: '未知' }
   const ratios = String(m.custom_uptime_ratio || '')
     .split('-')
     .map((x) => {
@@ -94,12 +103,33 @@ function pick(m: Record<string, unknown>) {
   const rts = Array.isArray(m.response_times) ? m.response_times : []
   const logs = Array.isArray(m.logs) ? m.logs : []
 
+  const events = logs.slice(0, 5).map((x) => {
+    const o = (x || {}) as Record<string, unknown>
+    const type = num(o.type)
+    return {
+      type,
+      type_text: LOG_TYPE[type] || '事件',
+      t: num(o.datetime),
+      duration: num(o.duration),
+      reason: reasonText(o.reason),
+    }
+  }).filter((x) => x.t > 0)
+
+  // 只有「当前仍被判离线」且「最新一条故障事件的原因明确是 405 Method Not Allowed」
+  // 才重新解读。原始探针状态与文案一并保留，前端会把两者都展示出来，不隐藏异常。
+  const latest = events[0]
+  const likelyOk = (rawStatus === 9 || rawStatus === 8) &&
+    !!latest && latest.type === 1 && METHOD_405.test(latest.reason)
+
   return {
     name: String(m.friendly_name || ''),
     url: String(m.url || ''),
-    status: num(m.status),
-    state: st.state,
-    status_text: st.text,
+    status: rawStatus,
+    state: likelyOk ? 'likely_ok' : st.state,
+    status_text: likelyOk ? ASSESS_TEXT : st.text,
+    probe_state: st.state,
+    probe_status_text: st.text,
+    assessment: likelyOk ? { reason: latest ? latest.reason : '', note: ASSESS_NOTE } : null,
     interval: num(m.interval),
     uptime_all: num(m.all_time_uptime_ratio),
     uptime,
@@ -108,17 +138,7 @@ function pick(m: Record<string, unknown>) {
       const o = (x || {}) as Record<string, unknown>
       return { t: num(o.datetime), ms: num(o.value) }
     }).filter((x) => x.t > 0),
-    events: logs.slice(0, 5).map((x) => {
-      const o = (x || {}) as Record<string, unknown>
-      const type = num(o.type)
-      return {
-        type,
-        type_text: LOG_TYPE[type] || '事件',
-        t: num(o.datetime),
-        duration: num(o.duration),
-        reason: reasonText(o.reason),
-      }
-    }).filter((x) => x.t > 0),
+    events,
   }
 }
 
@@ -174,17 +194,20 @@ Deno.serve(async (req: Request) => {
   }))
 
   const up = services.filter((s) => 'state' in s && s.state === 'up').length
+  const likely = services.filter((s) => 'state' in s && s.state === 'likely_ok').length
   const issues = services.filter((s) =>
-    ('error' in s && s.error) || ('state' in s && s.state !== 'up' && s.state !== 'paused'),
+    ('error' in s && s.error) ||
+    ('state' in s && s.state !== 'up' && s.state !== 'paused' && s.state !== 'likely_ok'),
   ).length
 
   const payload = {
     ok: true,
     generated_at: new Date().toISOString(),
     partial: services.some((s) => 'error' in s && !!s.error),
-    summary: { total: services.length, up, issues, all_ok: issues === 0 },
+    // likely 单列：它不算 issues（不是故障），但也不能混进 up（未确证在线）。
+    summary: { total: services.length, up, likely, issues, all_ok: issues === 0 },
     services,
-    note: '数据来自 UptimeRobot 只读 GetMonitors，监控每 5 分钟探测一次；本响应缓存 60 秒。',
+    note: '数据来自 UptimeRobot 只读 GetMonitors，监控每 5 分钟探测一次；本响应缓存 60 秒。探针判离线但故障原因为「405 · Method Not Allowed」的，会在服务端重新解读为「大概率正常」并保留原始状态。',
   }
 
   cache = { at: now, body: payload }

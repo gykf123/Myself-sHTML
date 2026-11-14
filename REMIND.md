@@ -449,3 +449,15 @@
 - **核验脚本自己的一个疏漏**：初版第 60 行查的是 `status.css?v=20261114`，但同日第二次改样式后 HTML 引用的是 `?v=20261114b`。旧 URL 也能取到文件、18 项照样全过，但那等于没验「同日换版本」这件事；已改成按 `?v=20261114b` 取并断言含 `sts-official-link`，重跑仍 18/18。**以后写线上资源断言，版本号必须从当前 HTML 里 `grep` 出来核对，别沿用记忆里的值。**
 - **公告**：`announce` 返回 `ok=true, id=13, mailed=0, queued=3, configured=true, dispatch.ok=true`（「已唤醒发信任务」）。`mailed=0` 是因为走 GitHub 队列异步发信，不是没发；按 ⑯ 的规矩已主动 `workflow_dispatch` 绕开从未触发过的 `schedule`。管理员态仍是「临时提权 `fe_probe_dev` → 线上 `login` 真实 JWT → `finally` 还原」，`role=user` 复核无残留（**不要用 `/secrets` 自签**，见 ⑯）。
 - 本轮交付清单：提交推送 → 等 Pages `built` 后复核线上资源 → 发项目公告 → 留言板汇报 → 展示线上截图。本轮是访客可感知的新页面，按 §0 发公告；三把 UptimeRobot 只读 key 全程没进仓库 / 前端 / 公告。
+
+## 2026-11-14 ㉑ 405 Method Not Allowed 重新解读为「大概率正常」（浅绿）
+
+- **需求**：「405 · Method Not Allowed 视为『服务大概率正常』，标浅绿色」。背景：QQ bot 监控一直被 UptimeRobot 判 `status=9` 离线，全天可用率 0%，但故障事件原因始终是 `405 · Method Not Allowed` —— 健康检查端点不接受探测方法，服务在网络层其实有响应。
+- **⚠️ 架构决策：判定放在服务端 `fs-status`，不是前端按文本硬改颜色**。理由：判定条件只在一处、前端只消费结果；且服务端握有原始 `status` 与 `logs[].reason`，能同时把**原始状态**一并返回，避免前端为了变绿把异常藏掉。
+  - 判定严格限定：`(rawStatus === 9 || 8) && events[0].type === 1 && /405…method not allowed/i.test(reason)`。**只认这一种组合**；其它 4xx/5xx、超时、DNS、恢复事件一律保留探针原判（已加负向断言 `500 · Internal Server Error` 仍标红）。以后若最新故障原因变了，判定自动失效，无需改代码。
+  - 返回字段：`state='likely_ok'` / `status_text='大概率正常'` 用于展示；`status`（原始码）、`probe_state='down'`、`probe_status_text='离线'`、`assessment={reason,note}` 全部保留。前端服务卡里明写「探针原始状态：离线 · 405 · Method Not Allowed」+ 说明条，**只改视觉判定，不删任何事实**。
+  - `summary` 新增 `likely` 单列：`issues` 排除 `likely_ok`、`up` 也不收它，`all_ok` 保持 `issues===0` 的原语义；前端总览据此写「基本正常」而不是「全部正常」，并在「在线服务」「异常 / 需关注」两张卡下补 `sts-ov-hint` 注明「另有 N 项大概率正常 / N 项已按 405 重新解读，未计入异常」。**别把带保留的判定混进「全部正常」。**
+- **浅绿色**：徽标 `#3aa876` + `rgba(58,168,118,.10)` 底/边，服务卡边框 `rgba(58,168,118,.32)`；比「在线」的实绿 `#2ea043` 弱一档，视觉上表达「乐观但保留」。`renderBars()` 的 `down` 判定不含 `likely_ok`，柱子不再画成红色。
+- **版本号**：同日第三次改静态资源 —— `status.js?v=20261114` → `?v=20261114b`、`status.css?v=20261114b` → `?v=20261114c`（HTML 里两处同步）。`status/index.html`「关于这些数字」补一条规则说明。`fs-status` 重新 `deno check` + 部署（`--no-verify-jwt --use-api`），部署后线上即生效，**不用等 Pages**。
+- **验收**：本地 Playwright **34/34**（新增：浅绿徽标 computed color 绿色分量主导且与「在线」不同、原始探针状态仍在、说明条存在、总览「基本正常」与两条 hint、XSS 说明条转义、非 405 故障仍标红且总览「需关注」、接口 503 降级不假状态等）；线上真实域名与函数核验见交付回执。
+- **本轮没发公告**：距 id=13 状态页上线公告不足一小时，属同一功能的判定小修，再群发一次会打扰订阅用户；按用户「不是面向普通用户的更新不用发公告 / 大改动才发」的规矩，只留言板汇报。
