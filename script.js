@@ -26,13 +26,13 @@ const CONFIG = {
     {
       icon: '⛏️', name: '矿石查找器',
       desc: '基岩版矿石分布预测：输入种子号，可视化各高度层的矿物概率。',
-      href: './tool/ore-finder.html',
+      href: '/tool/ore-finder.html',
       repo: 'https://github.com/gykf123/Myself-sHTML/blob/main/tool/ore-finder.html'
     },
     {
       icon: '🧭', name: 'MC 搜索',
       desc: 'minecraftsearch.com 功能复刻：种子 / 矿石 / 结构 / 群系查找等 9 款工具，Java + 基岩双版，WASM 本地运行。',
-      href: './tool/minecraft-search/index.html',
+      href: '/tool/minecraft-search/index.html',
       repo: 'https://github.com/gykf123/Myself-sHTML/tree/main/tool/minecraft-search'
     }
   ],
@@ -397,13 +397,13 @@ function consumeLoginReturn() {
     if (t) {
       localStorage.setItem(AUTH_KEY, t);
       const u = new URL(location.href); u.searchParams.delete('token');
-      history.replaceState(null, '', u.pathname + u.search);
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
     }
     // login 页优先走一次性 ticket 换票（URL 上不落 JWT），此处负责 redeem 兑换
     const ticket = qs.get('ticket');
     if (ticket) {
       const u = new URL(location.href); u.searchParams.delete('ticket');
-      history.replaceState(null, '', u.pathname + u.search);
+      history.replaceState(null, '', u.pathname + u.search + u.hash);
       redeemTicket(ticket);
     }
   } catch (e) {}
@@ -427,7 +427,7 @@ async function redeemTicket(ticket) {
 
 function loginHref() {
   const back = location.origin + location.pathname;
-  return './login/index.html?brand=FeSui&home=' +
+  return '/login/index.html?brand=FeSui&home=' +
     encodeURIComponent(location.origin + '/') + '&redirect=' + encodeURIComponent(back);
 }
 
@@ -438,7 +438,7 @@ function renderAuth() {
   if (getToken()) {
     box.innerHTML =
       '<div class="auth-in" title="已登录">' +
-        '<a class="auth-profile" href="./user/" title="个人中心">' +
+        '<a class="auth-profile" href="/user/" title="个人中心">' +
           '<span class="ico" aria-hidden="true">🧑‍💻</span>' +
           '<span class="lbl">个人中心</span>' +
         '</a>' +
@@ -708,10 +708,19 @@ function init() {
   bindWallRefresh();
   bindClock();
   bindProgress();
-  // 恢复上次视图（默认个人信息）
-  let v = 'info';
-  try { v = localStorage.getItem('view') || 'info'; } catch (e) {}
+  // URL hash 优先（门户首页可以深链到某个视图，如 /home/#wall），
+  // 没有合法 hash 时才恢复上次视图；默认个人信息。
+  // 个人主页已从 / 搬到 /home/，这里所有路径都必须是根相对。
+  const hashView = (location.hash || '').replace(/^#/, '');
+  let v = VIEW_META[hashView] ? hashView : 'info';
+  if (!VIEW_META[hashView]) {
+    try { v = localStorage.getItem('view') || 'info'; } catch (e) {}
+  }
   switchView(v);
+  window.addEventListener('hashchange', () => {
+    const h = (location.hash || '').replace(/^#/, '');
+    if (VIEW_META[h]) switchView(h);
+  });
   requestAnimationFrame(() => { const c = $('.content'); if (c) c.classList.add('ready'); });
   hideLoader();
 }

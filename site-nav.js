@@ -22,6 +22,8 @@
   // 侧栏还没解析，此刻 querySelector 一定返回 null，会误判成「不是主站」。
   var LINKS = [
     { name: '首页',       icon: '🏠', href: '/',          match: '' },
+    // 个人主页已从 / 搬到 /home/；根 / 现在是站点门户首页，两者要分开列
+    { name: '个人主页',   icon: '👤', href: '/home/',     match: '/home' },
     { name: '工具箱大厅', icon: '🧰', href: '/tool/',     match: '/tool' },
     { name: '聊天室',     icon: '💬', href: '/chat/',     match: '/chat' },
     { name: '个人中心',   icon: '🧑‍💻', href: '/user/',     match: '/user' },

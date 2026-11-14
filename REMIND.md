@@ -461,3 +461,20 @@
 - **版本号**：同日第三次改静态资源 —— `status.js?v=20261114` → `?v=20261114b`、`status.css?v=20261114b` → `?v=20261114c`（HTML 里两处同步）。`status/index.html`「关于这些数字」补一条规则说明。`fs-status` 重新 `deno check` + 部署（`--no-verify-jwt --use-api`），部署后线上即生效，**不用等 Pages**。
 - **验收**：本地 Playwright **34/34**（新增：浅绿徽标 computed color 绿色分量主导且与「在线」不同、原始探针状态仍在、说明条存在、总览「基本正常」与两条 hint、XSS 说明条转义、非 405 故障仍标红且总览「需关注」、接口 503 降级不假状态等）；线上真实域名与函数核验见交付回执。
 - **本轮没发公告**：距 id=13 状态页上线公告不足一小时，属同一功能的判定小修，再群发一次会打扰订阅用户；按用户「不是面向普通用户的更新不用发公告 / 大改动才发」的规矩，只留言板汇报。
+
+## 2026-11-14 ㉒ 首页改版：个人主页搬到 /home/，根 / 改成站点门户
+
+- **需求与解读**：「拿我主页当首页不太合适，挪个位置」+ 现状截图。截图就是根 `/` 的个人信息 SPA（左侧五个视图 + 「站点功能」外链列，右侧个人信息 / 关于我 / 自定义跳转）。用户意思是：站点早就不只是个人名片了，别一进来就是个人信息，把它挪到子路径，根路径做真正的站点入口。按「方案自己定、最后讲清楚」的约定自主定方案。
+- **方案**：
+  - 根 `/` 重写为**站点门户首页**：`index.html` + 新 `home.css`（骨架复用 `style.css` + `user/user.css`）。Hero 一句简介 + 三个主按钮，下面 11 张功能卡网格（工具箱 / 聊天室 / 个人中心 / 访问统计 / 服务状态 / Bot 唤醒台 / 博客公告 / 个人主页 / 项目导航 / 留言墙 / 友链），末尾「关于这次调整」说明新旧地址。门户首页**不用** `.site-link` 类，好让 `site-nav.js` 正常注入右下角全站导航。
+  - 整套个人主页 SPA 原样搬到 `/home/index.html`（五个视图、留言墙、彩蛋、自定义跳转一个不少），侧栏「站点功能」最上面加一条「🏠 站点首页」返回 `/`。
+  - `site-nav.js` 的 `LINKS` 加「👤 个人主页 → /home/」（与「🏠 首页 → /」分开列）；`sitemap.xml` 补 `/home/`，`/` 的 lastmod 更新。
+- **⚠️ 搬到子目录的头号坑：`./` 会全变成 `/home/xxx/`**。生成 `/home/index.html` 时用正则把 `href="./` / `src="./` 统一改成根相对 `/`；`script.js` 里还有 4 处字符串路径（`./tool/ore-finder.html`、`./tool/minecraft-search/index.html`、`./login/index.html`、`./user/`）也必须改，因为这些是赋给 DOM 的 `href`，不是文件里的静态属性。**验收加了「页面无任何 `./` / `../` 残留」和「工具卡站内链接均为 `/tool/...`」两条断言**，别只肉眼扫 HTML。
+- **深链增强**：`script.js` 的 `init()` 改成优先读 `location.hash`（`VIEW_META` 里合法才用）再回退 `localStorage.view`，并加 `hashchange` 监听。于是门户首页能直接链 `/home/#proj` / `#wall` / `#links`（也支持 `#tools` / `#info`）。
+  - **配套坑**：`consumeLoginReturn()` 里两处 `history.replaceState(null, '', u.pathname + u.search)` 会**把 hash 抹掉**，登录回跳时深链就丢了；补上 `+ u.hash`。
+- **SEO / 语义**：`/home/` 的 canonical、`og:url`、JSON-LD `Person.url` 全改 `/home/`（顺手把历史里混用的中文域名 `fesui.是.gay` 统一成 `xn--0iv.gay`）；门户首页换成 `WebSite` 结构化数据。全站子页原本的「返回主页」`../` 现在指向站点门户首页，语义反而更对；`login` 的 `home` 参数本来就是 `/`，不用动。旧书签访问 `/` 会看到门户首页，里面有「个人主页」入口，不会丢内容。
+- **版本号**：`site-nav.js` 同日第二次改，`?v=20261114` → `?v=20261114b`，**41 处**（39 个原有页面 + 新 `index.html` + 新 `/home/index.html`）批量替换；`script.js?v=20261107` → `?v=20261114`；新 `home.css` 同日改两次 → `?v=20261114b`。`style.css` / `user.css` 没动，保持原版本。
+- **移动端两个坑（截图里抓到的）**：`user.css` 的 `.user-topnav` 默认可换行，5 个入口在 390px 被拆成「个人主 / 页」「访问统 / 计」，改成 `flex-wrap:nowrap` + `overflow-x:auto` + `white-space:nowrap`；`user.css` 在 560px 以下给所有 `.act-btn` 设 `flex:1`，三个 Hero 按钮各撑一整行，改成两列 grid（前两个并排、第三个 `grid-column:1/-1`）。和 ⑳ 的 `.sts-controls .act-btn` 是同一类坑。
+- **验收**：本地 Playwright **26/26**（11 个功能入口逐条 HTTP 200、门户首页零 SPA 导航、零 console 错误、全站导航含新入口、`/home/` 五视图与相对路径全根相对、三条深链直达、站点首页与个人主页 390px 均无横向溢出、顶栏不折行、状态页导航回归）。截图 `verify/home_desktop.png` / `home_mobile.png` / `home_personal.png`。
+  - 无头 Chromium 缺 emoji 字体，截图里图标是方框，真实浏览器正常（同 ⑳，未改代码）。
+- 本轮是访客可感知的首页大改，按 §0 **发项目公告**并留言板汇报。
