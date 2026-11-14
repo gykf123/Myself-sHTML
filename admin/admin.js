@@ -200,16 +200,16 @@ function renderShell(s) {
       '<div class="ad-table-scroll" id="adBanBox"><div class="user-loading">加载中…</div></div>' +
     '</section>' +
 
-    /* 项目公告：站内展示 + 邮件走 GitHub Actions 队列异步发送 */
+    /* 项目公告：站内展示 + 按当前通道发邮件（默认 Resend 直发，可切回队列） */
     '<section class="user-card">' +
       '<div class="ad-card-head"><h2><span class="card-ico" aria-hidden="true">📢</span>项目公告</h2>' +
         '<button class="act-btn small" id="adAnnRefresh" type="button">刷新</button></div>' +
-      '<p class="ad-note">发布后立刻在博客页（主站「博客 / 公告」入口）可见；<b>只有公告会发邮件</b>——会加入队列，由 GitHub Actions 定时发给已订阅用户。写博客文章不会触发任何邮件。</p>' +
+      '<p class="ad-note">发布后立刻在博客页（主站「博客 / 公告」入口）可见；<b>只有公告会发邮件</b>——按当前通道发给已订阅用户（默认 Resend 直接发出，不经过队列）。写博客文章不会触发任何邮件。</p>' +
       '<div class="ad-status" id="adMailStatus">正在检查邮件通道…</div>' +
       '<div class="ad-status" id="adQueueStats">队列统计加载中…</div>' +
       '<div class="ad-mail-test">' +
         '<input class="ad-input" id="adTestEmail" type="email" maxlength="254" placeholder="收件邮箱（先填自己的）" aria-label="测试邮件收件地址" />' +
-        '<button class="act-btn small" id="adTestMailBtn" type="button">加入测试邮件</button>' +
+        '<button class="act-btn small" id="adTestMailBtn" type="button">发送测试邮件</button>' +
         '<span class="ad-hint" id="adTestMailHint"></span>' +
       '</div>' +
       '<form class="ad-form" id="adAnnForm" autocomplete="off">' +
@@ -618,7 +618,7 @@ async function loadMailStatus() {
       el.textContent = '✅ ' + label +
         (d.from ? '（发件地址：' + String(d.from) + '）' : '') +
         (d.last_seen ? ' · 最后运行 ' + fmtDateTime(d.last_seen) : '') +
-        ' · 公告会加入队列自动发送';
+        (mailProvider === 'resend' ? ' · 公告发布后立即直发' : ' · 公告会加入队列自动发送');
     }
   } catch (e) {
     el.className = 'ad-status wait';
@@ -626,7 +626,8 @@ async function loadMailStatus() {
   }
 }
 
-/* 队列统计：待发 / 已送达 / 失败，只走管理员接口 */
+/* 队列统计：待发 / 已送达 / 失败，只走管理员接口。
+   Resend 直发时不经过队列，这一栏只作为历史记录，不能让人误以为新公告卡在队列里。 */
 async function loadQueueStats(s) {
   const el = $('#adQueueStats');
   if (!el) return;
@@ -636,13 +637,14 @@ async function loadQueueStats(s) {
     el.className = 'ad-status ' + (Number(data.failed) > 0 ? 'wait' : '');
     el.textContent = '📮 队列：待发 ' + (Number(data.pending) || 0) +
       ' · 已送达 ' + (Number(data.sent) || 0) +
-      ' · 失败 ' + (Number(data.failed) || 0) + '（失败 5 次后停止重试）';
+      ' · 失败 ' + (Number(data.failed) || 0) + '（失败 5 次后停止重试）' +
+      (mailProvider === 'resend' ? ' · 当前为 Resend 直发，以上仅为历史记录' : '');
   } catch (e) {
     el.textContent = '📮 队列统计暂时读不到，公告仍可正常发布';
   }
 }
 
-/* 测试邮件：入一封到队列，用户去 Actions 手动触发即可验证整条链路 */
+/* 测试邮件：Resend 直发时当场发出；队列模式下入队并唤醒 worker */
 async function sendTestMail(s) {
   const input = $('#adTestEmail'), btn = $('#adTestMailBtn'), hint = $('#adTestMailHint');
   if (!input || !btn) return;
@@ -652,24 +654,24 @@ async function sendTestMail(s) {
     showToast('邮箱格式不正确');
     return;
   }
-  btn.disabled = true; btn.textContent = '加入中…';
+  btn.disabled = true; btn.textContent = '发送中…';
   if (hint) hint.textContent = '';
   try {
     const { status, data } = await contentCall('fs-notify', 'mail_test', { email }, s);
     if (status !== 200 || data.ok !== true) {
-      const msg = data.error || ('加入失败（HTTP ' + status + '）');
+      const msg = data.error || ('发送失败（HTTP ' + status + '）');
       if (hint) hint.textContent = msg;
       showToast(msg);
       return;
     }
-    if (hint) hint.textContent = data.note || '已加入队列';
-    showToast('测试邮件已加入队列');
+    if (hint) hint.textContent = data.note || (mailProvider === 'resend' ? '测试邮件已发出' : '已加入队列');
+    showToast(mailProvider === 'resend' ? '测试邮件已直接发出' : '测试邮件已加入队列');
     await loadQueueStats(s);
   } catch (e) {
     if (hint) hint.textContent = '网络异常，请稍后再试';
     showToast('网络异常，请稍后再试');
   } finally {
-    btn.disabled = false; btn.textContent = '加入测试邮件';
+    btn.disabled = false; btn.textContent = mailProvider === 'resend' ? '发送测试邮件' : '加入测试邮件';
   }
 }
 
@@ -709,6 +711,7 @@ async function submitAnnouncement(e, s) {
   if (!title || !body) { showToast('标题和正文都要填'); return; }
   const mailHint = !mailConfigured ? '仅站内发布（邮件通道待开通）'
     : mailProvider === 'queue' ? '将加入邮件队列，由 GitHub Actions 定时发送'
+    : mailProvider === 'resend' ? '将通过 Resend 立即直接发给已订阅用户'
     : '将同时群发给已订阅用户';
   if (!window.confirm('确认发布公告？\n标题：' + title + '\n' + mailHint)) return;
   btn.disabled = true; btn.textContent = '发布中…';

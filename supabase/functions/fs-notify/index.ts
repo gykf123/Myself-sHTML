@@ -6,20 +6,21 @@
 //   · user_id 一律只信本站 JWT 的 sub，前端传什么都不生效；
 //   · fs_email_subscriptions / fs_mail_queue 前端零权限（RLS 无 policy），
 //     只走本函数 service_role；
-//   · 默认通道 = queue（GitHub Actions 异步队列）。Supabase Edge Functions
-//     禁止出站 25/587 且 Deno Deploy 无 TCP socket，函数内无法直连 SMTP，
-//     所以只把待发邮件写入私有队列表，由仓库的 mail-queue.yml 定时发出。
-//     显式设置 FS_MAIL_PROVIDER=resend 可切回 Resend HTTP API，
-//     设为 none 则只发站内公告（不发信也不假装发过）；
-//   · ready 由 fs_mail_worker 心跳决定：代码就绪 ≠ Actions 真的跑过，
-//     后台必须如实区分这两种状态；
+//   · 默认通道 = resend（HTTPS API 直发）。实测「GitHub Actions → 新浪 SMTP
+//     自发自收」会被收件方静默丢弃：队列显示 sent，用户却收不到。Resend 走
+//     专业发信池，实测能落进新浪 INBOX。Edge Function 出站 HTTPS 可用，
+//     不依赖 Actions 的 schedule（本仓库实测 0 次触发）。
+//     显式设 FS_MAIL_PROVIDER=queue 可切回队列，=none 则只发站内公告
+//     （不发信也不假装发过）；
+//   · queue 模式下 ready 由 fs_mail_worker 心跳决定：代码就绪 ≠ Actions 真的
+//     跑过，后台必须如实区分；resend 模式下 ready 只看密钥是否配好；
 //   · verified 字段是预留位：当前不做验证码，故群发不按 verified 过滤。
 // ============================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const PROVIDER = (Deno.env.get('FS_MAIL_PROVIDER') || 'queue').trim().toLowerCase()
+const PROVIDER = (Deno.env.get('FS_MAIL_PROVIDER') || 'resend').trim().toLowerCase()
 const RESEND_KEY = Deno.env.get('RESEND_API_KEY') || ''
 const MAIL_FROM = Deno.env.get('FS_MAIL_FROM') || ''
 const SITE_URL = 'https://fesui.xn--0iv.gay'
@@ -264,29 +265,61 @@ async function enqueue(announcementId: number | null, emails: string[],
   return { queued: n, dispatch }
 }
 
-/* ---------- 通道 B：Resend HTTP API（显式切换时才用） ---------- */
-async function sendResend(emails: string[], title: string, body: string): Promise<number> {
-  let sent = 0
-  const mail = buildMail(title, body)
-  for (let i = 0; i < emails.length; i += 100) {
-    const chunk = emails.slice(i, i + 100)
-    try {
-      const r = await fetch('https://api.resend.com/emails/batch', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + RESEND_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(chunk.map(to => ({
-          from: MAIL_FROM || 'FeSui <onboarding@resend.dev>',
-          to: [to], subject: mail.subject, text: mail.text, html: mail.html,
-        }))),
-      })
-      if (r.ok) sent += chunk.length
-      else console.error('resend batch failed', r.status, await r.text())
-    } catch (e) { console.error('resend batch error', String(e)) }
+/* ---------- 通道 B：Resend HTTP API（默认通道） ----------
+   为什么逐封而不是 /emails/batch：batch 一封被拒会影响整批，且拿不到逐封的
+   失败原因；逐封并发既能精确回报「谁成功、谁失败、为什么」，也不会因为某个
+   邮箱地址异常拖累其他人。每批 8 封并发，单封 12 秒超时，避免拖垮函数。
+   User-Agent 必须显式带浏览器风格：Resend 前面的 CDN 会拦无 UA 的请求
+   （默认 UA 直接 403 error code 1010），这不是 key 失效。 */
+type MailBody = { subject: string; text: string; html: string }
+type SendOutcome = {
+  sent: string[]
+  failed: { email: string; error: string }[]
+}
+
+async function sendResend(emails: string[], mail: MailBody): Promise<SendOutcome> {
+  const out: SendOutcome = { sent: [], failed: [] }
+  if (!RESEND_KEY) {
+    return { sent: [], failed: emails.map(email => ({ email, error: '未配置 RESEND_API_KEY' })) }
   }
-  return sent
+  for (let i = 0; i < emails.length; i += 8) {
+    const chunk = emails.slice(i, i + 8)
+    const rs = await Promise.all(chunk.map(async (to) => {
+      try {
+        const r = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + RESEND_KEY,
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; FeSuiMail/1.0)',
+          },
+          body: JSON.stringify({
+            from: MAIL_FROM || 'FeSui 项目公告 <onboarding@resend.dev>',
+            to: [to],
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html,
+            headers: {
+              // 规范退订头：降低被判垃圾的概率，也方便收件方归入订阅邮件
+              'List-Unsubscribe': '<' + SITE_URL + '/user/>',
+            },
+          }),
+          signal: AbortSignal.timeout(12000),
+        })
+        if (r.ok) return { to, ok: true as const, err: '' }
+        const t = await r.text().catch(() => '')
+        return { to, ok: false as const, err: 'Resend ' + r.status + ': ' + t.slice(0, 220) }
+      } catch (e) {
+        return { to, ok: false as const,
+                 err: String((e as Error)?.message || e).slice(0, 220) }
+      }
+    }))
+    for (const x of rs) {
+      if (x.ok) out.sent.push(x.to)
+      else out.failed.push({ email: x.to, error: x.err })
+    }
+  }
+  return out
 }
 
 /* ---------- 主逻辑 ---------- */
@@ -306,6 +339,8 @@ Deno.serve(async (req) => {
       provider: PROVIDER,
       label: providerLabel(),
       ready: w ? w.ready : mailConfigured(),
+      // 直发通道不经过队列，前台不该再提示「去 Actions 手动触发」
+      direct: PROVIDER === 'resend',
       last_seen: w?.last_seen || null,
       last_ok: w?.last_ok || null,
       from: MAIL_FROM,
@@ -405,24 +440,74 @@ Deno.serve(async (req) => {
     return json({ ok: true, ...stat })
   }
 
+  /* ---------- 管理员：补发某条公告的失败邮件 ----------
+     典型场景：自有域名还没验证完时，Resend 只允许用测试发件域发给账号邮箱，
+     其它订阅地址会被 403 拒绝。域名验证通过后改一下 FS_MAIL_FROM，用这个动作
+     把之前失败的邮箱补发即可，不需要重发站内公告、也不需要另造一份 HTML。 */
+  if (action === 'mail_retry') {
+    if (!await isAdmin(uid)) return json({ ok: false, error: '需要管理员权限' }, 403)
+    if (PROVIDER !== 'resend') {
+      return json({ ok: false, error: '当前不是 Resend 直发通道，请改用邮件队列重试' }, 400)
+    }
+    const aid = Number(body.announcement_id || 0)
+    if (!(aid > 0)) return json({ ok: false, error: '公告 id 不正确' }, 400)
+    const { data: anns, error: annErr } = await db.from('fs_announcements')
+      .select('id,title,body,mailed_count').eq('id', aid).limit(1)
+    if (annErr || !anns || !anns[0]) return json({ ok: false, error: '公告不存在' }, 404)
+    const ann = anns[0]
+
+    let emails: string[] = []
+    if (Array.isArray(body.emails) && body.emails.length) {
+      emails = body.emails.map(e => String(e).trim().toLowerCase())
+        .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)).slice(0, 50)
+    } else {
+      const { data: subs } = await db.from('fs_email_subscriptions')
+        .select('email').eq('subscribed', true)
+      emails = (subs || []).map(s => String(s.email)).filter(Boolean)
+    }
+    if (!emails.length) return json({ ok: false, error: '没有可补发的收件地址' }, 400)
+
+    const mail = buildMail(String(ann.title), String(ann.body))
+    const r = await sendResend(emails, mail)
+    const newCount = Number(ann.mailed_count || 0) + r.sent.length
+    await db.from('fs_announcements').update({
+      mailed_count: newCount, mailed_at: newCount ? new Date().toISOString() : null,
+    }).eq('id', aid)
+    return json({
+      ok: r.failed.length === 0, provider: PROVIDER,
+      sent: r.sent.length, failed: r.failed, mailed_count: newCount,
+      note: '补发成功 ' + r.sent.length + ' 封' +
+            (r.failed.length ? '，失败 ' + r.failed.length + ' 封' : ''),
+    })
+  }
+
   if (action === 'mail_test') {
     if (!await isAdmin(uid)) return json({ ok: false, error: '需要管理员权限' }, 403)
     const to = String(body.email || '').trim().toLowerCase()
     if (to.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       return json({ ok: false, error: '邮箱格式不正确' }, 400)
     }
-    const mail = {
+    const channel = providerLabel()
+    const mail: MailBody = {
       subject: '【FeSui】邮件通道测试',
-      text: '邮件通道测试\n\n看到这封信，说明 GitHub Actions 发信链路已经打通，' +
-            '项目公告以后会按这个样式送到你邮箱。\n\n———\n访问站点：' + SITE_URL +
-            '\n取消订阅：' + SITE_URL + '/user/',
+      text: '邮件通道测试\n\n看到这封信，说明「' + channel +
+            '」这条发信链路已经打通，项目公告以后会按这个样式送到你邮箱。' +
+            '\n\n———\n访问站点：' + SITE_URL + '\n取消订阅：' + SITE_URL + '/user/',
       html: mailHtml({
         eyebrow: '通道测试', title: '发信链路已经打通',
-        body: '看到这封信，说明 GitHub Actions 队列 → 新浪 SMTP 这一整条链路都正常。\n\n' +
-              '以后每次发布项目公告，都会按这个样式自动送到已订阅用户的邮箱；' +
+        body: '看到这封信，说明当前发信通道「' + channel +
+              '」已经正常工作。\n\n以后每次发布项目公告，都会按这个样式送到已订阅用户的邮箱；' +
               '博客文章不会发邮件，只在站内展示。',
         ctaText: '去站点看看', ctaHref: SITE_URL + '/blog/',
       }),
+    }
+    if (PROVIDER === 'resend') {
+      const r = await sendResend([to], mail)
+      return json({ ok: r.failed.length === 0, sent: r.sent.length,
+                    failed: r.failed, provider: PROVIDER,
+                    note: r.failed.length
+                      ? '发送失败：' + r.failed[0].error
+                      : '已通过 Resend 直接发出，稍后查收收件箱（留意订阅 / 垃圾邮件分类）' })
     }
     const { queued, dispatch } = await enqueue(null, [to], mail)
     return json({ ok: true, queued, provider: PROVIDER, dispatch,
@@ -448,6 +533,7 @@ Deno.serve(async (req) => {
 
     let mailed = 0, queued = 0
     let dispatch: DispatchResult = NO_DISPATCH
+    let mailFailures: { email: string; error: string }[] = []
     if (mailConfigured()) {
       const { data: subs } = await db.from('fs_email_subscriptions')
         .select('email').eq('subscribed', true)
@@ -457,7 +543,10 @@ Deno.serve(async (req) => {
         queued = r.queued
         dispatch = r.dispatch
       } else if (PROVIDER === 'resend') {
-        mailed = await sendResend(emails, title, text)
+        const r = await sendResend(emails, mail)
+        mailed = r.sent.length
+        mailFailures = r.failed
+        // 只按真实成功数回写；发失败的不算「已送达」，不粉饰
         await db.from('fs_announcements')
           .update({ mailed_count: mailed, mailed_at: mailed ? new Date().toISOString() : null })
           .eq('id', id)
@@ -465,11 +554,14 @@ Deno.serve(async (req) => {
     }
     return json({
       ok: true, id, mailed, queued, configured: mailConfigured(), provider: PROVIDER, dispatch,
+      failed: mailFailures.length, errors: mailFailures,
       note: !mailConfigured() ? '邮件通道未配置，本次仅站内发布'
             : PROVIDER === 'queue'
               ? ('已加入邮件队列 ' + queued + ' 封，' +
                  (dispatch.ok ? '并已自动唤醒发信任务' : '自动唤醒失败，需手动触发发信任务'))
-              : null,
+              : ('Resend 直发成功 ' + mailed + ' 封' +
+                 (mailFailures.length ? '，失败 ' + mailFailures.length + ' 封（' +
+                   mailFailures[0].error + '）' : '')),
     })
   }
 

@@ -476,7 +476,8 @@ function updateQQDisplay(qqVal) {
    与公告群发共用 fs_email_subscriptions；该表前端零权限，只走函数。
    邮件通道未配置（provider=none）时仍可登记 / 退订，只是不发信、不发验证码，
    前端用 configured=false 如实提示，不假装「已订阅成功」。
-   当前默认 provider=queue：登记照常，公告加入队列由 GitHub Actions 发送。 */
+   当前默认 provider=resend：公告由 Resend 直接发出；显式切回 queue 时才入队
+   交给 GitHub Actions 发送（自发自收实测会被静默丢弃，故不再作为默认）。 */
 async function notifyCall(action, extra) {
   const res = await fetch(FUNCTIONS_BASE + '/fs-notify', {
     method: 'POST',
@@ -512,6 +513,7 @@ function renderMailState(d) {
   const channel = !d.configured ? ' · 邮件通道待开通（当前仅登记，暂不发信）'
     : d.provider === 'queue' && !d.ready ? ' · 公告会加入邮件队列（发信任务尚未首次运行）'
     : d.provider === 'queue' ? ' · 公告会由邮件队列发送'
+    : d.provider === 'resend' ? ' · 公告由 Resend 直接发送'
     : '';
   const subCount = list.filter(x => x.subscribed).length;
   st.textContent = list.length

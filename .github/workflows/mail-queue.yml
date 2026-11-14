@@ -1,17 +1,21 @@
 name: 发送公告邮件队列
 
-# FeSui 项目公告的 SMTP 发信 worker。
-# Edge Function 只能写私有队列表 fs_mail_queue（出站 25/587 被 Supabase 禁用），
-# 这里定时把队列里的邮件经新浪 SMTP 发出，并回写状态 / 公告送达数。
+# FeSui 邮件队列的兜底 worker。
+# 现在 fs-notify 发布公告时直接用 Resend HTTPS API 发出，不再依赖本 workflow；
+# 这里只负责清掉队列里残留的待发邮件，默认同样走 Resend（自发自收的新浪 SMTP
+# 会被收件方静默丢弃，队列显示 sent 但用户收不到）。
 #
-# 需要在仓库 Settings → Secrets and variables → Actions 里配置 3 个 Secrets：
+# 需要在仓库 Settings → Secrets and variables → Actions 里配置：
 #   SUPABASE_SERVICE_ROLE_KEY  Supabase → Project Settings → API → service_role
-#   SINA_SMTP_USER             完整邮箱（如 you@sina.com）
-#   SINA_SMTP_PASS             16 位客户端授权码（不是网页登录密码）
-# 可选：SMTP_HOST / SMTP_PORT / SMTP_SECURE / SMTP_FROM
+#   RESEND_API_KEY             Resend 发信 key
+# 可选 Variables：
+#   MAIL_PROVIDER  默认 resend；设 smtp 才回退到旧通道
+#   FS_MAIL_FROM   默认 onboarding@resend.dev；自有域名验证通过后改成自有发件地址
+#   SMTP_HOST / SMTP_PORT / SMTP_SECURE / SMTP_FROM
+# 旧 SMTP 通道还需要 SINA_SMTP_USER / SINA_SMTP_PASS 两个 Secrets。
 #
 # 首次配置完成后，直接在本 workflow 页面点「Run workflow」立即验证，
-# 不必等定时任务。
+# 不必等定时任务（本仓库实测 schedule 长期 0 次触发）。
 
 on:
   schedule:
@@ -44,8 +48,11 @@ jobs:
         working-directory: supabase/mail-relay
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           SINA_SMTP_USER: ${{ secrets.SINA_SMTP_USER }}
           SINA_SMTP_PASS: ${{ secrets.SINA_SMTP_PASS }}
+          MAIL_PROVIDER: ${{ vars.MAIL_PROVIDER }}
+          FS_MAIL_FROM: ${{ vars.FS_MAIL_FROM }}
           SMTP_HOST: ${{ vars.SMTP_HOST }}
           SMTP_PORT: ${{ vars.SMTP_PORT }}
           SMTP_SECURE: ${{ vars.SMTP_SECURE }}
