@@ -36,7 +36,7 @@
   <!-- 默认液态玻璃主题防闪：在 <head> 操作 <html>，避免任何一帧玻璃闪烁；改默认把 'glass' 改为 'standard' -->
   <script>try{var t=localStorage.getItem('theme')||'glass';if(t==='glass')document.documentElement.classList.add('theme-glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
   <script src="/net-guard.js?v=20261107"></script>
-  <script src="/site-nav.js?v=20261107b"></script>
+  <script src="/site-nav.js?v=20261114"></script>
 </head>
 <body>
   <!-- 液态玻璃折射滤镜：预计算径向位移贴图（方案A）替代随机噪声，对 backdrop 做边缘透镜折射 -->
@@ -110,6 +110,9 @@
         </a>
         <a class="site-link" href="./stats/" title="访问统计 · 公开聚合数据">
           <span class="ico" aria-hidden="true">📊</span><span class="lbl">访问统计</span><span class="go" aria-hidden="true">↗</span>
+        </a>
+        <a class="site-link" href="./status/" title="服务状态 · 主站 / FKD / QQ bot 可用性">
+          <span class="ico" aria-hidden="true">📡</span><span class="lbl">服务状态</span><span class="go" aria-hidden="true">↗</span>
         </a>
         <a class="site-link" href="./reopenai/" title="Bot 唤醒台 · QQ 机器人状态与保活">
           <span class="ico" aria-hidden="true">🤖</span><span class="lbl">Bot 唤醒台</span><span class="go" aria-hidden="true">↗</span>

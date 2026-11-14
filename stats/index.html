@@ -9,10 +9,10 @@
   <link rel="icon" href="../favicon.png" />
   <link rel="stylesheet" href="../style.css?v=20261107b" />
   <link rel="stylesheet" href="../user/user.css?v=20261108" />
-  <link rel="stylesheet" href="./stats.css?v=20261107" />
+  <link rel="stylesheet" href="./stats.css?v=20261114" />
   <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
   <script src="/net-guard.js?v=20261107"></script>
-  <script src="/site-nav.js?v=20261107b"></script>
+  <script src="/site-nav.js?v=20261114"></script>
 </head>
 <body>
   <div class="user-page">
@@ -26,6 +26,7 @@
         <a href="../tool/">工具箱</a>
         <a href="../chat/">聊天室</a>
         <a href="./" class="active" aria-current="page">访问统计</a>
+        <a href="../status/">服务状态</a>
       </nav>
     </header>
 
@@ -40,6 +41,7 @@
             <button class="st-range-btn" type="button" data-days="90" aria-pressed="false">90 天</button>
           </div>
           <button class="act-btn small st-refresh-btn" id="stRefresh" type="button">刷新</button>
+          <a class="act-btn small st-status-link" href="../status/" title="查看主站 / FKD / QQ bot 的服务状态">📡 服务状态 ↗</a>
           <span class="st-updated" id="stUpdated">尚未加载</span>
         </div>
       </section>

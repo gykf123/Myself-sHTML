@@ -26,6 +26,7 @@
     { name: '聊天室',     icon: '💬', href: '/chat/',     match: '/chat' },
     { name: '个人中心',   icon: '🧑‍💻', href: '/user/',     match: '/user' },
     { name: '访问统计',   icon: '📊', href: '/stats/',    match: '/stats' },
+    { name: '服务状态',   icon: '📡', href: '/status/',   match: '/status' },
     { name: 'Bot 唤醒台', icon: '🤖', href: '/reopenai/', match: '/reopenai' },
     { name: '博客 / 公告', icon: '📰', href: '/blog/',    match: '/blog' },
     { name: 'GitHub',     icon: '🐙', href: 'https://github.com/gykf123',

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>服务状态 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="FeSui 服务状态：主站、FKD 与 QQ bot 的可用性、可用率、响应时间与近期事件，数据来自只读监控接口。" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261107b" />
+  <link rel="stylesheet" href="../user/user.css?v=20261108" />
+  <link rel="stylesheet" href="./status.css?v=20261114" />
+  <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+  <script src="/net-guard.js?v=20261107"></script>
+  <script src="/site-nav.js?v=20261114"></script>
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../stats/">访问统计</a>
+        <a href="./" class="active" aria-current="page">服务状态</a>
+      </nav>
+    </header>
+
+    <main class="user-main">
+      <section class="user-card sts-head-card">
+        <h1 class="sts-title">📡 服务状态</h1>
+        <p class="sts-sub">主站、FKD 与 QQ bot 的可用性。数据来自只读监控接口，每 5 分钟探测一次，页面结果缓存 60 秒。</p>
+        <div class="sts-controls">
+          <span class="sts-updated" id="stsUpdated" aria-live="polite">尚未加载</span>
+          <button class="act-btn small" id="stsRefresh" type="button">刷新</button>
+        </div>
+      </section>
+
+      <section class="user-card sts-overview-card">
+        <h2><span class="card-ico" aria-hidden="true">🩺</span>总览</h2>
+        <div class="sts-overview" id="stsOverview" aria-live="polite"></div>
+      </section>
+
+      <section class="user-card sts-services-card">
+        <h2><span class="card-ico" aria-hidden="true">📋</span>服务明细</h2>
+        <div class="sts-services" id="stsServices" aria-live="polite"></div>
+      </section>
+
+      <section class="user-card sts-note-card">
+        <h2><span class="card-ico" aria-hidden="true">ℹ️</span>关于这些数字</h2>
+        <ul class="sts-notes">
+          <li><b>状态</b>由监控服务判定：在线 / 疑似离线 / 离线 / 已暂停 / 待首次检测。</li>
+          <li><b>可用率</b>为监控服务统计的历史成功比例；刚创建的监控样本很少，数值波动属正常。</li>
+          <li><b>响应时间</b>是探测点到目标的网络往返，不等于实际页面加载速度。</li>
+          <li>状态页本身只读，不写入任何数据；接口异常时会明确提示「暂不可用」，不会假装一切正常。</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="user-foot">
+      <span>© <span id="footYear"></span> FeSui</span>
+      <span class="user-foot-sep">·</span>
+      <a href="../stats/">访问统计</a>
+      <span class="user-foot-sep">·</span>
+      <a href="../">返回主页</a>
+    </footer>
+  </div>
+
+  <script src="./status.js?v=20261114" defer></script>
+  <script src="/visit.js?v=20261107" defer></script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+/* ============================================================
+   服务状态（status/）增量样式
+   骨架复用 ../user/user.css；配色走主站 style.css 的 CSS 变量，
+   随「标准 / 液态玻璃」主题与深浅色自动切换。类名统一 sts- 前缀。
+   ============================================================ */
+
+.sts-head-card { padding-bottom: 14px; }
+.sts-title { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: var(--text); }
+.sts-sub { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.75; }
+.sts-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.sts-updated { margin-right: auto; font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sts-updated.is-stale { color: var(--warn, #d29922); }
+#stsRefresh:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ---------- 总览 ---------- */
+.sts-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.sts-ov-card {
+  min-width: 0; padding: 14px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.sts-ov-card.is-bad { border-color: rgba(248, 81, 73, .45); }
+.sts-ov-label { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+.sts-ov-value { font-size: 22px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.sts-ov-value.is-good { color: #2ea043; }
+.sts-ov-value.is-bad { color: #f85149; }
+.sts-ov-hint { font-size: 11.5px; color: var(--text-dim); margin-top: 6px; line-height: 1.6; }
+
+/* ---------- 服务明细 ---------- */
+.sts-services { display: grid; gap: 14px; }
+.sts-svc {
+  min-width: 0; padding: 16px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color .2s var(--ease);
+}
+.sts-svc[data-state="down"] { border-color: rgba(248, 81, 73, .5); }
+.sts-svc[data-state="seems_down"] { border-color: rgba(210, 153, 34, .5); }
+.sts-svc[data-state="unknown"], .sts-svc[data-state="error"] { border-color: var(--border); }
+
+.sts-svc-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.sts-svc-title { min-width: 0; flex: 1 1 200px; }
+.sts-svc-label { display: block; font-size: 15px; font-weight: 700; color: var(--text); }
+.sts-svc-url {
+  display: inline-block; max-width: 100%; margin-top: 3px;
+  font-size: 12px; color: var(--accent); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+}
+.sts-svc-url:hover { text-decoration: underline; }
+
+.sts-badge {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.sts-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.sts-badge[data-state="up"] { color: #2ea043; background: rgba(46, 160, 67, .12); border-color: rgba(46, 160, 67, .3); }
+.sts-badge[data-state="down"] { color: #f85149; background: rgba(248, 81, 73, .12); border-color: rgba(248, 81, 73, .3); }
+.sts-badge[data-state="seems_down"] { color: #d29922; background: rgba(210, 153, 34, .12); border-color: rgba(210, 153, 34, .3); }
+.sts-badge[data-state="paused"], .sts-badge[data-state="pending"],
+.sts-badge[data-state="unknown"], .sts-badge[data-state="error"] {
+  color: var(--text-dim); background: var(--surface); border-color: var(--border);
+}
+
+.sts-metrics {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 10px; margin-top: 14px;
+}
+.sts-metric { min-width: 0; padding: 9px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border); }
+.sts-metric-label { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+.sts-metric-value { display: block; font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+
+.sts-spark { margin-top: 14px; }
+.sts-spark-head { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; color: var(--text-dim); margin-bottom: 7px; }
+.sts-spark-head b { color: var(--text); font-variant-numeric: tabular-nums; }
+.sts-bars { display: flex; align-items: flex-end; gap: 4px; height: 42px; }
+.sts-bar {
+  flex: 1 1 0; min-width: 3px; max-width: 26px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent); opacity: .55;
+  transition: height .3s var(--ease);
+}
+.sts-bar.is-down { background: #f85149; opacity: .8; }
+.sts-bars-empty { font-size: 12px; color: var(--text-dim); }
+
+.sts-events { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.sts-events-title { font-size: 11.5px; color: var(--text-dim); margin-bottom: 7px; }
+.sts-event { display: flex; gap: 9px; flex-wrap: wrap; font-size: 12px; line-height: 1.7; color: var(--text); }
+.sts-event + .sts-event { margin-top: 5px; }
+.sts-event-time { flex: none; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sts-event-type { flex: none; font-weight: 700; }
+.sts-event-type.is-down { color: #f85149; }
+.sts-event-type.is-up { color: #2ea043; }
+.sts-events-empty { font-size: 12px; color: var(--text-dim); }
+
+.sts-svc-error { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: rgba(248, 81, 73, .08); border: 1px solid rgba(248, 81, 73, .28); font-size: 12px; color: var(--text); line-height: 1.7; }
+
+/* ---------- 错误 / 加载 ---------- */
+.sts-error { padding: 16px; border-radius: 12px; background: rgba(248, 81, 73, .07); border: 1px solid rgba(248, 81, 73, .3); }
+.sts-error-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 0 0 6px; }
+.sts-error-detail { font-size: 12px; color: var(--text-dim); line-height: 1.75; margin: 0 0 12px; word-break: break-word; }
+.sts-loading { font-size: 13px; color: var(--text-dim); padding: 8px 0; }
+
+.sts-notes { margin: 0; padding-left: 20px; font-size: 12.5px; line-height: 1.9; color: var(--text-dim); }
+.sts-notes b { color: var(--text); }
+
+@media (max-width: 560px) {
+  .sts-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sts-svc { padding: 13px; }
+  .sts-updated { width: 100%; }
+  /* user.css 在 560px 以下给所有 .act-btn 设了 flex:1，会把刷新按钮撑成整行 */
+  .sts-controls .act-btn { flex: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sts-svc, .sts-bar { transition: none !important; }
+}

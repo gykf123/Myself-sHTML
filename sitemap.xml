@@ -26,4 +26,16 @@
     <loc>https://fesui.xn--0iv.gay/login/</loc>
     <priority>0.4</priority>
   </url>
+  <url>
+    <loc>https://fesui.xn--0iv.gay/stats/</loc>
+    <lastmod>2026-11-14</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fesui.xn--0iv.gay/status/</loc>
+    <lastmod>2026-11-14</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.6</priority>
+  </url>
 </urlset>

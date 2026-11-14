@@ -5,6 +5,14 @@
    本文件所有类名统一 st- 前缀，不污染全局。
    ============================================================ */
 
+/* 访问统计 → 服务状态 入口（用 <a> 套用 act-btn 时去掉下划线） */
+a.st-status-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  text-decoration: none; white-space: nowrap;
+}
+.st-controls a.st-status-link { flex: none; }
+a.st-status-link:hover { text-decoration: none; }
+
 /* ---------- 头部与控制条 ---------- */
 .st-head-card { padding-bottom: 16px; }
 .st-title { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: var(--text); }

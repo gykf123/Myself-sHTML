@@ -420,3 +420,27 @@
 - **automation `15293863` 已二次更新**（`automation_update`）：description 与 prompt 里「GitHub 推送（专用 PAT）」改成「GitHub 写入（纯 REST）」；【写入怎么做】① 换成 `curl` 从 `raw.githubusercontent.com` 取脚本 + `GH_AGENT_PAT=… python3 … --file …`，并写清 raw 缓存时降级走 `api.github.com/.../contents/...`；明确**禁用 `git push` / `git fetch over HTTPS`**、「上线以 `OK commit=<sha>` 为准，本地 git commit 只算留痕」；保留三枚密钥、代写通道规则、安全边界、心跳 / 取件 / 回执流程不变。任务仍 ACTIVE、每 12 小时、`next_run_at=2026-11-15T00:00:00+08:00`。
 - **轮换清单不变**：`FS_AGENT_TOKEN` / `FS_AGENT_WRITE_TOKEN` / `GH_AGENT_PAT`（本地 600 权限 env + Supabase secrets + automation prompt）。**`GH_AGENT_PAT` 仍是账户级 classic PAT，权限过宽（含 `admin:enterprise` / `admin:org` / `admin:public_key` / `delete:packages` / `workflow`），建议尽快换成只授权该仓库 + Contents 写的 fine-grained PAT 并轮换现有值**——换的时候记得同步 `/root/.supabase/agent-gh.env` 与 automation prompt。
 - 本轮只改脚本、后台自动化配置与文档，访客无感，按 11-09 规矩**没发公告**，只留言板汇报。
+
+## 2026-11-14 ⑳ 新建「服务状态」页（UptimeRobot 只读监控 → Edge Function 代理）
+
+- **需求**：「新建状态页（访问统计那里要有链接）」+ 三把只读 `GetMonitors` key（主站 / FKD / QQ bot）。格式 `m<数字>-<32位hex>` 是 UptimeRobot v2 的 read-only API key。
+- **⚠️ 架构决策：CORS 允许 ≠ 可以前端直连**。
+  - 实测 `POST https://api.uptimerobot.com/v2/getMonitors` 返回 200，且 `Access-Control-Allow-Origin: *`，看起来能直接在页面里调。
+  - 但**原始响应带 `http_username` / `http_password` / `keyword_value` / `port` / `userId` / `timeout` 等监控配置字段**：把只读 key 放进公开仓库 = 监控配置公开 + 免费版 API 配额被任意刷。项目铁律也明确「前端只用 publishable `ANON_KEY`」。
+  - 采用 `supabase/functions/fs-status/index.ts`：三把 key 存 Supabase Secrets，服务端并发拉三个监控，**字段白名单映射**后返回；60 秒进程内缓存 + `Cache-Control: public, max-age=60, s-maxage=60`；单项失败只让该项带 `error`、整体 `partial: true`；公开只读、无鉴权、不读库、不写数据、不接受任何用户输入。部署照例 `--no-verify-jwt`（本站 JWT 自签，网关验不了），`deno check` 通过。
+- **数据契约（实测，别凭印象）**：
+  - 每把 key 各返回 1 个 monitor，`type=1`（HTTP），`interval=300` **秒**（不是分钟）。
+  - `status`：`0` 已暂停 / `1` 待首次检测 / `2` 在线 / `8` 疑似离线 / `9` 离线。
+  - 可用率**必须显式请求** `all_time_uptime_ratio=1` + `custom_uptime_ratios=1-7-30-90`；`custom_uptime_ratio` 是按请求顺序用 `-` 连接的字符串（如 `100.000-100.000-100.000-100.000`），不请求就没有该字段。
+  - `logs=1` 给事件（`type` 1 故障 / 2 恢复 / 98 恢复监控 / 99 暂停），`reason` 是 `{code, detail}`；`response_times=1` 给最近往返耗时 `[{datetime, value}]`。
+  - **当前真实状态**：主站 `up`（全天 100%）、FKD `up`（100%）、**QQ bot `down`**（全天 0%，事件 `405 · Method Not Allowed`）。多半是健康检查端点不接受 UptimeRobot 的探测方法，不是真的机器人挂了 —— 已提醒用户核对监控配置；状态页如实展示，没有为了「全绿」去粉饰。
+- **前端 `status/`**：复用 `../style.css` + `../user/user.css` 骨架，独立 `status.css` / `status.js`（`sts-` 前缀），主题跟随主站；总览 4 卡 + 每服务「状态徽标 / 全天与近 7 天可用率 / 平均响应 / 探测间隔 / 响应时间迷你柱图 / 近期事件」；60 秒自动刷新（`document.hidden` 时跳过）+ 手动刷新。接口挂了显示「状态服务暂不可用」且**不渲染任何假徽标**；单项失败该卡指标留空、显示错误详情，不编 0。所有插值 `escapeHtml`，URL 协议只允许 http/https（挡 `javascript:`）。
+- **入口（用户点名「访问统计那里要有链接」）**：`stats/index.html` 顶栏加「服务状态」+ 控制条加「📡 服务状态 ↗」；`index.html` 站点功能卡加一张；`site-nav.js` 的 `LINKS` 加「📡 服务状态」；`sitemap.xml` 补 `/status/` 与 `/stats/`（后者此前也没收录）。
+  - **改 `site-nav.js` 必须统一换 `?v=`**：39 个页面（含 MC 子站）全从 `?v=20261107b` → `?v=20261114`，加新 status 页共 40 处；`stats.css` 换 `?v=20261114`；新文件统一 `?v=20261114`。按 ⑯ 的缓存坑规矩一律换，别赌 Pages 的 10 分钟缓存。
+- **踩坑（都是验收输出里抓到的，不是读代码看出来的）**：
+  1) `interval` 单位是**秒**，第一版当成分钟，`300` 显示成「5 小时」；改 `intervalText()` 按秒换算才对。
+  2) `user.css` 在 `@media (max-width:560px)` 给**所有** `.act-btn` 设 `flex:1`，把状态页刷新按钮撑成整行；用更高特异性的 `.sts-controls .act-btn { flex:none }` 覆盖，统计页入口同理加 `.st-controls a.st-status-link { flex:none }`。
+  3) 无头 Chromium 缺 emoji 字体，验收截图里 📡 等显示成方框 —— 只是截图环境问题，真实浏览器正常，不用改代码。
+- **验收**：本地 Playwright **21/21**（3 卡 / 4 总览 / 状态徽标 / 405 原因 / 5 分钟 / 迷你柱图 / 零 console 错误 / 刷新 / stats 链接 / 全站导航 / 首页卡 / 390px 无横向溢出 / 降级不假状态 / XSS 转义 / `javascript:` 拒绝）；线上函数 200 + `X-Cache MISS→HIT` + 反代 `api.fkd.xn--0iv.gay` 200 + 敏感字段泄露检查 8/8 clean；`node --check` / `deno check` 通过。
+- **凭据与轮换清单**：三把只读 key 在 `/root/.supabase/uptimerobot.env`（600）与 Supabase Secrets `UR_MAIN_KEY` / `UR_FKD_KEY` / `UR_QQBOT_KEY`；**绝不进仓库、不进前端、不进公告 / 回执 / 截图**。轮换要两处同步；单独删某把 Secret 只会让该项显示「状态未知」，不影响其他两项。原 zip 之外的 key 一律别贴进 `fs-status` 源码。
+- 本轮是访客可感知的新页面 + 导航入口，按 §0 **发项目公告**并留言板汇报。
