@@ -329,8 +329,16 @@ function bindBlogTabs() {
     const showAnns = which === 'anns';
     annCard.hidden = !showAnns;
     listCard.hidden = showAnns;
-    if (postsTab) { postsTab.classList.toggle('active', !showAnns); postsTab.setAttribute('aria-selected', String(!showAnns)); }
-    if (annsTab) { annsTab.classList.toggle('active', showAnns); annsTab.setAttribute('aria-selected', String(showAnns)); }
+    if (postsTab) {
+      postsTab.classList.toggle('active', !showAnns);
+      postsTab.setAttribute('aria-selected', String(!showAnns));
+      postsTab.tabIndex = showAnns ? -1 : 0;
+    }
+    if (annsTab) {
+      annsTab.classList.toggle('active', showAnns);
+      annsTab.setAttribute('aria-selected', String(showAnns));
+      annsTab.tabIndex = showAnns ? 0 : -1;
+    }
   }
   postsTab && postsTab.addEventListener('click', () => selectTab('posts'));
   annsTab && annsTab.addEventListener('click', () => selectTab('anns'));
@@ -340,6 +348,12 @@ function bindBlogTabs() {
       const next = e.target === postsTab ? annsTab : postsTab;
       next && next.focus();
       selectTab(next === annsTab ? 'anns' : 'posts');
+    } else if ((e.key === 'Home' || e.key === 'End') && e.target.getAttribute('role') === 'tab') {
+      // ARIA tabs 标准键位：Home / End 跳到首尾标签
+      e.preventDefault();
+      const target = e.key === 'Home' ? postsTab : annsTab;
+      target && target.focus();
+      selectTab(e.key === 'Home' ? 'posts' : 'anns');
     }
   });
 }

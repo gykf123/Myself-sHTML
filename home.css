@@ -17,7 +17,7 @@
 }
 /* 极淡的网格纹理，给深色底一点结构感，不影响文字可读性 */
 .hm-body::before {
-  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  content: ''; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 0; pointer-events: none;
   background-image:
     linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
@@ -151,7 +151,7 @@ html.hm-active.theme-glass::before { display: none; }
   z-index: 1; pointer-events: none; opacity: .34;
 }
 .hm-ring {
-  position: absolute; inset: 0; margin: auto; border-radius: 50%;
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; margin: auto; border-radius: 50%;
   border: 1px solid rgba(150,175,255,.16);
 }
 .hm-ring.r1 { width: 100%; height: 100%; animation: hmSpin 38s linear infinite; }
@@ -194,7 +194,7 @@ html.hm-active.theme-glass::before { display: none; }
   --mx: 50%; --my: 0%;
 }
 .hm-card::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; opacity: 0;
   background: radial-gradient(220px circle at var(--mx) var(--my), rgba(150,175,255,.16), transparent 62%);
   transition: opacity .28s;
 }
@@ -273,7 +273,7 @@ html.hm-active.theme-glass::before { display: none; }
   animation-delay: var(--d, 0s);
 }
 .hm-curtain {
-  position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9998; pointer-events: none;
   background: #080b16;
   animation: hmCurtainOut .68s cubic-bezier(.4,0,.2,1) both;
 }
@@ -369,7 +369,7 @@ html.hm-leaving .hm-body::before { opacity: 0; transition: opacity .3s; }
 .hm-dev-banner::before {
   content: '';
   position: absolute;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .08) 48%, transparent 62%);
   transform: translateX(-120%);
   animation: hmDevSweep 5.5s ease-in-out infinite;

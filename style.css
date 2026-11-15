@@ -64,7 +64,7 @@ html.theme-glass {
 }
 /* 流动光斑背景（仅液态玻璃主题；尊重 reduced-motion） */
 html.theme-glass::before {
-  content: ""; position: fixed; inset: -20%; z-index: -1; pointer-events: none;
+  content: ""; position: fixed; top: -20%; right: -20%; bottom: -20%; left: -20%; z-index: -1; pointer-events: none;
   background:
     radial-gradient(600px 420px at 18% 22%, #5b8cff66, transparent 60%),
     radial-gradient(520px 380px at 82% 28%, #b15bff55, transparent 60%),
@@ -92,7 +92,7 @@ body {
 
 /* ---------- 加载动画 ---------- */
 .loader {
-  position: fixed; inset: 0; z-index: 999;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 999;
   display: grid; place-items: center;
   background: var(--bg);
   opacity: 1; transition: opacity .35s var(--ease);
@@ -572,7 +572,7 @@ html.theme-glass .friend-card:hover {
 }
 /* 镜面高光：顶部亮线 + 边缘反射（screen 混合，不挡内容），真玻璃的必备视觉线索 */
 .glass::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  content: ""; position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: inherit; pointer-events: none;
   opacity: .4;
   background:
     linear-gradient(135deg, rgba(255,255,255,.50), rgba(255,255,255,0) 42%),
@@ -631,7 +631,7 @@ html.theme-glass .sidebar {
 
 /* ---------- 移动端遮罩 ---------- */
 .overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 15;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,.4); z-index: 15;
   opacity: 0; transition: opacity .25s var(--ease);
 }
 .overlay.show { opacity: 1; }

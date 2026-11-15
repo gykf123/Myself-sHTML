@@ -334,7 +334,7 @@
 .mail-badge.off { opacity: .8; }
 .mail-actions { display: flex; gap: 6px; flex: none; }
 .mail-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.bind-mail .bind-input { width: min(260px, 100%); flex: 1 1 200px; }
+.bind-mail .bind-input { width: 260px; width: min(260px, 100%); flex: 1 1 200px; }
 .bind-mail .bind-input:disabled { opacity: .55; cursor: not-allowed; }
 @media (max-width: 600px) {
   .mail-item { gap: 8px; }
@@ -368,7 +368,7 @@
 
 /* ---------- QQ 绑定码弹窗 ---------- */
 .qq-modal-mask {
-  position: fixed; inset: 0; z-index: 1000;
+  position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
   background: rgba(10, 12, 24, .55);

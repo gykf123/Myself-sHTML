@@ -7,31 +7,61 @@
 
      · 自带样式（.fs-nav-* 前缀），不依赖任何页面的 CSS 变量；
      · 根相对路径 /xxx/，任意目录深度都指向同一个地方；
-     · 主站首页已有完整侧栏导航，脚本检测到 .site-link 就自动跳过，
-       不重复、不叠加；
+     · 已有侧栏导航的页面（`.site-link`，目前是个人主页 `/home/`）自动跳过，
+       不重复、不叠加；根路径 `/` 是门户首页、没有侧栏，需要保留悬浮导航；
      · 只做导航，不 fetch、不写 localStorage、不碰业务 DOM；
-     · 默认收起，右下角一枚小按钮，点开才展开面板。
+   · 默认收起，右下角一枚小按钮，点开才展开面板；
+   · 图标用内联 SVG（stroke 描边），不用 emoji —— 缺 emoji 字体的
+     老内核 WebView / 部分 Linux 会把 emoji 渲染成方框豆腐块。
 
    全 ES5、DOM API 创建、零 innerHTML 注入面。
    ============================================================ */
 (function () {
   'use strict';
 
+  // 图标路径统一 24×24 viewBox，stroke 描边、currentColor 跟随主题。
+  // 放在数据表里而不是拼 innerHTML，保持「零注入面」这条约束。
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var ICONS = {
+    home:    'M3 10.8 12 3.5l9 7.3V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+    person:  'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 21a7.5 7.5 0 0 1 15 0',
+    tools:   'M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM9 8V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3M3 13h18M10 13v2h4v-2',
+    chat:    'M20 15a3 3 0 0 1-3 3H9l-5 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z',
+    profile: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 12a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 12 12zM5.8 20a6.4 6.4 0 0 1 12.4 0',
+    chart:   'M4 20h16M7 16v-5M12 16V6M17 16v-8',
+    pulse:   'M3 12h4l2.5-6 4 12 2.5-6H21',
+    bot:     'M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM12 4v4M9 14h.01M15 14h.01M9 17h6',
+    news:    'M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM18 8h1a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2M8 8h7M8 12h7M8 16h4',
+    extern:  'M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6'
+  };
+
+  function iconNode(key) {
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('class', 'i');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', ICONS[key] || ICONS.extern);
+    svg.appendChild(path);
+    return svg;
+  }
+
   // 首页（主站）有自己的侧栏「站点功能」分组，无需重复注入。
   // 检测必须放在 boot()（DOMContentLoaded 之后）：本脚本在 <head> 同步执行时
   // 侧栏还没解析，此刻 querySelector 一定返回 null，会误判成「不是主站」。
   var LINKS = [
-    { name: '首页',       icon: '🏠', href: '/',          match: '' },
+    { name: '首页',       icon: 'home',    href: '/',          match: '' },
     // 个人主页已从 / 搬到 /home/；根 / 现在是站点门户首页，两者要分开列
-    { name: '个人主页',   icon: '👤', href: '/home/',     match: '/home' },
-    { name: '工具箱大厅', icon: '🧰', href: '/tool/',     match: '/tool' },
-    { name: '聊天室',     icon: '💬', href: '/chat/',     match: '/chat' },
-    { name: '个人中心',   icon: '🧑‍💻', href: '/user/',     match: '/user' },
-    { name: '访问统计',   icon: '📊', href: '/stats/',    match: '/stats' },
-    { name: '服务状态',   icon: '📡', href: '/status/',   match: '/status' },
-    { name: 'Bot 唤醒台', icon: '🤖', href: '/reopenai/', match: '/reopenai' },
-    { name: '博客 / 公告', icon: '📰', href: '/blog/',    match: '/blog' },
-    { name: 'GitHub',     icon: '🐙', href: 'https://github.com/gykf123',
+    { name: '个人主页',   icon: 'person',  href: '/home/',     match: '/home' },
+    { name: '工具箱大厅', icon: 'tools',   href: '/tool/',     match: '/tool' },
+    { name: '聊天室',     icon: 'chat',    href: '/chat/',     match: '/chat' },
+    { name: '个人中心',   icon: 'profile', href: '/user/',     match: '/user' },
+    { name: '访问统计',   icon: 'chart',   href: '/stats/',    match: '/stats' },
+    { name: '服务状态',   icon: 'pulse',   href: '/status/',   match: '/status' },
+    { name: 'Bot 唤醒台', icon: 'bot',     href: '/reopenai/', match: '/reopenai' },
+    { name: '博客 / 公告', icon: 'news',   href: '/blog/',     match: '/blog' },
+    { name: 'GitHub',     icon: 'extern', href: 'https://github.com/gykf123',
       match: null, external: true }
   ];
 
@@ -51,7 +81,7 @@
     '.fs-nav-toggle[aria-expanded="true"]{border-color:var(--fsn-accent);',
       'color:var(--fsn-accent)}',
     '.fs-nav-panel{position:absolute;right:0;bottom:58px;width:196px;',
-      'max-height:min(70vh,420px);overflow-y:auto;padding:10px;',
+      'max-height:420px;max-height:min(70vh,420px);overflow-y:auto;padding:10px;',
       'border-radius:14px;border:1px solid var(--fsn-border);',
       'background:var(--fsn-bg);color:var(--fsn-text);',
       'box-shadow:0 12px 36px rgba(0,0,0,.28);',
@@ -65,14 +95,21 @@
     '.fs-nav-link:hover{background:var(--fsn-hover);color:var(--fsn-accent)}',
     '.fs-nav-link[aria-current="page"]{background:var(--fsn-active);',
       'color:var(--fsn-accent)}',
-    '.fs-nav-link .i{flex:none;font-size:16px;line-height:1}',
+    // SVG 描边图标：fill:none + currentColor，深浅主题都能自动跟随
+    '.fs-nav-link .i{flex:none;width:16px;height:16px;fill:none;',
+      'stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}',
     '.fs-nav-link .g{flex:none;margin-left:auto;font-size:11px;opacity:.5}',
     '@media (prefers-reduced-motion:reduce){',
       '.fs-nav-toggle,.fs-nav-link{transition:none!important}',
       '.fs-nav-toggle:hover{transform:none}}',
     '@media (max-width:520px){',
       '.fs-nav-root{right:12px;bottom:12px}',
-      '.fs-nav-panel{bottom:56px;width:184px}}'
+      '.fs-nav-panel{bottom:56px;width:184px}}',
+    // 矮屏（横屏手机 / 小窗）：按钮再缩一圈，少挡住页面底部内容
+    '@media (max-height:560px){',
+      '.fs-nav-root{right:10px;bottom:10px}',
+      '.fs-nav-toggle{width:38px;height:38px;font-size:16px}',
+      '.fs-nav-panel{bottom:50px}}'
   ].join('');
 
   var DARK = [
@@ -111,7 +148,8 @@
 
   function boot() {
     if (!document.body || document.getElementById('fsNavRoot')) return;
-    // 主站首页已有侧栏「站点功能」分组，跳过，避免出现两套导航
+    // 个人主页 /home/ 自带侧栏「站点功能」分组（.site-link），跳过避免两套导航。
+    // 注意别写成「主站首页」：根 / 现在是门户首页、没有侧栏，反而需要这套导航。
     if (document.querySelector && document.querySelector('.site-link')) return;
 
     var style = document.createElement('style');
@@ -140,7 +178,7 @@
     LINKS.forEach(function (item) {
       var a = el('a', 'fs-nav-link');
       a.href = item.href;
-      a.appendChild(el('span', 'i', item.icon));
+      a.appendChild(iconNode(item.icon));
       a.appendChild(el('span', null, item.name));
       if (item.external) {
         a.target = '_blank';
