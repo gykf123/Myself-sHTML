@@ -196,13 +196,15 @@ function flvEnsureStyles() {
   const style = document.createElement('style');
   style.id = 'flvStyle';
   style.textContent = [
-    '.flv-veil{position:fixed;inset:0;z-index:9600;display:flex;',
+    // 兼容老内核 WebView：不支持 inset 简写时遮罩会缩成零尺寸、模态隐形，
+    // 表现为「点击友链没反应」，显式写四边偏移更稳
+    '.flv-veil{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9600;display:flex;',
       'align-items:center;justify-content:center;padding:20px;',
       'background:' + (dark ? 'rgba(0,0,0,.55)' : 'rgba(0,0,0,.45)') + ';',
       'backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);',
       'font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",',
       '"Microsoft YaHei",sans-serif}',
-    '.flv-modal{width:min(400px,100%);border-radius:16px;padding:22px;',
+    '.flv-modal{width:100%;max-width:400px;border-radius:16px;padding:22px;',
       'animation:flvIn .18s ease;' + (dark
         ? 'background:rgba(22,27,34,.97);border:1px solid rgba(255,255,255,.16);color:#e6edf3;box-shadow:0 18px 48px rgba(0,0,0,.45)'
         : 'background:rgba(255,255,255,.98);border:1px solid rgba(0,0,0,.14);color:#1f2328;box-shadow:0 18px 48px rgba(0,0,0,.25)') + '}',

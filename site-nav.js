@@ -211,10 +211,12 @@
     var css = [
       '.flg-root{' + vars + ';font:14px/1.6 -apple-system,BlinkMacSystemFont,',
         '"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}',
-      '.flg-veil{position:fixed;inset:0;z-index:9500;background:var(--flg-veil);',
+      // 兼容老内核 WebView（微信/QQ 内置浏览器不支持 inset 简写，遮罩会缩成
+      // 零尺寸、确认模态隐形，守卫看起来“点了没反应”），显式写四边偏移
+      '.flg-veil{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9500;background:var(--flg-veil);',
         'display:flex;align-items:center;justify-content:center;padding:20px;',
         'backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}',
-      '.flg-modal{width:min(420px,100%);border-radius:16px;padding:22px 22px 18px;',
+      '.flg-modal{width:100%;max-width:420px;border-radius:16px;padding:22px 22px 18px;',
         'border:1px solid var(--flg-border);background:var(--flg-bg);',
         'color:var(--flg-text);box-shadow:var(--flg-shadow);',
         'animation:flgIn .18s ease}',
