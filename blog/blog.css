@@ -178,6 +178,9 @@
   margin-top: 14px;
   flex-wrap: wrap;
 }
+/* .blog-tabs 自带 display:flex，优先级高于 UA 的 [hidden]{display:none}；
+   详情页用 tabs.hidden=true 时必须显式补回来，否则这排 tab 仍浮在文章上方 */
+.blog-tabs[hidden] { display: none; }
 .blog-tab {
   padding: 7px 16px;
   border-radius: 999px;

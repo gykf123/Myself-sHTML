@@ -349,14 +349,17 @@ function bindBlogTabs() {
   const y = $('#footYear');
   if (y) y.textContent = new Date().getFullYear();
   const slug = new URLSearchParams(location.search).get('p') || '';
-  await Promise.all([loadAnnouncements(), loadPosts()]);
+  // 视图切换不依赖远程数据，先做完再等接口：
+  //  1) 列表页立刻绑定 tab，避免两个请求没回来时按钮点了没反应；
+  //  2) 详情页立刻隐藏 tab / 列表，避免加载期间 tab 浮在文章上方。
   if (slug) {
     const tabs = $('#blogTabs'), listCard = $('#listCard'), postCard = $('#postCard');
     if (tabs) tabs.hidden = true;        // 详情页不需要 tab 切换
     if (listCard) listCard.hidden = true;
     if (postCard) postCard.hidden = false;
-    await loadPost(slug);
   } else {
     bindBlogTabs();
   }
+  await Promise.all([loadAnnouncements(), loadPosts()]);
+  if (slug) await loadPost(slug);
 })();

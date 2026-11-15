@@ -9,7 +9,12 @@
   <link rel="icon" href="../favicon.png" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; }
+    /* 不锁死 height:100%：卡片比视口高时，flex 垂直居中会把顶部推到视口外，
+       而高度被锁死后那部分溢出还滚不回来（矮窗口、手机横屏最明显，
+       表现为「品牌标题和 tab 上半截看不见」）。改用 min-height + 卡片
+       margin:auto：空间够就正常居中，空间不够 auto 退化为 0，卡片从
+       padding 内缘开始，顶部永远可见且整页可滚动。 */
+    html { min-height: 100%; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       color: #e8eaed;
@@ -20,14 +25,17 @@
         linear-gradient(135deg, #0b0f2a, #161a3a);
       background-attachment: fixed;
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: flex-start;
+      justify-content: flex-start;
       padding: 24px;
     }
     .card {
       width: 100%;
       max-width: 400px;
+      margin: auto;
+      flex-shrink: 0;
       background: rgba(255, 255, 255, 0.07);
       backdrop-filter: blur(22px) saturate(140%);
       -webkit-backdrop-filter: blur(22px) saturate(140%);
@@ -97,6 +105,26 @@
     .gh-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
     .gh-btn svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
     .gh-note { font-size: 11px; color: #727a89; line-height: 1.6; text-align: center; margin-top: 2px; }
+
+    /* 小屏：收紧留白与卡片内边距，尽量让整张卡一屏放下；
+       放不下时上面的 margin:auto 也保证顶部可见、整页可滚动 */
+    @media (max-width: 420px) {
+      body { padding: 16px 14px 22px; }
+      .card { padding: 26px 20px 22px; border-radius: 18px; }
+      .brand h1 { font-size: 20px; }
+      .sub { margin-bottom: 16px; }
+      .tabs { margin-bottom: 16px; }
+      form { gap: 11px; }
+      .hint { margin-top: 12px; }
+      .back { margin-top: 12px; }
+    }
+    /* 矮屏（横屏手机 / 小窗）：再压缩一点纵向节奏 */
+    @media (max-height: 560px) {
+      .card { padding-top: 22px; padding-bottom: 20px; }
+      .sub { margin-bottom: 14px; }
+      .tabs { margin-bottom: 14px; }
+      .hint, .gh-note { margin-top: 8px; }
+    }
   </style>
   <script src="/net-guard.js?v=20261107"></script>
   <script src="/site-nav.js?v=20261115a"></script>
