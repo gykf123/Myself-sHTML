@@ -119,7 +119,7 @@
 
   <section class="tk-card" id="v2fResult" style="display:none">
     <h2 class="tk-card-h"><span class="ico" aria-hidden="true">▤</span>4 · 结果</h2>
-    <label class="v2f-check" style="margin-bottom:12px"><input type="checkbox" id="v2fSide" checked> 输出视频右侧展示当前函数</label>
+    <label class="v2f-check" style="margin-bottom:12px"><input type="checkbox" id="v2fSide" checked> 在导出的视频画面右侧显示当前帧函数（烧进视频里）</label>
     <div class="v2f-result-grid" id="v2fResultGrid">
       <div class="v2f-result-video">
         <div class="v2f-stage"><video id="v2fOutVideo" muted playsinline controls></video></div>
@@ -369,17 +369,54 @@
       }
 
       // ===== 阶段二：固定节拍回放录制（时长 = 帧数/fps）=====
+      // 勾选时：录制画布左右分栏——左=函数还原像素图，右=当前帧函数文本（烧进视频画面里）
       var nFrames=frameImages.length;
+      var showInVideo=$('v2fSide').checked;
       if(!cancelFlag&&nFrames){
         try{
           var recC=document.createElement('canvas');
-          recC.width=outC.width;recC.height=outC.height;
+          var imgW=outC.width, imgH=outC.height;
+          var panelW=showInVideo?Math.round(imgW*0.92):0; // 右侧函数面板宽度
+          var headerH=showInVideo?44:0;                    // 顶栏（帧号）
+          recC.width=imgW+panelW;
+          recC.height=imgH+headerH;
           var rctx=recC.getContext('2d');
           rctx.imageSmoothingEnabled=false;
-          // 把第一帧小快照放大画回录制画布
-          (function(){var tmp=document.createElement('canvas');tmp.width=cols;tmp.height=rows;
-            tmp.getContext('2d').putImageData(frameImages[0],0,0);
-            rctx.drawImage(tmp,0,0,recC.width,recC.height);})();
+
+          var smallC=document.createElement('canvas');smallC.width=cols;smallC.height=rows;
+          var smallCtx=smallC.getContext('2d');
+          // 把一帧画到录制画布（左图 + 右函数）
+          function paintRecordFrame(k){
+            rctx.fillStyle='#080b14';rctx.fillRect(0,0,recC.width,recC.height);
+            // 左：还原像素图
+            smallCtx.putImageData(frameImages[k],0,0);
+            rctx.drawImage(smallC,0,headerH,imgW,imgH);
+            if(!showInVideo)return;
+            // 顶栏
+            rctx.fillStyle='#0d1230';rctx.fillRect(0,0,recC.width,headerH);
+            rctx.fillStyle='#4ff0d0';rctx.font='bold '+Math.round(headerH*0.5)+'px ui-monospace,monospace';
+            rctx.textBaseline='middle';
+            rctx.fillText('ƒ(x) 函数还原  ·  帧 '+(k+1)+' / '+nFrames+'  ·  '+((k+1)/fps).toFixed(1)+'s',12,headerH/2);
+            // 右侧面板底
+            rctx.fillStyle='#0a0d1c';rctx.fillRect(imgW,headerH,panelW,imgH);
+            rctx.fillStyle='rgba(91,140,255,.55)';rctx.fillRect(imgW,headerH,2,imgH); // 分隔线
+            // 函数文本：取当前帧，逐行绘制（自动缩放字号以塞进面板）
+            var lines=(frameFuncsText[k]||'').split('\n');
+            var fs=Math.max(7,Math.min(15,Math.floor(imgH/Math.max(18,lines.length*1.25))));
+            rctx.font=fs+'px ui-monospace,Menlo,Consolas,monospace';
+            rctx.textBaseline='top';
+            rctx.fillStyle='#cdd8ff';
+            var pad=10, lineH=fs+2, maxLines=Math.floor((imgH-16)/lineH);
+            var start=0;
+            if(lines.length>maxLines)start=Math.floor((lines.length-maxLines)*0.0); // 从头显示
+            for(var li=start;li<Math.min(lines.length,start+maxLines);li++){
+              rctx.fillText(lines[li],imgW+pad,headerH+8+(li-start)*lineH,panelW-pad*2);
+            }
+            // 底部计数
+            rctx.fillStyle='#ffd23f';rctx.font='bold '+Math.max(9,fs)+'px ui-monospace,monospace';
+            rctx.fillText('共 '+lines.length+' 条函数',imgW+pad,headerH+imgH-6-lineH);
+          }
+          paintRecordFrame(0);
           stream=recC.captureStream(fps);
           chunks=[];
           var made=makeRecorder(stream); // 真构造：逐个格式试，含不指定格式兜底
@@ -393,14 +430,12 @@
           // 匀速推帧：每帧固定停留 1000/fps 毫秒；进度 90→100%
           for(var k=0;k<nFrames;k++){
             if(cancelFlag)break;
-            var tmp2=(rctx._tmp||(rctx._tmp=(function(){var c=document.createElement('canvas');c.width=cols;c.height=rows;return c;})()));
-            tmp2.getContext('2d').putImageData(frameImages[k],0,0);
-            rctx.drawImage(tmp2,0,0,recC.width,recC.height);
+            paintRecordFrame(k);
             if(recOK){
               var pct=Math.round((k+1)/nFrames*100);
               var left=Math.ceil((nFrames-k-1)/fps);
               $('v2fBar').style.width=(90+Math.round((k+1)/nFrames*10))+'%';
-              $('v2fStatus').textContent='合成视频 '+pct+'% ('+(k+1)+'/'+nFrames+') · 约剩 '+left+'s';
+              $('v2fStatus').textContent='合成视频 '+pct+'% ('+(k+1)/nFrames+') · 约剩 '+left+'s';
             }
             await sleep(Math.round(1000/fps));
           }
@@ -480,9 +515,11 @@
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
   });
-  /* 右侧函数面板开关 */
+  /* 视频内嵌函数开关：控制导出视频画面右侧是否绘制当前帧函数（网页结果区始终左右分栏） */
   $('v2fSide').addEventListener('change',function(){
-    $('v2fResultGrid').classList.toggle('no-side',!this.checked);
+    $('v2fResultNote').textContent=this.checked
+      ?'已开启：导出的视频画面右侧会显示当前帧函数（下次转换生效）'
+      :'已关闭：导出纯还原视频，不显示函数（下次转换生效）';
   });
   /* 还原视频播放时，右侧同步显示当前帧的函数 */
   $('v2fOutVideo').addEventListener('timeupdate',function(){
