@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>视频转函数 · FeSui 工具箱</title>
 <meta name="referrer" content="no-referrer">
-<meta name="description" content="上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。纯前端离线处理，视频不上传。">
+<meta name="description" content="上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。可下载/导入全部帧函数 Txt，纯前端离线处理，视频不上传。">
 <link rel="icon" href="../favicon.png">
 <link rel="stylesheet" href="./toolkit.css?v=20261030">
 <link rel="stylesheet" href="../fs-skin.css?v=20261121a">
@@ -47,7 +47,7 @@
   <span class="tk-badge">纯前端 · 视频不上传</span>
 </header>
 <main class="tk-main">
-  <p class="tk-intro">上传一段视频，走完整条链路：<b>视频 → 图片组 → 函数组 → 图片组 → 视频</b>。每一帧先采样成彩色网格，再变成一堆带颜色的函数（用 <code>+0√(x−xmin)+0√(xmax−x)</code> 锁住定义域），最后函数把帧画回来合成视频。全程只在你的浏览器里跑，视频不会上传。</p>
+  <p class="tk-intro">上传一段视频，走完整条链路：<b>视频 → 图片组 → 函数组 → 图片组 → 视频</b>。每一帧先采样成彩色网格，再变成一堆带颜色的函数（用 <code>+0√(x−xmin)+0√(xmax−x)</code> 锁住定义域），最后函数把帧画回来合成视频。也能把<b>全部帧函数下载成 Txt</b>，再导入本机重新合成。全程只在你的浏览器里跑，视频不会上传。</p>
 
   <div class="v2f-pipeline" id="v2fPipe">
     <span data-p="video">① 视频</span><b>→</b>
@@ -125,9 +125,13 @@
         <div class="v2f-stage"><video id="v2fOutVideo" muted playsinline controls></video></div>
         <div class="tk-row" style="margin-top:10px">
           <button class="tk-btn primary" id="v2fDownload" type="button">下载还原视频</button>
-          <button class="tk-btn ghost" id="v2fFrameTxt" type="button">导出当前帧函数</button>
+          <button class="tk-btn ghost" id="v2fAllTxt" type="button">下载全部帧 Txt</button>
+          <button class="tk-btn ghost" id="v2fFrameTxt" type="button">导出当前帧 Txt</button>
+          <button class="tk-btn ghost" id="v2fImportTxt" type="button">导入 Txt</button>
+          <input type="file" id="v2fTxtFile" accept=".txt,text/plain" hidden>
         </div>
         <span class="tk-help" id="v2fResultNote" style="display:block;margin-top:8px"></span>
+        <span class="tk-help" style="display:block;margin-top:5px">Txt 保存全部帧函数、FPS 与网格参数；导入后可在浏览器里重新合成还原视频，也能直接粘到「函数显示器」。</span>
       </div>
       <div class="v2f-result-funcs" id="v2fFuncPanel">
         <p class="tk-help" style="margin-bottom:6px">当前帧函数 · <b id="v2fCurFrame" style="color:#cdd8ff">—</b>（播放视频时自动跟随）</p>
@@ -144,7 +148,7 @@
   'use strict';
   var $=function(id){return document.getElementById(id);};
   var file=$('v2fFile'), srcV=$('v2fSrc'), outC=$('v2fCanvas');
-  var running=false, cancelFlag=false, lastFrameFuncs=[], lastCols=0, lastRows=0;
+  var running=false, cancelFlag=false, lastFrameFuncs=[], lastCols=0, lastRows=0, lastFps=6;
   var objectUrl=null, outUrl=null, recorder=null, chunks=[];
   var frameImages=[], frameFuncsText=[]; // 逐帧留档：像素 + 函数文本（供匀速回放录制与右侧同步）
 
@@ -237,6 +241,85 @@
 
   function funcsToText(funcs){
     return funcs.map(function(f){return f.color+'  y = '+f.y+' + 0*sqrt(x - '+f.x0+') + 0*sqrt('+f.x1+' - x)';}).join('\n');
+  }
+
+  /* ===== Txt：保存/恢复全部帧函数 ===== */
+  function serializeV2fTxt(){
+    if(!frameFuncsText||!frameFuncsText.length)return '';
+    var fps=lastFps||parseInt($('v2fFps').value,10)||6;
+    var lines=['#V2F1.0','#FPS='+fps,'#COLS='+(lastCols||0),'#ROWS='+(lastRows||0),'#FRAMES='+frameFuncsText.length];
+    for(var i=0;i<frameFuncsText.length;i++){
+      lines.push('#===FRAME '+(i+1)+'===');
+      String(frameFuncsText[i]||'').split(/\r?\n/).forEach(function(line){
+        if(line.trim())lines.push(line.trim());
+      });
+    }
+    return lines.join('\n')+'\n';
+  }
+
+  function parseFuncLine(line){
+    var m=String(line||'').match(/^\s*(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3}))\b/);
+    if(!m)return null;
+    var color=m[1];
+    var ym=line.match(/\by\s*=\s*(-?\d+(?:\.\d+)?)/);
+    var a=line.match(/(?:sqrt|√)\s*\(\s*x\s*-\s*(-?\d+(?:\.\d+)?)\s*\)/i);
+    var b=line.match(/(?:sqrt|√)\s*\(\s*(-?\d+(?:\.\d+)?)\s*-\s*x\s*\)/i);
+    if(!ym||!a||!b)return null;
+    var y=parseFloat(ym[1]), x0=parseFloat(a[1]), x1=parseFloat(b[1]);
+    if(!isFinite(y)||!isFinite(x0)||!isFinite(x1)||x1<=x0)return null;
+    return {color:color,x0:x0,x1:x1,y:y};
+  }
+
+  function parseV2fTxt(text){
+    text=String(text||'').replace(/\r\n?/g,'\n').trim();
+    if(!text)throw new Error('Txt 是空的');
+    var meta={fps:0,cols:0,rows:0}, frames=[], cur=[], sawMarker=false;
+    var lines=text.split('\n');
+    for(var i=0;i<lines.length;i++){
+      var line=lines[i].trim();
+      if(!line)continue;
+      var fm=line.match(/^#===FRAME\s+\d+\s*===$/);
+      if(fm){
+        if(sawMarker||cur.length)frames.push(cur);
+        cur=[];sawMarker=true;continue;
+      }
+      if(/^#V2F/.test(line))continue;
+      var km=line.match(/^#(FPS|COLS|ROWS|FRAMES)\s*=\s*(-?\d+(?:\.\d+)?)$/);
+      if(km){meta[km[1].toLowerCase()]=parseFloat(km[2]);continue;}
+      var fn=parseFuncLine(line);
+      if(fn){cur.push(fn);continue;}
+      // 其它 # 开头行视为注释/说明，兼容手工编辑过的文本
+    }
+    if(cur.length||sawMarker)frames.push(cur);
+    if(!frames.length)throw new Error('没找到可导入的函数行');
+    if(!isFinite(meta.fps)||meta.fps<1||meta.fps>60)meta.fps=lastFps||6;
+    var maxX=0,maxY=0,totalFuncs=0;
+    frames.forEach(function(fs){
+      fs.forEach(function(f){totalFuncs++;if(f.x1>maxX)maxX=f.x1;if(f.y>maxY)maxY=f.y;});
+    });
+    if(!isFinite(meta.cols)||meta.cols<1)meta.cols=Math.round(maxX)||lastCols||32;
+    if(!isFinite(meta.rows)||meta.rows<1)meta.rows=Math.round(maxY)||lastRows||Math.max(1,Math.round(meta.cols*9/16));
+    if(meta.cols>400||meta.rows>400)throw new Error('Txt 里的网格尺寸过大');
+    return {fps:meta.fps,cols:Math.round(meta.cols),rows:Math.round(meta.rows),frames:frames,totalFuncs:totalFuncs};
+  }
+
+  function rebuildImagesFromFrames(parsed){
+    frameImages=[];
+    var snapC=document.createElement('canvas');
+    snapC.width=parsed.cols;snapC.height=parsed.rows;
+    var snapCtx=snapC.getContext('2d');
+    parsed.frames.forEach(function(funcs){
+      paintFuncs(snapCtx,funcs,parsed.cols,parsed.rows,1);
+      frameImages.push(snapCtx.getImageData(0,0,parsed.cols,parsed.rows));
+    });
+    return frameImages;
+  }
+
+  function downloadBlob(blob,name){
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download=name;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},1500);
   }
 
   /* 跳到指定时间：处理「首帧已在 0、设 currentTime 不触发 seeked」的永久卡死 */
@@ -368,7 +451,19 @@
         $('v2fStatus').textContent='分析中 '+Math.round((i+1)/total*100)+'% ('+(i+1)+'/'+total+')';
       }
 
-      // ===== 阶段二：固定节拍回放录制（时长 = 帧数/fps）=====
+    }catch(e){fatal=e;}
+    if(fatal){showFatal(fatal);return;}
+    lastFps=fps;
+    await composeVideo(cols,rows,fps,total,totalFuncs,t0,null);
+  }
+
+  /* 阶段二公共逻辑：从已留档的帧像素+函数文本，按固定节拍回放录制成还原视频。
+     正常转换与「导入 Txt」都走这里，保证两条路径产物一致。 */
+  async function composeVideo(cols,rows,fps,total,totalFuncs,t0,note){
+    running=true;cancelFlag=false;
+    $('v2fRun').disabled=true;$('v2fCancel').disabled=false;
+    var mime=null,stream=null,recOK=false,fatal=null;
+    try{
       // 勾选时：录制画布左右分栏——左=函数还原像素图，右=当前帧函数文本（烧进视频画面里）
       var nFrames=frameImages.length;
       var showInVideo=$('v2fSide').checked;
@@ -482,7 +577,7 @@
             outUrl=URL.createObjectURL(new Blob(chunks,{type:info.real}));
             $('v2fDownload').download='video-functions.'+info.ext;
             $('v2fOutVideo').src=outUrl;
-            $('v2fResultNote').textContent=(cancelFlag?'已停止（部分片段）':'完成')+' · '+info.ext.toUpperCase()+' · 时长约 '+(frameFuncsText.length/fps).toFixed(1)+'s';
+            $('v2fResultNote').textContent=(note?note+' · ':'')+(cancelFlag?'已停止（部分片段）':'完成')+' · '+info.ext.toUpperCase()+' · 时长约 '+(frameFuncsText.length/fps).toFixed(1)+'s';
           });
           $('v2fStatus').textContent=cancelFlag?'已停止':'完成，可下载';
           ['frames','funcs','frames2','outvideo'].forEach(function(n){pipe(n,true);});
@@ -493,7 +588,7 @@
             if(outUrl)URL.revokeObjectURL(outUrl);
             outUrl=URL.createObjectURL(blob);
             $('v2fDownload').download='video-functions-frame.png';
-            $('v2fResultNote').textContent='当前浏览器不支持视频合成，已导出还原帧（PNG）。可换 Chrome / Edge 合成视频。';
+            $('v2fResultNote').textContent=(note?note+' · ':'')+'当前浏览器不支持视频合成，已导出还原帧（PNG）。可换 Chrome / Edge 合成视频。';
           },'image/png');
           $('v2fDownload').download='video-functions-frame.png';
           $('v2fStatus').textContent='完成（已降级导出 PNG 帧）';
@@ -502,9 +597,20 @@
         $('v2fResult').style.display='block';
       }
       running=false;
-      $('v2fRun').disabled=false;$('v2fCancel').disabled=true;
+      $('v2fRun').disabled=!srcV.videoWidth;$('v2fCancel').disabled=true;
     }
   }
+
+  function showFatal(e){
+    $('v2fResultNote').textContent='出错：'+e.message;
+    $('v2fStatus').textContent='出错：'+e.message;
+    $('v2fBar').style.width='0%';
+    $('v2fResult').style.display='block';
+    running=false;
+    $('v2fRun').disabled=!srcV.videoWidth;
+    $('v2fCancel').disabled=true;
+  }
+
   $('v2fRun').addEventListener('click',run);
   $('v2fCancel').addEventListener('click',function(){cancelFlag=true;$('v2fStatus').textContent='正在停止…';});
 
@@ -515,10 +621,63 @@
     document.body.appendChild(a);a.click();document.body.removeChild(a);
   });
   $('v2fFrameTxt').addEventListener('click',function(){
-    var blob=new Blob([$('v2fOut').value],{type:'text/plain;charset=utf-8'});
-    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='frame-functions.txt';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+    var txt=$('v2fOut').value||'';
+    if(!txt.trim()){$('v2fStatus').textContent='还没有当前帧函数';return;}
+    downloadBlob(new Blob([txt],{type:'text/plain;charset=utf-8'}),'frame-functions.txt');
+  });
+  $('v2fAllTxt').addEventListener('click',function(){
+    var txt=serializeV2fTxt();
+    if(!txt){$('v2fStatus').textContent='还没有可导出的全部帧函数';return;}
+    downloadBlob(new Blob([txt],{type:'text/plain;charset=utf-8'}),'video-functions.txt');
+    $('v2fStatus').textContent='已下载全部帧 Txt · '+frameFuncsText.length+' 帧';
+  });
+  $('v2fImportTxt').addEventListener('click',function(){
+    if(running){$('v2fStatus').textContent='正在处理，完成后再导入 Txt';return;}
+    $('v2fTxtFile').click();
+  });
+  $('v2fTxtFile').addEventListener('change',function(){
+    var f=this.files&&this.files[0];
+    this.value='';
+    if(!f)return;
+    var reader=new FileReader();
+    reader.onerror=function(){$('v2fStatus').textContent='Txt 读取失败';};
+    reader.onload=async function(){
+      var parsed;
+      try{parsed=parseV2fTxt(reader.result);}catch(e){$('v2fStatus').textContent='导入失败：'+e.message;return;}
+      if(running){$('v2fStatus').textContent='正在处理，完成后再导入 Txt';return;}
+      try{
+        frameFuncsText=parsed.frames.map(funcsToText);
+        rebuildImagesFromFrames(parsed);
+        lastFps=parsed.fps;lastCols=parsed.cols;lastRows=parsed.rows;
+        lastFrameFuncs=parsed.frames[0]||[];
+
+        var rEl=$('v2fRes'),fEl=$('v2fFps');
+        rEl.value=Math.min(parseInt(rEl.max,10)||80,Math.max(parseInt(rEl.min,10)||8,parsed.cols));
+        fEl.value=Math.min(parseInt(fEl.max,10)||15,Math.max(parseInt(fEl.min,10)||2,parsed.fps));
+        $('v2fResVal').textContent=rEl.value;
+        $('v2fFpsVal').textContent=fEl.value;
+
+        drawFuncs(lastFrameFuncs,parsed.cols,parsed.rows);
+        $('v2fOut').value=frameFuncsText[0]||'';
+        $('v2fCurFrame').textContent='1 / '+frameFuncsText.length;
+        $('v2fFrames').textContent=frameFuncsText.length+' 帧（导入）';
+        $('v2fFuncs').textContent=parsed.totalFuncs+' 条';
+        $('v2fGrid').textContent=parsed.cols+'×'+parsed.rows;
+        $('v2fTime').textContent='—';
+        $('v2fBar').style.width='0%';
+        $('v2fPreview').style.display='block';
+        $('v2fResult').style.display='block';
+        $('v2fStatus').textContent='已导入 Txt · '+frameFuncsText.length+' 帧 · 正在合成…';
+        await composeVideo(parsed.cols,parsed.rows,parsed.fps,frameFuncsText.length,parsed.totalFuncs,performance.now(),'已导入 Txt');
+      }catch(e){
+        running=false;
+        $('v2fRun').disabled=!srcV.videoWidth;
+        $('v2fCancel').disabled=true;
+        $('v2fStatus').textContent='导入失败：'+e.message;
+        $('v2fResultNote').textContent='导入失败：'+e.message;
+      }
+    };
+    reader.readAsText(f,'utf-8');
   });
   /* 视频内嵌函数开关：控制导出视频画面右侧是否绘制当前帧函数（网页结果区始终左右分栏） */
   $('v2fSide').addEventListener('change',function(){

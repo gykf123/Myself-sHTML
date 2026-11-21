@@ -662,3 +662,10 @@
 ## ㊵ 2026-11-21：公告回执（项目档案 + 新游戏）
 - 按 §0 发公告：`fs-notify.announce` 返回 id=20，`mailed=3 / failed=0 / provider=resend`（3 封自有域名直发）。管理员态照旧「临时提权 fe_probe_dev → 线上 login 真实 JWT → announce → finally 还原」，复核 `role=user`。
 - **⚠️ 重复公告事故（已处理）**：前两次执行被用户打断，但其中一次其实**已发出**公告 id=19（标题正文与我最后发的 id=20 完全一致，md5 均 `343d2cbf…`）。我最后又发一条成了 id=20 → 订阅用户收到两封相同邮件。发现后**先比对两条正文 md5 确认一致，再 `delete` 掉站内 id=19**，列表恢复单条。**教训：发公告脚本被执行哪怕输出被吞/被打断，也可能已成功写入——重发前必须先查 `fs_announcements` 最新记录，别只看本地输出。** 邮件已送达无法撤回，已向用户如实说明。
+
+## ㊶ 2026-11-21：视频转函数支持下载 / 导入全部帧 Txt
+- **需求**：用户「视频转函数工具希望支持下载Txt，导入Txt」。
+- **实现**：`tool/video2func.html` 结果区新增 3 按钮 + 隐藏 file input：「下载全部帧 Txt」「导出当前帧 Txt」「导入 Txt」。Txt 格式：`#V2F1.0` / `#FPS` / `#COLS` / `#ROWS` / `#FRAMES` 头 + `#===FRAME n===` 分帧，函数行沿用 `#RRGGBB  y = … + 0*sqrt(x - x0) + 0*sqrt(x1 - x)`，兼容无帧标记的纯函数文本、`√` 写法与说明注释。
+- **重构**：把原来写在 `run()` 里的阶段二回放录制抽成公共 `composeVideo(cols,rows,fps,total,totalFuncs,t0,note)`，正常转换和导入 Txt 共用同一套 1280×720 双栏录制、魔数验身、MediaRecorder 真构造、PNG 降级逻辑；`showFatal()` 统一收口。导入时从函数文本重建 1px/格小快照，再直接 `composeVideo()` 生成还原视频。
+- **验收**：内联脚本 `node --check` 通过；Node 单测验证 serialize→parse 往返、纯文本/unicode √ 兼容；Chromium 端到端导入样例 Txt → 2 帧 / 3 条函数 / 4×3 网格 / 1/2 当前帧 / 结果说明「已导入 Txt · 完成 · MP4 · 时长约 0.3s」，再点下载得到 `video-functions.txt`（含 2 个 FRAME 标记、头部参数正确），0 JS 错误 / 0 资源错误。
+- **回执**：工具功能增强属访客可感知改动，按 §0 发公告 / 留言板汇报，见下。提交推送见下。
