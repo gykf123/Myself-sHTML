@@ -2,13 +2,14 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<script>try{var t=localStorage.getItem('theme')||'glass';if(t==='glass')document.documentElement.classList.add('theme-glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>视频转函数 · FeSui 工具箱</title>
 <meta name="referrer" content="no-referrer">
 <meta name="description" content="上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。可选保留原视频音频，支持下载/导入全部帧函数 Txt，纯前端离线处理，视频不上传。">
 <link rel="icon" href="../favicon.png">
 <link rel="stylesheet" href="./toolkit.css?v=20261030">
-<link rel="stylesheet" href="../fs-skin.css?v=20261121a">
+<link rel="stylesheet" href="../fs-skin.css?v=20261121b">
 <script src="/net-guard.js?v=20261107"></script>
 <script src="/site-nav.js?v=20261121a"></script>
 <style>
@@ -44,6 +45,18 @@
   .v2f-faq summary::after{content:'+';color:var(--dim);font-weight:400}
   .v2f-faq details[open] summary::after{content:'\2212'}
   .v2f-faq p{margin:10px 0 0;font-size:13px;line-height:1.75;color:var(--dim)}
+
+  /* 浅色主题：内联深色皮肤的反向修正，保证文字对比度 */
+  html:not(.theme-glass) .v2f-drop .big{color:#1a2340 !important}
+  html:not(.theme-glass) .v2f-drop .small{color:#57607a !important}
+  html:not(.theme-glass) .v2f-check{color:#3d4759 !important}
+  html:not(.theme-glass) .v2f-pipeline span{color:#4b5568 !important}
+  html:not(.theme-glass) .v2f-pipeline span.on{color:#1a2340 !important}
+  html:not(.theme-glass) .v2f-pipeline b{color:#0d7a68 !important}
+  html:not(.theme-glass) .v2f-stat{color:#57607a !important}
+  html:not(.theme-glass) .v2f-stat b{color:#1a2340 !important}
+  html:not(.theme-glass) .v2f-result-funcs b,
+  html:not(.theme-glass) .v2f-result-funcs .tk-help b{color:#1a2340 !important}
 </style>
   <link rel="canonical" href="https://fesui.xn--0iv.gay/tool/video2func.html" />
   <meta property="og:title" content="视频转函数 · FeSui 工具箱" />

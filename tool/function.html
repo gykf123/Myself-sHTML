@@ -2,13 +2,14 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<script>try{var t=localStorage.getItem('theme')||'glass';if(t==='glass')document.documentElement.classList.add('theme-glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>函数显示器 · FeSui 工具箱</title>
 <meta name="referrer" content="no-referrer">
 <meta name="description" content="在同一坐标系里绘制多行彩色函数，支持图片转函数生成的带色表达式、采样点与定义域锁定。纯前端离线可用。">
 <link rel="icon" href="../favicon.png">
 <link rel="stylesheet" href="./toolkit.css?v=20261030">
-<link rel="stylesheet" href="../fs-skin.css?v=20261121a">
+<link rel="stylesheet" href="../fs-skin.css?v=20261121b">
 <script src="/net-guard.js?v=20261107"></script>
 <script src="/site-nav.js?v=20261121a"></script>
 <style>
@@ -21,7 +22,7 @@
   .fx-note b{color:#b9c6ff;font-weight:600}
   .fx-plot{position:relative;width:100%;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:#080b14}
   #fxCanvas{display:block;width:100%;height:480px}
-  .fx-legend{position:absolute;top:10px;left:12px;font-size:11px;color:#6f7b96;font-family:ui-monospace,Menlo,Consolas,monospace;pointer-events:none}
+  .fx-legend{position:absolute;top:10px;left:12px;font-size:11px;color:#93a0ba;font-family:ui-monospace,Menlo,Consolas,monospace;pointer-events:none}
   #fxExpr{min-height:150px;font:12.5px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical}
   .fx-chain{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:9px 12px;border:1px solid rgba(140,165,255,.18);border-radius:999px;background:rgba(255,255,255,.03);font-size:12px;color:#8e99b4}
   .fx-chain a{color:#9fb0e8;text-decoration:none;padding:2px 5px;border-radius:6px}
@@ -36,6 +37,17 @@
   .fx-faq summary::after{content:'+';color:var(--dim);font-weight:400}
   .fx-faq details[open] summary::after{content:'\2212'}
   .fx-faq p{margin:10px 0 0;font-size:13px;line-height:1.75;color:var(--dim)}
+
+  /* 浅色主题：内联深色皮肤的反向修正 */
+  html:not(.theme-glass) .fx-check{color:#3d4759 !important}
+  html:not(.theme-glass) .fx-note{color:#4b5568 !important}
+  html:not(.theme-glass) .fx-note b{color:#2f4fd0 !important}
+  html:not(.theme-glass) .fx-note code{color:#1f6fb2 !important;background:rgba(26,35,64,.06) !important}
+  html:not(.theme-glass) .fx-chain{color:#4b5568 !important;background:rgba(26,35,64,.04) !important;border-color:rgba(26,35,64,.12) !important}
+  html:not(.theme-glass) .fx-chain a{color:#2f4fd0 !important}
+  html:not(.theme-glass) .fx-chain a:hover{color:#1a2340 !important;background:rgba(69,104,232,.12) !important}
+  html:not(.theme-glass) .fx-chain a.on{color:#0d7a68 !important}
+  html:not(.theme-glass) .fx-chain b{color:#8a93a8 !important}
 </style>
   <link rel="canonical" href="https://fesui.xn--0iv.gay/tool/function.html" />
   <meta property="og:title" content="函数显示器 · FeSui 工具箱" />

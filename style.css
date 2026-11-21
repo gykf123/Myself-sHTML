@@ -288,8 +288,9 @@ html.theme-glass .sidebar {
 .jump-input[aria-invalid="true"] { border-color: #e05555; }
 .jump-go {
   flex: none; padding: 10px 20px; border: 0; border-radius: 10px; cursor: pointer;
-  font: inherit; font-weight: 600; color: #fff; background: var(--accent);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 40%, transparent);
+  font: inherit; font-weight: 600; color: #fff;
+  background: linear-gradient(135deg, #3f5fe0, #6d4bd8);
+  box-shadow: 0 4px 12px rgba(63, 95, 224, .34);
   transition: transform .15s var(--ease), opacity .2s;
 }
 .jump-go:hover { transform: translateY(-1px); }
@@ -730,7 +731,7 @@ html.theme-glass .sidebar {
 /* ---------- 跳转链接（键盘可达） ---------- */
 .skip-link {
   position: fixed; top: -60px; left: 12px; z-index: 100;
-  padding: 8px 14px; border-radius: 8px; background: var(--accent); color: #fff;
+  padding: 8px 14px; border-radius: 8px; background: #3552c9; color: #fff;
   text-decoration: none; font-weight: 600; transition: top .2s var(--ease);
 }
 .skip-link:focus { top: 12px; outline: 2px solid #fff; }
