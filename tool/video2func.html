@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>视频转函数 · FeSui 工具箱</title>
 <meta name="referrer" content="no-referrer">
-<meta name="description" content="上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。可下载/导入全部帧函数 Txt，纯前端离线处理，视频不上传。">
+<meta name="description" content="上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。可选保留原视频音频，支持下载/导入全部帧函数 Txt，纯前端离线处理，视频不上传。">
 <link rel="icon" href="../favicon.png">
 <link rel="stylesheet" href="./toolkit.css?v=20261030">
 <link rel="stylesheet" href="../fs-skin.css?v=20261121a">
@@ -47,7 +47,7 @@
   <span class="tk-badge">纯前端 · 视频不上传</span>
 </header>
 <main class="tk-main">
-  <p class="tk-intro">上传一段视频，走完整条链路：<b>视频 → 图片组 → 函数组 → 图片组 → 视频</b>。每一帧先采样成彩色网格，再变成一堆带颜色的函数（用 <code>+0√(x−xmin)+0√(xmax−x)</code> 锁住定义域），最后函数把帧画回来合成视频。也能把<b>全部帧函数下载成 Txt</b>，再导入本机重新合成。全程只在你的浏览器里跑，视频不会上传。</p>
+  <p class="tk-intro">上传一段视频，走完整条链路：<b>视频 → 图片组 → 函数组 → 图片组 → 视频</b>。每一帧先采样成彩色网格，再变成一堆带颜色的函数（用 <code>+0√(x−xmin)+0√(xmax−x)</code> 锁住定义域），最后函数把帧画回来合成视频。也能把<b>全部帧函数下载成 Txt</b>，再导入本机重新合成，还能选择<b>保留原视频音频</b>。全程只在你的浏览器里跑，视频不会上传。</p>
 
   <div class="v2f-pipeline" id="v2fPipe">
     <span data-p="video">① 视频</span><b>→</b>
@@ -94,6 +94,7 @@
       </div>
       <label class="v2f-check"><input type="checkbox" id="v2fMerge" checked> 合并同行相邻同色（函数数更少）</label>
       <label class="v2f-check"><input type="checkbox" id="v2fSkipBg"> 跳过近白背景</label>
+      <label class="v2f-check"><input type="checkbox" id="v2fAudio" checked> 保留原视频音频（导入 Txt 时复用当前视频）</label>
     </div>
     <div class="tk-row" style="margin-top:14px">
       <button class="tk-btn primary" id="v2fRun" type="button" disabled>开始转换</button>
@@ -150,6 +151,7 @@
   var file=$('v2fFile'), srcV=$('v2fSrc'), outC=$('v2fCanvas');
   var running=false, cancelFlag=false, lastFrameFuncs=[], lastCols=0, lastRows=0, lastFps=6;
   var objectUrl=null, outUrl=null, recorder=null, chunks=[];
+  var audioCtx=null, audioDest=null, audioEl=null, audioNode=null;
   var frameImages=[], frameFuncsText=[]; // 逐帧留档：像素 + 函数文本（供匀速回放录制与右侧同步）
 
   /* 选视频 */
@@ -362,13 +364,68 @@
   }
   function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 
+  /* 音频：用独立 audio 元素接 Web Audio 图，只送进 MediaStreamDestination，不连扬声器。
+     在用户点按钮时先 wakeAudio() 解锁 AudioContext；真正录制前再 play 并与画面同步从 0 开始。 */
+  function wakeAudio(){
+    if(!$('v2fAudio').checked)return;
+    try{
+      var Ctor=window.AudioContext||window.webkitAudioContext;
+      if(!Ctor)return;
+      if(!audioCtx)audioCtx=new Ctor();
+      if(audioCtx.state==='suspended')audioCtx.resume();
+    }catch(e){}
+  }
+  async function prepareAudioTrack(durationSec){
+    if(!$('v2fAudio').checked||!objectUrl)return {stream:null,ok:false};
+    try{
+      wakeAudio();
+      if(!audioCtx)return {stream:null,ok:false};
+      if(!audioDest)audioDest=audioCtx.createMediaStreamDestination();
+      if(!audioEl){
+        audioEl=document.createElement('audio');
+        audioEl.style.display='none';
+        audioEl.preload='auto';
+        audioEl.playsInline=true;
+        document.body.appendChild(audioEl);
+      }
+      if(audioEl.src!==objectUrl){audioEl.src=objectUrl;audioEl.load();}
+      if(!audioNode){
+        audioNode=audioCtx.createMediaElementSource(audioEl);
+        audioNode.connect(audioDest); // 只进录制图，不连 audioCtx.destination，避免外放
+      }
+      audioEl.muted=false;
+      audioEl.volume=1;
+      try{audioEl.currentTime=0;}catch(e){}
+      var pp=audioEl.play();
+      if(pp&&typeof pp.then==='function')await pp;
+      return {stream:audioDest.stream,ok:true};
+    }catch(e){
+      // 自动播放被拦 / 浏览器不支持 Web Audio 时，静默降级为无声视频
+      return {stream:null,ok:false};
+    }
+  }
+  function stopAudio(){
+    try{if(audioEl)audioEl.pause();}catch(e){}
+  }
+
   /* 真·构造 MediaRecorder：不靠 isTypeSupported 预判（iPad Edge 会保守报 false 但其实能录）。
      逐个格式真的 new 一个试，最后连「不指定 mimeType」都试——只要造得出来就能录。
      返回 {recorder, mime}（mime 取 recorder 实际的 mimeType），全失败返回 null。 */
-  function makeRecorder(stream){
+  function makeRecorder(stream,hasAudio){
     if(!window.MediaRecorder)return null;
-    var cands=['video/mp4;codecs=avc1.42E01E','video/mp4',
-               'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm',null];
+    var cands=hasAudio?[
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4;codecs=avc1.42E01E',
+      'video/mp4',
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=opus',
+      'video/webm',
+      null
+    ]:[
+      'video/mp4;codecs=avc1.42E01E','video/mp4',
+      'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm',null
+    ];
     for(var i=0;i<cands.length;i++){
       try{
         var rec=cands[i]?new MediaRecorder(stream,{mimeType:cands[i],videoBitsPerSecond:2500000})
@@ -396,6 +453,7 @@
      全程 try/finally 收口，绝不假死 */
   async function run(){
     if(running||!srcV.videoWidth)return;
+    wakeAudio(); // 必须在用户点「开始转换」的同步路径里先解锁 AudioContext
     running=true;cancelFlag=false;
     frameImages=[];frameFuncsText=[];
     $('v2fRun').disabled=true;$('v2fCancel').disabled=false;
@@ -412,7 +470,7 @@
       dur=srcV.duration;
       if(!isFinite(dur)||dur<=0)throw new Error('视频时长无效，请换个文件');
       total=Math.min(maxFrames,Math.max(1,Math.round(dur*fps)));
-      interval=Math.max(0.05,dur/total);
+      interval=1/fps; // 固定节拍：画面与保留的原声同段；maxFrames 截断时只取前 total/fps 秒
       rows=Math.max(1,Math.round(cols*srcV.videoHeight/srcV.videoWidth));
       rows=Math.min(100,rows);
       cell=Math.max(2,Math.floor(640/cols));
@@ -462,7 +520,7 @@
   async function composeVideo(cols,rows,fps,total,totalFuncs,t0,note){
     running=true;cancelFlag=false;
     $('v2fRun').disabled=true;$('v2fCancel').disabled=false;
-    var mime=null,stream=null,recOK=false,fatal=null;
+    var mime=null,stream=null,recOK=false,fatal=null,audioState='无声';
     try{
       // 勾选时：录制画布左右分栏——左=函数还原像素图，右=当前帧函数文本（烧进视频画面里）
       var nFrames=frameImages.length;
@@ -517,9 +575,14 @@
             rctx.fillText('共 '+lines.length+' 条函数'+(showN<lines.length?'（显示前 '+showN+'）':''),panelX+pad,bodyTop+bodyH-footH,availW);
           }
           paintRecordFrame(0);
+          // 原声：画布视频轨 + 原视频音频轨合成一条录制流
+          var audioInfo=await prepareAudioTrack(nFrames/fps);
+          var hasAudio=!!(audioInfo.stream&&audioInfo.stream.getAudioTracks().length);
+          audioState=hasAudio?'含原声':($('v2fAudio').checked?'原声不可用（无声）':'无声');
           stream=recC.captureStream(fps);
+          if(hasAudio)audioInfo.stream.getAudioTracks().forEach(function(tk){stream.addTrack(tk);});
           chunks=[];
-          var made=makeRecorder(stream); // 真构造：逐个格式试，含不指定格式兜底
+          var made=makeRecorder(stream,hasAudio); // 真构造：逐个格式试，含不指定格式兜底
           if(made){
             recorder=made.recorder;mime=made.mime;
             recorder.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
@@ -554,7 +617,8 @@
     }catch(e){fatal=e;}
     finally{
       try{if(recorder&&recOK){recorder.ondataavailable=null;if(recorder.state!=='inactive')recorder.stop();}}catch(e){}
-      try{if(stream)stream.getTracks().forEach(function(tk){tk.stop();});}catch(e){}
+      try{if(stream)stream.getVideoTracks().forEach(function(tk){tk.stop();});}catch(e){}
+      stopAudio();
       frameImages=[]; // 释放内存
       var secs=(performance.now()-t0)/1000;
       $('v2fFrames').textContent=(total||0)+' 帧';
@@ -577,7 +641,7 @@
             outUrl=URL.createObjectURL(new Blob(chunks,{type:info.real}));
             $('v2fDownload').download='video-functions.'+info.ext;
             $('v2fOutVideo').src=outUrl;
-            $('v2fResultNote').textContent=(note?note+' · ':'')+(cancelFlag?'已停止（部分片段）':'完成')+' · '+info.ext.toUpperCase()+' · 时长约 '+(frameFuncsText.length/fps).toFixed(1)+'s';
+            $('v2fResultNote').textContent=(note?note+' · ':'')+(cancelFlag?'已停止（部分片段）':'完成')+' · '+audioState+' · '+info.ext.toUpperCase()+' · 时长约 '+(frameFuncsText.length/fps).toFixed(1)+'s';
           });
           $('v2fStatus').textContent=cancelFlag?'已停止':'完成，可下载';
           ['frames','funcs','frames2','outvideo'].forEach(function(n){pipe(n,true);});
@@ -633,6 +697,7 @@
   });
   $('v2fImportTxt').addEventListener('click',function(){
     if(running){$('v2fStatus').textContent='正在处理，完成后再导入 Txt';return;}
+    wakeAudio();
     $('v2fTxtFile').click();
   });
   $('v2fTxtFile').addEventListener('change',function(){
