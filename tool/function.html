@@ -90,7 +90,8 @@ x^2/20</textarea>
       <div class="tk-col"><label class="tk-label" for="fxXmax">x 最大</label>
         <input class="tk-input tk-num" id="fxXmax" type="number" value="10" step="any"></div>
       <div class="tk-col"><label class="tk-label" for="fxSamples">每条采样点</label>
-        <input class="tk-input tk-num" id="fxSamples" type="number" value="600" min="60" max="6000" step="1"></div>
+        <input class="tk-input tk-num" id="fxSamples" type="number" value="600" min="60" max="4000" step="1">
+        <span class="tk-help" style="display:block;margin-top:4px">高分辨率贴图会自动抬高采样数，上限 4000（再高浏览器会卡）</span></div>
     </div>
     <div class="fx-grid three" style="margin-top:12px">
       <label class="fx-check"><input type="checkbox" id="fxAutoY" checked> y 轴自动缩放（按所有函数）</label>
@@ -240,7 +241,14 @@ x^2/20</textarea>
     var samples=parseInt($('fxSamples').value,10);
     if(!isFinite(xmin)||!isFinite(xmax)||xmax<=xmin){err.textContent='x 范围无效';return;}
     if(!isFinite(samples)||samples<60)samples=600;
-    samples=Math.min(6000,samples);
+    samples=Math.min(4000,samples);
+    /* 高分辨率图：每格宽度小于采样步长时，函数会画成锯齿/漏格。
+       按「每格至少 1 个点」自动抬高采样数（上限 4000，兼顾流畅：
+       200 列贴图 + 4000 点，绘制仍在百毫秒级）。 */
+    if(imgCols>0){
+      var need=Math.ceil((xmax-xmin)*imgCols*1.2);
+      if(need>samples)samples=Math.max(samples,Math.min(4000,need));
+    }
 
     var lines=$('fxExpr').value.split('\n'),items=[],i;
     for(i=0;i<lines.length;i++){
@@ -249,6 +257,9 @@ x^2/20</textarea>
       catch(e){err.textContent='第 '+(i+1)+' 行：'+e.message;return;}
     }
     if(!items.length){err.textContent='没有可绘制的函数';return;}
+    if(items.length>1500){
+      err.textContent='⚠ 这一批有 '+items.length+' 条函数，绘制会比较慢（浏览器可能短暂无响应），想要更流畅可以把图片转函数的分辨率调低';
+    }
 
     /* 先采样所有函数，统一 y 范围 */
     var all=[],compiled=[];

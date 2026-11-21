@@ -21,13 +21,22 @@
   .i2f-drop:hover,.i2f-drop.over{border-color:rgba(145,169,255,.75);background:rgba(145,169,255,.11)}
   .i2f-drop .big{font-size:13px;color:#cdd8ff;font-weight:600}
   .i2f-drop .small{font-size:12px;color:#8e99b4;line-height:1.7}
+  .i2f-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .i2f-presets button{appearance:none;cursor:pointer;font:600 12px inherit;padding:5px 11px;border-radius:999px;
+    border:1px solid var(--border);background:var(--ctl-bg);color:var(--text-dim)}
+  .i2f-presets button:hover{border-color:var(--accent);color:var(--text)}
+  .i2f-presets button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .i2f-warn{color:#9a4a06 !important;font-weight:600}
+  html.theme-glass .i2f-warn{color:#ffc078 !important}
+  @media (prefers-color-scheme: dark){html:not(.theme-glass) .i2f-warn{color:#ffc078 !important}}
   .i2f-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#c9d2e6;cursor:pointer;user-select:none}
   .i2f-check input{width:16px;height:16px;accent-color:#7b8cf6}
   .i2f-note{font-size:12px;line-height:1.85;color:#8e99b4;margin:10px 0 0}
   .i2f-note b{color:#b9c6ff;font-weight:600}
   .i2f-note code{font:12px ui-monospace,Menlo,Consolas,monospace;color:#9fd8ff;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:4px}
   .i2f-stage{position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:#080b14;min-height:220px}
-  #i2fCanvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+  /* 高分辨率预览别再加「像素化」，否则颜色块会被放大成硬锯齿 */
+  #i2fCanvas{display:block;width:100%;height:auto;image-rendering:auto;border-radius:8px}
   .i2f-out{width:100%;min-height:170px;font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     resize:vertical;white-space:pre;overflow:auto}
   .i2f-stat{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#8e99b4;margin-top:10px}
@@ -67,7 +76,7 @@
   <meta name="twitter:title" content="图片转函数 · FeSui 工具箱" />
   <meta name="twitter:description" content="上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。" />
   <meta name="twitter:image" content="https://fesui.xn--0iv.gay/og-image.png" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"HowTo","name":"图片转函数：把一张图拆成一堆带颜色的函数","url":"https://fesui.xn--0iv.gay/tool/img2func.html","totalTime":"PT1M","step":[{"@type":"HowToStep","position":1,"name":"选择图片","text":"上传一张图片，浏览器本地读取，不上传服务器。"},{"@type":"HowToStep","position":2,"name":"选择分辨率","text":"设置采样网格的列数与行数，网格越细还原越接近原图。"},{"@type":"HowToStep","position":3,"name":"生成函数","text":"逐行采样颜色，把同色相邻格子合并成一条带定义域锁定的函数。"},{"@type":"HowToStep","position":4,"name":"复制或下载","text":"可以复制到函数显示器或 Desmos，也可以下载 Txt 留档。"}]},{"@type":"SoftwareApplication","name":"图片转函数 · FeSui 工具箱","description":"上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。","url":"https://fesui.xn--0iv.gay/tool/img2func.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://fesui.xn--0iv.gay/"},{"@type":"ListItem","position":2,"name":"工具箱","item":"https://fesui.xn--0iv.gay/tool/"},{"@type":"ListItem","position":3,"name":"图片转函数","item":"https://fesui.xn--0iv.gay/tool/img2func.html"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"分辨率选多少合适？","acceptedAnswer":{"@type":"Answer","text":"32×18 适合快速预览，几十条函数就能看出大概轮廓；想要更接近原图就把网格调细，64×36 甚至更高，代价是函数条数按格子数量线性增长，页面和函数显示器都会更吃力。"}},{"@type":"Question","name":"为什么导出的函数这么多？","acceptedAnswer":{"@type":"Answer","text":"每一行里颜色相同的相邻格子会合并成一条函数，一条函数只在自己那一小段 x 区间里画出来。网格越细，需要覆盖的像素段越多，条数自然就上去了。"}},{"@type":"Question","name":"「显示器格式」和「Desmos 点列」有什么区别？","acceptedAnswer":{"@type":"Answer","text":"显示器格式是每行「#RRGGBB y = 表达式」，可以直接粘到本工具的「函数显示器」里逐条画；Desmos 点列是坐标列表，适合整段贴进 Desmos 当散点。"}},{"@type":"Question","name":"为什么还原出来的图比原图糊？","acceptedAnswer":{"@type":"Answer","text":"因为采样时每一格只取一个平均色，相当于把原图降采样成 cols×rows 的像素画。想要更清楚只能提高网格密度，函数数量也会跟着涨。"}},{"@type":"Question","name":"图片会被上传到服务器吗？","acceptedAnswer":{"@type":"Answer","text":"不会。图片用浏览器本地 Canvas 读取和采样，断网也能用。"}},{"@type":"Question","name":"能在 Desmos 里直接画吗？","acceptedAnswer":{"@type":"Answer","text":"可以，把函数或点列贴进去就行。但 Desmos 对表达式条数有上限，条数超了会明显变卡，建议先降到 32×18 左右再试。"}}]}]}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"HowTo","name":"图片转函数：把一张图拆成一堆带颜色的函数","url":"https://fesui.xn--0iv.gay/tool/img2func.html","totalTime":"PT1M","step":[{"@type":"HowToStep","position":1,"name":"选择图片","text":"上传一张图片，浏览器本地读取，不上传服务器。"},{"@type":"HowToStep","position":2,"name":"选择分辨率","text":"设置采样网格的列数与行数，网格越细还原越接近原图。"},{"@type":"HowToStep","position":3,"name":"生成函数","text":"逐行采样颜色，把同色相邻格子合并成一条带定义域锁定的函数。"},{"@type":"HowToStep","position":4,"name":"复制或下载","text":"可以复制到函数显示器或 Desmos，也可以下载 Txt 留档。"}]},{"@type":"SoftwareApplication","name":"图片转函数 · FeSui 工具箱","description":"上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。","url":"https://fesui.xn--0iv.gay/tool/img2func.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://fesui.xn--0iv.gay/"},{"@type":"ListItem","position":2,"name":"工具箱","item":"https://fesui.xn--0iv.gay/tool/"},{"@type":"ListItem","position":3,"name":"图片转函数","item":"https://fesui.xn--0iv.gay/tool/img2func.html"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"分辨率选多少合适？","acceptedAnswer":{"@type":"Answer","text":"32×18 适合快速预览，几十条函数就能看出大概轮廓；想要更接近原图就把网格调细，64×36 甚至更高，代价是函数条数按格子数量线性增长，页面和函数显示器都会更吃力。"}},{"@type":"Question","name":"为什么导出的函数这么多？","acceptedAnswer":{"@type":"Answer","text":"每一行里颜色相同的相邻格子会合并成一条函数，一条函数只在自己那一小段 x 区间里画出来。网格越细，需要覆盖的像素段越多，条数自然就上去了。"}},{"@type":"Question","name":"「显示器格式」和「Desmos 点列」有什么区别？","acceptedAnswer":{"@type":"Answer","text":"显示器格式是每行「#RRGGBB y = 表达式」，可以直接粘到本工具的「函数显示器」里逐条画；Desmos 点列是坐标列表，适合整段贴进 Desmos 当散点。"}},{"@type":"Question","name":"为什么还原出来的图比原图糊？","acceptedAnswer":{"@type":"Answer","text":"因为采样时每一格只取一个平均色，相当于把原图降采样成 cols×rows 的像素画。想要更清楚只能提高网格密度，函数数量也会跟着涨。"}},{"@type":"Question","name":"图片会被上传到服务器吗？","acceptedAnswer":{"@type":"Answer","text":"不会。图片用浏览器本地 Canvas 读取和采样，断网也能用。"}},{"@type":"Question","name":"分辨率最多能调多高？","acceptedAnswer":{"@type":"Answer","text":"滑杆上限 200 列，另有「省流 32 / 标准 64 / 清晰 100 / 高清 150 / 极致 200」五个档位。列数越高还原越像原图，但函数条数会成倍增长，超过 120 列工具会提醒，函数显示器和 Desmos 也可能卡住。一般 100 以内就足够清楚。"}},{"@type":"Question","name":"能在 Desmos 里直接画吗？","acceptedAnswer":{"@type":"Answer","text":"可以，把函数或点列贴进去就行。但 Desmos 对表达式条数有上限，条数超了会明显变卡，建议先降到 32×18 左右再试。"}}]}]}</script>
 </head>
 <body>
 <header class="tk-header">
@@ -94,8 +103,16 @@
     <div class="i2f-grid">
       <div class="tk-col">
         <label class="tk-label" for="i2fRes">分辨率（每行像素数）</label>
-        <input class="tk-input" id="i2fRes" type="range" min="8" max="120" value="40" step="1">
-        <span class="tk-help">当前：<b id="i2fResVal">40</b> 像素宽</span>
+        <input class="tk-input" id="i2fRes" type="range" min="8" max="200" value="48" step="1" style="accent-color:var(--accent)">
+        <span class="tk-help">当前：<b id="i2fResVal">48</b> 像素宽 · 网格 <b id="i2fGridHint">—</b> · 函数上限 <b id="i2fFuncHint">—</b> 条</span>
+        <div class="i2f-presets" role="group" aria-label="分辨率快捷档位">
+          <button type="button" data-cols="32">省流 32</button>
+          <button type="button" data-cols="64">标准 64</button>
+          <button type="button" data-cols="100">清晰 100</button>
+          <button type="button" data-cols="150">高清 150</button>
+          <button type="button" data-cols="200">极致 200</button>
+        </div>
+        <span class="tk-help" id="i2fResWarn"></span>
       </div>
       <div class="tk-col">
         <label class="tk-label" for="i2fMode">颜色量化</label>
@@ -150,6 +167,7 @@
       <details><summary>「显示器格式」和「Desmos 点列」有什么区别？</summary><p>显示器格式是每行「#RRGGBB y = 表达式」，可以直接粘到本工具的「函数显示器」里逐条画；Desmos 点列是坐标列表，适合整段贴进 Desmos 当散点。</p></details>
       <details><summary>为什么还原出来的图比原图糊？</summary><p>因为采样时每一格只取一个平均色，相当于把原图降采样成 cols×rows 的像素画。想要更清楚只能提高网格密度，函数数量也会跟着涨。</p></details>
       <details><summary>图片会被上传到服务器吗？</summary><p>不会。图片用浏览器本地 Canvas 读取和采样，断网也能用。</p></details>
+      <details><summary>分辨率最多能调多高？</summary><p>滑杆上限 200 列，另有「省流 32 / 标准 64 / 清晰 100 / 高清 150 / 极致 200」五个档位。列数越高还原越像原图，但函数条数会成倍增长，超过 120 列工具会提醒，函数显示器和 Desmos 也可能卡住。一般 100 以内就足够清楚。</p></details>
       <details><summary>能在 Desmos 里直接画吗？</summary><p>可以，把函数或点列贴进去就行。但 Desmos 对表达式条数有上限，条数超了会明显变卡，建议先降到 32×18 左右再试。</p></details>
     </div>
   </section>
@@ -171,6 +189,7 @@
         $('i2fConvert').disabled=false;
         $('i2fStatus').textContent='已载入 '+img.naturalWidth+'×'+img.naturalHeight;
         $('i2fDropTitle').textContent=f.name;
+        updateResHint();
         convert();
       };
       img.src=e.target.result;
@@ -201,12 +220,14 @@
     var merge=$('i2fMerge').checked,skipBg=$('i2fSkipBg').checked;
     /* 行高按比例，最多 100 行，避免函数爆炸 */
     var rows=Math.max(1,Math.round(cols*img.naturalHeight/img.naturalWidth));
-    rows=Math.min(100,rows);
+    rows=Math.min(240,rows);
     lastCols=cols;lastRows=rows;
 
     var off=document.createElement('canvas');
     off.width=cols;off.height=rows;
     var octx=off.getContext('2d');
+    octx.imageSmoothingEnabled=true;
+    octx.imageSmoothingQuality='high';
     octx.drawImage(img,0,0,cols,rows);
     var data;
     try{data=octx.getImageData(0,0,cols,rows).data;}
@@ -301,8 +322,37 @@
   }
 
   /* ---------- 交互 ---------- */
-  $('i2fRes').addEventListener('input',function(){$('i2fResVal').textContent=this.value;});
-  $('i2fRes').addEventListener('change',function(){if(img.naturalWidth)convert();});
+  /* 分辨率联动：网格尺寸 + 预估函数条数 + 过高提醒 */
+  function updateResHint(){
+    var cols=parseInt($('i2fRes').value,10)||40;
+    $('i2fResVal').textContent=cols;
+    var w=img.naturalWidth||16,h=img.naturalHeight||9;
+    var rows=Math.min(240,Math.max(1,Math.round(cols*h/w)));
+    $('i2fGridHint').textContent=cols+'×'+rows;
+    var est=cols*rows;
+    $('i2fFuncHint').textContent=est>=1000?(est/1000).toFixed(1)+'k':est;
+    var warn=$('i2fResWarn');
+    warn.className='tk-help';
+    if(cols>120||cols*rows>20000){
+      warn.textContent='⚠ '+cols+' 列偏高：函数条数会成倍增长，函数显示器和 Desmos 都可能卡住，建议 100 以内';
+      warn.classList.add('i2f-warn');
+    }else{
+      warn.textContent=cols<=40?'想更清楚可以往右拉，或点「清晰 100 / 高清 150」':'';
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.i2f-presets button'),function(b){
+      b.classList.toggle('on',parseInt(b.dataset.cols,10)===cols);
+    });
+  }
+  $('i2fRes').addEventListener('input',function(){updateResHint();});
+  $('i2fRes').addEventListener('change',function(){updateResHint();if(img.naturalWidth)convert();});
+  $('i2fMerge').addEventListener('change',updateResHint);
+  Array.prototype.forEach.call(document.querySelectorAll('.i2f-presets button'),function(b){
+    b.addEventListener('click',function(){
+      $('i2fRes').value=b.dataset.cols;
+      updateResHint();
+      if(img.naturalWidth)convert();
+    });
+  });
   ['i2fMode','i2fMerge','i2fSkipBg'].forEach(function(id){$(id).addEventListener('change',function(){if(img.naturalWidth)convert();});});
   $('i2fConvert').addEventListener('click',convert);
 
