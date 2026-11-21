@@ -136,6 +136,9 @@
       </div>
       <div class="v2f-result-funcs" id="v2fFuncPanel">
         <p class="tk-help" style="margin-bottom:6px">当前帧函数 · <b id="v2fCurFrame" style="color:#cdd8ff">—</b>（播放视频时自动跟随）</p>
+        <div class="tk-row" style="margin:2px 0 8px">
+          <button class="tk-btn ghost" id="v2fOpenFunc" type="button">在函数显示器打开本帧</button>
+        </div>
         <textarea class="tk-textarea v2f-out" id="v2fOut" spellcheck="false" readonly aria-label="当前帧函数文本" placeholder="当前帧的函数会显示在这里，可在「函数显示器」中打开还原" style="height:320px"></textarea>
       </div>
     </div>
@@ -683,6 +686,14 @@
     var a=document.createElement('a');a.href=outUrl;
     a.download=this.download||'video-functions.mp4'; // 用魔数校正后的真实扩展名
     document.body.appendChild(a);a.click();document.body.removeChild(a);
+  });
+  $('v2fOpenFunc').addEventListener('click',function(){
+    var text=$('v2fOut').value||'';
+    if(!text.trim()){$('v2fStatus').textContent='还没有当前帧函数';return;}
+    var cols=lastCols||parseInt($('v2fRes').value,10)||32;
+    var rows=lastRows||Math.max(1,Math.round(cols*9/16));
+    var enc=encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
+    window.open('./function.html#b64='+enc+'&cols='+cols+'&rows='+rows,'_blank');
   });
   $('v2fFrameTxt').addEventListener('click',function(){
     var txt=$('v2fOut').value||'';

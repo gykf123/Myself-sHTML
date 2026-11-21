@@ -23,6 +23,11 @@
   #fxCanvas{display:block;width:100%;height:480px}
   .fx-legend{position:absolute;top:10px;left:12px;font-size:11px;color:#6f7b96;font-family:ui-monospace,Menlo,Consolas,monospace;pointer-events:none}
   #fxExpr{min-height:150px;font:12.5px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical}
+  .fx-chain{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:9px 12px;border:1px solid rgba(140,165,255,.18);border-radius:999px;background:rgba(255,255,255,.03);font-size:12px;color:#8e99b4}
+  .fx-chain a{color:#9fb0e8;text-decoration:none;padding:2px 5px;border-radius:6px}
+  .fx-chain a:hover{color:#dce5ff;background:rgba(145,169,255,.12)}
+  .fx-chain a.on{color:#4ff0d0;font-weight:700}
+  .fx-chain b{color:#56617a}
   .fx-err{font-size:12px;line-height:1.7;color:#ff9a9a;margin-top:8px;white-space:pre-wrap}
   @media(max-width:620px){.fx-grid,.fx-grid.three{grid-template-columns:1fr}#fxCanvas{height:360px}}
 </style>
@@ -35,6 +40,10 @@
 </header>
 <main class="tk-main">
   <p class="tk-intro">在同一坐标系里画一堆函数。每行一个函数，行首可写 <b>#RRGGBB</b> 指定颜色——图片转函数工具导出的格式可以直接粘进来。支持 <b>√ 根号范围锁定</b>：每条函数用 <b>+0√(x−xmin)+0√(xmax−x)</b> 把自己限制在指定 x 区间，区间外不画。</p>
+
+  <nav class="fx-chain" aria-label="函数工具链">
+    <a href="./img2func.html">图片转函数</a><b>→</b><a class="on" href="./function.html" aria-current="page">函数显示器</a><b>→</b><a href="./video2func.html">视频转函数</a>
+  </nav>
 
   <section class="tk-card">
     <h2 class="tk-card-h"><span class="ico" aria-hidden="true">ƒ</span>函数列表（每行一条）</h2>
