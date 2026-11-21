@@ -1,5 +1,11 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
 Disallow: /login/
+Disallow: /user/
+Disallow: /chat/
+Disallow: /verify/
+Disallow: /preview/
+Disallow: /tool/minecraft-search/items/detail.html
 
 Sitemap: https://fesui.xn--0iv.gay/sitemap.xml
