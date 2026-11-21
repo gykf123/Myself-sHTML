@@ -146,7 +146,10 @@
       $('v2fDropTitle').textContent=f.name;
       drawFrameAt(0);
     };
-    srcV.onerror=function(){$('v2fStatus').textContent='视频解码失败，换个格式试试';};
+    // 仅在「元数据都没成功载入」时才报解码失败；逐帧 seek 偶发的 error 不该覆盖运行中的状态
+    srcV.onerror=function(){
+      if(!running&&!srcV.videoWidth)$('v2fStatus').textContent='视频解码失败，换个格式试试';
+    };
   }
   $('v2fDrop').addEventListener('click',function(){file.click();});
   $('v2fDrop').addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}});
@@ -167,7 +170,7 @@
     var rows=Math.max(1,Math.round(cols*srcV.videoHeight/srcV.videoWidth));
     rows=Math.min(100,rows);
     gridC.width=cols;gridC.height=rows;
-    var g=gridC.getContext('2d');
+    var g=gridC.getContext('2d',{willReadFrequently:true});
     g.drawImage(srcV,0,0,cols,rows);
     var data;
     try{data=g.getImageData(0,0,cols,rows).data;}
@@ -260,35 +263,58 @@
   }
   function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 
-  /* 主流程：逐帧 seek→采样→函数→画回→captureStream 录制 */
+  /* 按浏览器能力挑录制格式：Chrome 系用 webm，Safari 只认 mp4，都不支持则返回 null */
+  function pickMime(){
+    if(!window.MediaRecorder||typeof MediaRecorder.isTypeSupported!=='function')return null;
+    // 优先带 codec 的精确格式，且 mp4 放前面——Safari 若同时列出 webm 也可能实际录不出
+    var list=['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4',
+              'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+    for(var i=0;i<list.length;i++){
+      try{if(MediaRecorder.isTypeSupported(list[i]))return list[i];}catch(e){}
+    }
+    return null;
+  }
+
+  /* 主流程：逐帧 seek→采样→函数→画回→录制（全程 try/finally 收口，绝不假死） */
   async function run(){
     if(running||!srcV.videoWidth)return;
     running=true;cancelFlag=false;
     $('v2fRun').disabled=true;$('v2fCancel').disabled=false;
     ['video','frames','funcs','frames2','outvideo'].forEach(function(n){pipe(n,false);});
     pipe('video',true);
-    var cols=parseInt($('v2fRes').value,10)||32;
-    var levels=parseInt($('v2fMode').value,10)||4;
-    var fps=parseInt($('v2fFps').value,10)||6;
-    var maxFrames=parseInt($('v2fMax').value,10)||90;
-    var merge=$('v2fMerge').checked, skipBg=$('v2fSkipBg').checked;
-    var dur=srcV.duration, total=Math.min(maxFrames,Math.max(1,Math.round(dur*fps)));
-    var interval=Math.max(0.05,dur/total);
-    var rows=Math.max(1,Math.round(cols*srcV.videoHeight/srcV.videoWidth));
-    rows=Math.min(100,rows);
-    var cell=Math.max(2,Math.floor(640/cols));
-    outC.width=cols*cell;outC.height=rows*cell;
-    var stream=outC.captureStream(fps);
-    var mime=(window.MediaRecorder&&MediaRecorder.isTypeSupported)?
-      (['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm'):'video/webm';
-    chunks=[];
-    recorder=new MediaRecorder(stream,{mimeType:mime});
-    recorder.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
-    recorder.start();
-    $('v2fPreview').style.display='block';
-    $('v2fResult').style.display='none';
-    var t0=performance.now(), totalFuncs=0;
+    var cols,levels,fps,maxFrames,merge,skipBg,dur,total,interval,rows,cell;
+    var mime=null, stream=null, recOK=false, t0=performance.now(), totalFuncs=0, fatal=null;
     try{
+      cols=parseInt($('v2fRes').value,10)||32;
+      levels=parseInt($('v2fMode').value,10)||4;
+      fps=parseInt($('v2fFps').value,10)||6;
+      maxFrames=parseInt($('v2fMax').value,10)||90;
+      merge=$('v2fMerge').checked; skipBg=$('v2fSkipBg').checked;
+      dur=srcV.duration;
+      if(!isFinite(dur)||dur<=0)throw new Error('视频时长无效，请换个文件');
+      total=Math.min(maxFrames,Math.max(1,Math.round(dur*fps)));
+      interval=Math.max(0.05,dur/total);
+      rows=Math.max(1,Math.round(cols*srcV.videoHeight/srcV.videoWidth));
+      rows=Math.min(100,rows);
+      cell=Math.max(2,Math.floor(640/cols));
+      outC.width=cols*cell;outC.height=rows*cell;
+
+      // 初始化录制：任何一步失败都降级为「不合成视频，但仍完成逐帧转换」
+      mime=pickMime();
+      try{
+        if(mime&&outC.captureStream){
+          stream=outC.captureStream(fps);
+          chunks=[];
+          recorder=new MediaRecorder(stream,{mimeType:mime});
+          recorder.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
+          recorder.start();
+          recOK=true;
+        }
+      }catch(e){recOK=false;recorder=null;chunks=[];}
+      if(!recOK)$('v2fStatus').textContent='当前浏览器无法合成视频，将导出逐帧图片';
+
+      $('v2fPreview').style.display='block';
+      $('v2fResult').style.display='none';
       for(var i=0;i<total;i++){
         if(cancelFlag)break;
         var t=Math.min(dur-0.02,i*interval);
@@ -305,29 +331,61 @@
         $('v2fStatus').textContent='处理中 '+Math.round((i+1)/total*100)+'% ('+(i+1)+'/'+total+')';
         await sleep(Math.max(0,1000/fps-8));
       }
-    }catch(e){$('v2fStatus').textContent='出错：'+e.message;}
-    // 停录（带超时兜底：浏览器偶发不触发 onstop 时不能把整条流程挂死）
-    var stopped=false;
-    var done=new Promise(function(res){
-      recorder.onstop=function(){stopped=true;res();};
-      setTimeout(function(){if(!stopped)res();},2000);
-    });
-    try{recorder.stop();}catch(e){}
-    await done;
-    var secs=(performance.now()-t0)/1000;
-    $('v2fFrames').textContent=total+' 帧';
-    $('v2fFuncs').textContent=totalFuncs+' 条';
-    $('v2fGrid').textContent=cols+'×'+rows;
-    $('v2fTime').textContent=secs.toFixed(1)+'s';
-    $('v2fOut').value=funcsToText(lastFrameFuncs);
-    if(outUrl)URL.revokeObjectURL(outUrl);
-    outUrl=URL.createObjectURL(new Blob(chunks,{type:mime}));
-    $('v2fResultNote').textContent=cancelFlag?'已停止（部分片段）':('完成 · '+mime.split(';')[0]);
-    $('v2fResult').style.display='block';
-    ['frames','funcs','frames2','outvideo'].forEach(function(n){pipe(n,true);});
-    $('v2fStatus').textContent=cancelFlag?'已停止':'完成，可下载';
-    running=false;
-    $('v2fRun').disabled=false;$('v2fCancel').disabled=true;
+      // 停录（带超时兜底）
+      if(recOK&&recorder){
+        var stopped=false;
+        var done=new Promise(function(res){
+          recorder.onstop=function(){stopped=true;res();};
+          setTimeout(function(){if(!stopped)res();},2000);
+        });
+        try{recorder.stop();}catch(e){}
+        await done;
+      }
+    }catch(e){fatal=e;}
+    finally{
+      // 无论成功/出错/取消，都把状态收干净，绝不留下「假死」
+      try{if(recorder&&recOK){recorder.ondataavailable=null;if(recorder.state!=='inactive')recorder.stop();}}catch(e){}
+      try{if(stream)stream.getTracks().forEach(function(tk){tk.stop();});}catch(e){}
+      var secs=(performance.now()-t0)/1000;
+      $('v2fFrames').textContent=(total||0)+' 帧';
+      $('v2fFuncs').textContent=totalFuncs+' 条';
+      $('v2fGrid').textContent=(cols||0)+'×'+(rows||0);
+      $('v2fTime').textContent=secs.toFixed(1)+'s';
+      if(lastFrameFuncs)$('v2fOut').value=funcsToText(lastFrameFuncs);
+
+      if(fatal){
+        $('v2fResultNote').textContent='出错：'+fatal.message;
+        $('v2fStatus').textContent='出错：'+fatal.message;
+        $('v2fBar').style.width='0%';
+        $('v2fResult').style.display='block';
+      }else{
+        if(outUrl){URL.revokeObjectURL(outUrl);outUrl=null;}
+        if(recOK&&chunks.length){
+          outUrl=URL.createObjectURL(new Blob(chunks,{type:mime}));
+          $('v2fDownload').download=(mime.indexOf('mp4')>=0?'video-functions.mp4':'video-functions.webm');
+          $('v2fDownload').style.display='';
+          $('v2fResultNote').textContent=cancelFlag?'已停止（部分片段）':('完成 · '+mime.split(';')[0]);
+          $('v2fStatus').textContent=cancelFlag?'已停止':'完成，可下载';
+          ['frames','funcs','frames2','outvideo'].forEach(function(n){pipe(n,true);});
+        }else{
+          // 降级：导出当前帧为 PNG，保证至少有产物，链路前三段都完成
+          outUrl=null;
+          outC.toBlob(function(blob){
+            if(!blob)return;
+            if(outUrl)URL.revokeObjectURL(outUrl);
+            outUrl=URL.createObjectURL(blob);
+            $('v2fDownload').download='video-functions-frame.png';
+            $('v2fResultNote').textContent='当前浏览器不支持视频合成，已导出还原帧（PNG）。可换 Chrome / Edge 合成视频。';
+          },'image/png');
+          $('v2fDownload').download='video-functions-frame.png';
+          $('v2fStatus').textContent='完成（已降级导出 PNG 帧）';
+          ['frames','funcs','frames2'].forEach(function(n){pipe(n,true);});
+        }
+        $('v2fResult').style.display='block';
+      }
+      running=false;
+      $('v2fRun').disabled=false;$('v2fCancel').disabled=true;
+    }
   }
   $('v2fRun').addEventListener('click',run);
   $('v2fCancel').addEventListener('click',function(){cancelFlag=true;$('v2fStatus').textContent='正在停止…';});

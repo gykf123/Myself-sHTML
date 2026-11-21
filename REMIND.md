@@ -597,3 +597,11 @@
 - **修法**：① `seek()` 先判 `Math.abs(currentTime-t)<0.002` 已在目标位就直接 `res()`（解决首帧）；② 改用 `addEventListener('seeked')` + **1500ms 超时兜底** + `removeEventListener` 清理，稀疏关键帧/卡顿也放行；③ 停录 `recorder.onstop` 也加 2000ms 超时兜底，防浏览器偶发不触发 onstop 挂死全流程。工具卡链接加 `?v=20261121c` 破缓存。
 - **验收**：本地 Playwright 端到端两轮——6 帧档进度 17%→100%、0 错误；**按用户实际参数 32 像素/4 帧/10s→40 帧**，进度逐步 3%→…→100%、**12330 条函数 / 10.3s 完成 / 结果区显示 / 产出 webm / 0 JS 异常**。修前必然卡 0%，修后 40 帧全跑通。
 - **回执**：修 bug 非访客可感知大改动（工具上线 ㉚ 已发过公告），**按 §0 不发公告 / 不发邮件**。提交推送见下。
+
+## ㉜ 2026-11-21：修视频转函数「在 iPadOS / Safari 上真·卡死」（第二次反馈）
+- **背景**：㉛ 修了 seek 首帧后用户仍反馈「还是卡死」。这次看用户截图顶部 `下午12:07 11月21日周六 … 100%` 认出是 **iPadOS / macOS Safari** 状态栏——真因不是 seek，是**浏览器引擎不支持**。
+- **根因（实测坐实，非猜测）**：装了 webkit 引擎真机复现，`MediaRecorder` 能力探测结果 `mr:false / mp4:null / webm:null`——**Safari 完全不支持 MediaRecorder**。旧代码里 `new MediaRecorder(stream,{mimeType:'video/webm'})` 直接抛 `NotSupportedError`，而这行在 `run()` 的 try 块**外面**：`running` 已置 true、按钮已禁用、进度条永远 0%，就是用户看到的「卡死、进度条不动」。Chrome 上 webm 正常，所以 ㉛ 本地/线上 Chromium 验收全绿却漏掉了 Safari。
+- **修法**（`tool/video2func.html`）：① 新增 `pickMime()` 按浏览器能力探测，**mp4 优先**（`avc1.42E01E` → `mp4` → webm 系列），不再写死 webm；② 录制初始化（captureStream + MediaRecorder + start）整体包 try，失败则 `recOK=false` **降级**——仍跑完 视频→图片组→函数组→图片组 全链路，最后导出当前帧 PNG 并提示「当前浏览器不支持视频合成…可换 Chrome/Edge」，绝不卡死；③ 主流程整个用 **try/catch/finally 收口**，任何异常都恢复按钮/进度条、显示明确错误，不留假死；④ finally 里停 recorder + stop 所有 track 防资源泄漏；⑤ 下载文件名按格式 dynamic：mp4→`.mp4`、webm→`.webm`、降级→`-frame.png`；⑥ `onerror` 只在元数据未载入且非运行中才报「解码失败」，掐掉逐帧 seek 偶发误报；⑦ canvas 加 `willReadFrequently:true` 提速。
+- **验收（真双引擎）**：装 `webkit` 引擎 + `playwright install-deps webkit`。**WebKit**：能力探测 mr:false 确认复现条件，修复后进度 10%→100% 走完、10 帧/1030 条函数、**降级导出 PNG**、0 报错、无误报；**Chromium 回归**：1080p/40 帧 13.7s 完成、进度匀速、0 报错。降级提示与下载文件名均正确。工具卡链接版本 `c→d` 破缓存。
+- **教训同 ㉗㉘㉛**：**用户说卡死先看设备/浏览器**。这次是引擎能力差异，Chromium 单引擎验收在 Safari 上完全失效；关键 API（MediaRecorder/captureStream/WebCodecs）必须做能力探测 + 优雅降级，且初始化要放进 try、主流程要 finally 收口。
+- **回执**：修 bug 非大改动，按 §0 不发公告 / 不发邮件。提交推送见下。
