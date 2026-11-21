@@ -583,6 +583,13 @@ html.theme-glass .friend-card:hover {
 html.theme-glass .glass::after { opacity: .9; }
 /* 真正的 Liquid Glass：backdrop 经 SVG 位移滤镜折射扭曲 + 饱和 + 多层 inset 高光/反射
    参考 GitHub 开源实现（arsalan06106/liquid-glass-html-css）的 displacement + box-shadow 组合适配 */
+/* 独立整页（404 等）：卡片自己撑起高度，用 min() 夹住，
+   否则 min-height:100vh 叠上 padding/border（border-box 下 inner 仍是 100vh）会超出视口、
+   页面轻微滚动，卡片看着像贴边溢出。 */
+.nf.glass {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 40px 28px; box-sizing: border-box;
+}
 html.theme-glass .glass {
   background: color-mix(in srgb, var(--glass-bg) 55%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(160%);
