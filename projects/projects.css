@@ -1,0 +1,145 @@
+/* ============================================================
+   项目档案 Projects —— 共享样式
+   复用站内 style.css / user/user.css 的主题变量与骨架，
+   这里只补充「项目头 / 内容块 / 链接清单 / 项目卡」等专属样式。
+   ============================================================ */
+
+/* ---------- 项目页容器 ---------- */
+.prj-main { max-width: 1040px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+/* ---------- 项目头 ---------- */
+.prj-hero {
+  position: relative; overflow: hidden;
+  padding: 34px 32px 30px;
+  border-radius: 18px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+}
+.prj-hero::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(520px 240px at 88% -10%, #5b8cff3b, transparent 62%),
+    radial-gradient(420px 220px at 6% 120%, #b15bff2e, transparent 62%);
+}
+.prj-hero > * { position: relative; z-index: 1; }
+.prj-kicker {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; margin-bottom: 14px;
+}
+.prj-kicker i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.prj-title { font-size: clamp(26px, 4.6vw, 40px); line-height: 1.2; margin: 0 0 8px; color: var(--text); letter-spacing: -.02em; }
+.prj-title em { font-style: normal; color: var(--accent); }
+.prj-lede { font-size: 16px; line-height: 1.75; color: var(--text-dim); margin: 0; max-width: 720px; }
+.prj-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.prj-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim);
+}
+.prj-badge.on { color: #0a8f6f; border-color: #0a8f6f55; background: #0a8f6f18; }
+.prj-badge.dev { color: #b26a00; border-color: #d98a0055; background: #d98a0018; }
+html.theme-glass .prj-badge.on { color: #4ff0d0; }
+html.theme-glass .prj-badge.dev { color: #ffc861; }
+.prj-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ---------- 内容块 ---------- */
+.prj-block {
+  padding: 24px 26px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+}
+.prj-block h2 {
+  font-size: 16px; margin: 0 0 16px; color: var(--text);
+  display: flex; align-items: center; gap: 9px;
+}
+.prj-block h2 .num {
+  font: 700 11px/1 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--accent); background: var(--accent-soft);
+  padding: 4px 7px; border-radius: 6px;
+}
+.prj-block p { margin: 0 0 12px; line-height: 1.8; color: var(--text-dim); font-size: 14.5px; }
+.prj-block p:last-child { margin-bottom: 0; }
+.prj-block b { color: var(--text); font-weight: 600; }
+.prj-block ul { margin: 0; padding-left: 20px; color: var(--text-dim); font-size: 14.5px; line-height: 1.9; }
+.prj-block li::marker { color: var(--accent); }
+.prj-code {
+  font: 13px/1.6 ui-monospace, Menlo, Consolas, monospace;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; color: var(--text);
+  overflow-x: auto; white-space: pre; margin: 4px 0 0;
+}
+
+/* ---------- 链接清单 ---------- */
+.prj-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.prj-link {
+  display: flex; align-items: center; gap: 13px;
+  padding: 15px 16px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); text-decoration: none;
+  transition: transform .18s var(--ease, ease), border-color .18s, box-shadow .18s;
+}
+.prj-link:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 8px 22px #4f7cff22; }
+.prj-link .li {
+  flex: none; width: 40px; height: 40px; display: grid; place-items: center;
+  border-radius: 10px; background: var(--accent-soft); color: var(--accent);
+}
+.prj-link .li svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.prj-link .lt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.prj-link .lt strong { font-size: 14.5px; font-weight: 650; }
+.prj-link .lt small { font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
+.prj-link .arrow { margin-left: auto; flex: none; color: var(--text-dim); transition: transform .18s, color .18s; }
+.prj-link .arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.prj-link:hover .arrow { color: var(--accent); transform: translateX(3px); }
+
+/* ---------- 项目总览卡片 ---------- */
+.prj-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; padding: 0; margin: 0; list-style: none; }
+.prj-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 24px; border-radius: 14px; text-decoration: none; color: var(--text);
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  transition: transform .2s var(--ease, ease), border-color .2s, box-shadow .2s;
+}
+.prj-card:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 14px 34px #4f7cff26; }
+.prj-card .pc-top { display: flex; align-items: center; gap: 13px; }
+.prj-card .pc-ico {
+  flex: none; width: 46px; height: 46px; display: grid; place-items: center;
+  border-radius: 12px; background: var(--accent-soft); color: var(--accent);
+}
+.prj-card .pc-ico svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.prj-card .pc-name { font-size: 18px; font-weight: 700; }
+.prj-card .pc-sub { font-size: 12px; color: var(--text-dim); }
+.prj-card .pc-desc { font-size: 14px; line-height: 1.75; color: var(--text-dim); margin: 0; }
+.prj-card .pc-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 6px; font-size: 13px; color: var(--accent); font-weight: 600; }
+.prj-card .pc-foot svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- 返回链接 ---------- */
+.prj-back {
+  display: inline-flex; align-items: center; gap: 7px;
+  align-self: flex-start; font-size: 13.5px; color: var(--text-dim);
+  text-decoration: none; padding: 8px 0;
+}
+.prj-back:hover { color: var(--accent); }
+.prj-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 620px) {
+  .prj-hero { padding: 26px 20px 24px; }
+  .prj-block { padding: 20px 18px; }
+  .prj-links, .prj-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prj-link, .prj-card, .prj-link .arrow { transition: none; }
+  .prj-link:hover, .prj-card:hover { transform: none; }
+}

@@ -54,6 +54,7 @@
     { name: '首页',       icon: 'home',    href: '/',          match: '' },
     // 个人主页已从 / 搬到 /home/；根 / 现在是站点门户首页，两者要分开列
     { name: '个人主页',   icon: 'person',  href: '/home/',     match: '/home' },
+    { name: '项目档案',   icon: 'open',    href: '/projects/', match: '/projects' },
     { name: '工具箱大厅', icon: 'tools',   href: '/tool/',     match: '/tool' },
     { name: '聊天室',     icon: 'chat',    href: '/chat/',     match: '/chat' },
     { name: '个人中心',   icon: 'profile', href: '/user/',     match: '/user' },
