@@ -658,3 +658,7 @@
 - **实现**：① `projects/function-media.html` 相关链接加第 6 条「宣传片 · B 站版」（`https://www.bilibili.com/video/BV1Jny8zjE36`，外链新窗）；② `promo/index.html` 结尾 CTA 区加「B 站看正式版」主按钮，站内宣传片导流到 B 站（`.join-actions` 已有 flex-wrap，三按钮自适应）。
 - **验收**：本地——函数项目页 B 站链接存在（总 6 条）、宣传片页 CTA 三按钮含 B 站链接、0 JS 错误。
 - **回执**：小改动（补链接），合并进后续公告，不单独发。提交推送见下。
+
+## ㊵ 2026-11-21：公告回执（项目档案 + 新游戏）
+- 按 §0 发公告：`fs-notify.announce` 返回 id=20，`mailed=3 / failed=0 / provider=resend`（3 封自有域名直发）。管理员态照旧「临时提权 fe_probe_dev → 线上 login 真实 JWT → announce → finally 还原」，复核 `role=user`。
+- **⚠️ 重复公告事故（已处理）**：前两次执行被用户打断，但其中一次其实**已发出**公告 id=19（标题正文与我最后发的 id=20 完全一致，md5 均 `343d2cbf…`）。我最后又发一条成了 id=20 → 订阅用户收到两封相同邮件。发现后**先比对两条正文 md5 确认一致，再 `delete` 掉站内 id=19**，列表恢复单条。**教训：发公告脚本被执行哪怕输出被吞/被打断，也可能已成功写入——重发前必须先查 `fs_announcements` 最新记录，别只看本地输出。** 邮件已送达无法撤回，已向用户如实说明。
