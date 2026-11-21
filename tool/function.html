@@ -54,9 +54,10 @@ x^2/20</textarea>
       <div class="tk-col"><label class="tk-label" for="fxSamples">每条采样点</label>
         <input class="tk-input tk-num" id="fxSamples" type="number" value="600" min="60" max="6000" step="1"></div>
     </div>
-    <div class="fx-grid" style="margin-top:12px">
+    <div class="fx-grid three" style="margin-top:12px">
       <label class="fx-check"><input type="checkbox" id="fxAutoY" checked> y 轴自动缩放（按所有函数）</label>
       <label class="fx-check"><input type="checkbox" id="fxPoints"> 显示采样点</label>
+      <label class="fx-check" title="让 x、y 用同一比例，还原图片转函数的结果不变形"><input type="checkbox" id="fxAspect"> 锁定宽高比（还原图片用）</label>
     </div>
     <div class="tk-row" style="margin-top:16px">
       <button class="tk-btn primary" id="fxDraw" type="button">绘制全部</button>
@@ -164,6 +165,9 @@ x^2/20</textarea>
 
   /* ---------- 行解析：颜色 + 表达式 ---------- */
   var AUTO_COLORS=['#8ea9ff','#7ee0c0','#ffb86b','#ff8fb1','#b79cff','#7fd4ff','#ffe07a','#9be08a'];
+  /* 图片还原模式：从 img2func 通过 hash 传入网格尺寸后锁定 x/y 范围为像素格坐标，
+     并用同一缩放比例绘制，避免图像被拉长压扁。 */
+  var imgCols=0,imgRows=0;
   function parseLine(line,idx){
     var s=line.trim();if(!s||s.charAt(0)==='#'.charAt(0)&&/^#\s/.test(s))return null;
     var color=null,m=s.match(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b\s*/);
@@ -208,12 +212,16 @@ x^2/20</textarea>
       compiled.push({color:items[i].color,pts:pts});
     }
     if(!all.length){err.textContent='区间内没有可绘制的点（检查范围锁定是否把区间设错了）';return;}
+    var aspect=$('fxAspect').checked&&imgCols>0&&imgRows>0;
     var ymin=Infinity,ymax=-Infinity;
     for(i=0;i<all.length;i++)for(var j=0;j<all[i].length;j++){
       if(all[i][j].y<ymin)ymin=all[i][j].y;if(all[i][j].y>ymax)ymax=all[i][j].y;
     }
-    if(ymax-ymin<1e-9){ymin-=1;ymax+=1;}
-    var padY=(ymax-ymin)*.1;ymin-=padY;ymax+=padY;
+    if(aspect){ymin=0;ymax=imgRows;}
+    else{
+      if(ymax-ymin<1e-9){ymin-=1;ymax+=1;}
+      var padY=(ymax-ymin)*.1;ymin-=padY;ymax+=padY;
+    }
 
     var canvas=$('fxCanvas'),wrap=canvas.parentNode;
     var w=Math.max(280,wrap.clientWidth),h=canvas.clientHeight||480,dpr=window.devicePixelRatio||1;
@@ -223,6 +231,15 @@ x^2/20</textarea>
     var pad={l:56,r:18,t:18,b:34},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
     var sx=function(x){return pad.l+(x-xmin)/(xmax-xmin)*pw;};
     var sy=function(y){return h-pad.b-(y-ymin)/(ymax-ymin)*ph;};
+    var scale=1;
+    if(aspect){
+      /* x、y 用同一缩放比例并居中，图像才不会被拉长/压扁 */
+      scale=Math.min(pw/(xmax-xmin),ph/(ymax-ymin));
+      var ox=pad.l+(pw-(xmax-xmin)*scale)/2;
+      var oy=pad.t+(ph-(ymax-ymin)*scale)/2;
+      sx=function(x){return ox+(x-xmin)*scale;};
+      sy=function(y){return oy+(ymax-y)*scale;};
+    }
 
     var gx=niceStep((xmax-xmin)/9),gy=niceStep((ymax-ymin)/7),g1,g2;
     ctx.lineWidth=1;ctx.strokeStyle='rgba(255,255,255,.055)';ctx.beginPath();
@@ -241,13 +258,14 @@ x^2/20</textarea>
 
     for(i=0;i<compiled.length;i++){
       var arr=compiled[i].pts;if(arr.length<2)continue;
-      ctx.strokeStyle=compiled[i].color;ctx.lineWidth=2.2;
-      ctx.lineJoin='round';ctx.lineCap='round';
-      ctx.shadowColor=compiled[i].color;ctx.shadowBlur=6;
+      ctx.strokeStyle=compiled[i].color;
+      ctx.lineWidth=aspect?Math.max(1,scale*.92):2.2;   /* 还原图片时线粗=一格高，铺满像素格 */
+      ctx.lineJoin='round';ctx.lineCap=aspect?'butt':'round';
+      if(!aspect){ctx.shadowColor=compiled[i].color;ctx.shadowBlur=6;}
       ctx.beginPath();ctx.moveTo(sx(arr[0].x),sy(arr[0].y));
       for(var q=1;q<arr.length;q++)ctx.lineTo(sx(arr[q].x),sy(arr[q].y));
       ctx.stroke();ctx.shadowBlur=0;
-      if($('fxPoints').checked){
+      if($('fxPoints').checked&&!aspect){
         ctx.fillStyle=compiled[i].color;
         var step=Math.max(1,Math.floor(arr.length/120));
         for(q=0;q<arr.length;q+=step){ctx.beginPath();ctx.arc(sx(arr[q].x),sy(arr[q].y),1.8,0,Math.PI*2);ctx.fill();}
@@ -262,10 +280,24 @@ x^2/20</textarea>
   $('fxExpr').addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter')draw();});
   ['fxXmin','fxXmax','fxSamples'].forEach(function(id){$(id).addEventListener('change',draw);});
   var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(draw,160);});
-  /* 支持从图片转函数工具通过 URL hash 传入（#b64=...） */
+  /* 支持从图片转函数工具通过 URL hash 传入（#b64=...&cols=..&rows=..） */
   try{
     var h=location.hash.match(/b64=([^&]+)/);
-    if(h){var txt=decodeURIComponent(escape(atob(h[1])));$('fxExpr').value=txt;}
+    if(h){
+      /* 发送端是 encodeURIComponent(base64(url))，必须先解 URI 再 atob，
+         直接 atob 会因 % 等字符抛错被吞，落到默认示例（老 bug） */
+      var txt=decodeURIComponent(escape(atob(decodeURIComponent(h[1]))));
+      $('fxExpr').value=txt;
+    }
+    var hc=location.hash.match(/cols=(\d+)/),hr=location.hash.match(/rows=(\d+)/);
+    if(hc&&hr){
+      imgCols=parseInt(hc[1],10);imgRows=parseInt(hr[1],10);
+      if(imgCols>0&&imgRows>0){
+        /* 生成端 x 用 [0,cols]，这里同步锁定坐标系并勾选等比还原 */
+        $('fxXmin').value='0';$('fxXmax').value=String(imgCols);
+        $('fxAspect').checked=true;
+      }
+    }
   }catch(e){}
   draw();
 })();

@@ -115,7 +115,7 @@
   'use strict';
   var $=function(id){return document.getElementById(id);};
   var img=$('i2fImg'),canvas=$('i2fCanvas'),file=$('i2fFile');
-  var lastLines=[],lastFmt='fx';
+  var lastLines=[],lastFmt='fx',lastCols=0,lastRows=0;
 
   /* ---------- 选图 ---------- */
   function loadFile(f){
@@ -157,6 +157,7 @@
     /* 行高按比例，最多 100 行，避免函数爆炸 */
     var rows=Math.max(1,Math.round(cols*img.naturalHeight/img.naturalWidth));
     rows=Math.min(100,rows);
+    lastCols=cols;lastRows=rows;
 
     var off=document.createElement('canvas');
     off.width=cols;off.height=rows;
@@ -283,7 +284,12 @@
   });
   $('i2fOpen').addEventListener('click',function(){
     var text=lastLines.join('\n');
-    var url='./function.html#b64='+encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
+    /* base64 先按 URI 编码：+ / = 等字符在 hash 里才不会被误读。
+       接收端必须先 decodeURIComponent 再 atob（之前漏了前一步，直接 atob 抛错被吞，
+       于是显示器落到默认 3 行示例）。同时把网格尺寸传过去，显示器据此锁定 x/y 范围
+       并等比例绘制，否则只显示 x∈[-10,10] 左半截、还被 x/y 各自缩放拉成面团。 */
+    var enc=encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
+    var url='./function.html#b64='+enc+'&cols='+lastCols+'&rows='+lastRows;
     window.open(url,'_blank');
   });
 })();
