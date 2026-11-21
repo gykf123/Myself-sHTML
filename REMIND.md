@@ -690,3 +690,12 @@
 - **附记**：中途按用户建议试装了 `chinese-thinking-guard` 技能，用户随后表示不愿用规则「囚禁」，已删除技能并还原 `REMIND.md` 相关条目，改为自我约束。
 - **回执**：属访客可感知改动，按 §0 发公告 / 留言板汇报。提交 `758d2d2` 已推送。
 - **公告回执**：`fs-notify.announce` 返回 **id=23**，`mailed=3 / failed=0 / provider=resend`；发前查最新三条确认无同标题/同正文，role 已还原 `user`。留言板 `wall-post` 返回 **id=13**。
+
+## ㊺ 2026-11-21：SEO 深化与工具页配色割裂修复
+- **需求**：用户「bing提交了，你的网站地图覆盖视频转函数工具了吗」→ 确认后「继续做SEO，然后自主迭代优化网站」。
+- **站点地图覆盖确认**：`sitemap.xml` 已含 `tool/video2func.html`（第 250 行，42 条之一，`lastmod=2026-11-21`），同时含 `tool/img2func.html`、`tool/function.html`；`robots.txt` 未屏蔽；线上无参数访问 200、`canonical` 指向无参数版本；42 条 URL 并发 HEAD 全部 200，无死链。顺带把这三个工具页 `priority` 由 0.7 提到 0.8。
+- **IndexNow 接入**：新增密钥文件 `ab081d784a8d3a7d8e017374aa729637.txt`（内容即 key），推送 42 条 URL 到 `api.indexnow.org`，先后返回 **202** 与 **200**，Bing 可主动抓取而非等重爬。
+- **SEO 深化**：① 三个函数工具页补 6 条真实 FAQ（`<details>` 可见文本）+ `FAQPage`、`HowTo`、`BreadcrumbList`，与 `SoftwareApplication` 合并为单条 `@graph`；② 批量给 41 个页面补 `BreadcrumbList`（按真实目录层级生成，修掉首版把 `tool/xxx.html` 误判成目录首页、名称带 slug/emoji 的 bug）；③ 首页两条 JSON-LD 合并为 `WebSite + Organization` 单条 `@graph`；④ 修 `404.html` 与 `tool/deceive-predictor.html` 缺 `h1`（404 的 `<p class="code">` 改 `<h1>`，游戏页标题 `div` 改 `h1` 并补 `margin:0`）。
+- **自主迭代（配色割裂真因）**：扫描发现 32 个页面缺主题初始化脚本，导致工具页实际渲染为浅色令牌，与内联按深色设计的文字色（`#cdd8ff`、`#8e99b4` 等）打架——工具页标题对比度仅 **1.33**、大厅简介 **2.84**、分类钮激活态 **1.08**。修法：① 全站补齐 `theme-glass` 初始化（默认深色，与首页统一）；② `fs-skin.css` 把 `.tk-card`/`.tk-btn`/`.tk-input`/`.tk-out`/`.tk-header`/`.tk-badge`/`.tk-back` 的硬编码深色改为 `--card-bg`/`--ctl-bg`/`--header-bg`/`--border`/`--text-dim` 令牌，四套配色（玻璃 / 浅色 / 系统深色）各自赋值；③ 追加 `html:not(.theme-glass)` 段，把早期 `!important` 写死的深色组件（`.工具卡`、`.搜索框`、`.分类钮`）在浅色下回退；④ 三个函数页补浅色反向修正，`deceive-predictor`、`home` 的主按钮底色加深。
+- **验收**：真实浏览器逐文本节点算 WCAG 对比度——修复前 `/tool/` 58 处、`video2func` 32 处、`img2func` 23 处、`function` 26 处不达标；修复后本地与**线上**全部 **0 处**（深色默认）。浅色主题截图确认白卡深字、边框清晰；Minecraft 子站因自带 `data-theme` 不受影响。三页内联脚本 `node --check` 通过，Txt 导入回归正常（`完成 · MP4 · 0.3s`），全站抽查 11 页 200 / 0 JS 错误。
+- **提交**：`c6d7819`（SEO 深化）、`86edbd1`（配色与主题修复）。
