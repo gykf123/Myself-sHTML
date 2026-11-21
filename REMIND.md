@@ -605,3 +605,10 @@
 - **验收（真双引擎）**：装 `webkit` 引擎 + `playwright install-deps webkit`。**WebKit**：能力探测 mr:false 确认复现条件，修复后进度 10%→100% 走完、10 帧/1030 条函数、**降级导出 PNG**、0 报错、无误报；**Chromium 回归**：1080p/40 帧 13.7s 完成、进度匀速、0 报错。降级提示与下载文件名均正确。工具卡链接版本 `c→d` 破缓存。
 - **教训同 ㉗㉘㉛**：**用户说卡死先看设备/浏览器**。这次是引擎能力差异，Chromium 单引擎验收在 Safari 上完全失效；关键 API（MediaRecorder/captureStream/WebCodecs）必须做能力探测 + 优雅降级，且初始化要放进 try、主流程要 finally 收口。
 - **回执**：修 bug 非大改动，按 §0 不发公告 / 不发邮件。提交推送见下。
+
+## ㉝ 2026-11-21：修视频转函数「Edge 导出不是 MP4 / 时长失控」+ 新增「右侧展示当前函数」
+- **需求**：用户 Edge 跑出的文件「不是 Mp4，看不了」并附产物；新增选项「输出视频右侧展示当前函数」。
+- **诊断（先探文件再动手）**：用户上传的 `video-functions.webm` 用 ffprobe 一探 = **MP4 容器 + H.264**（`format_name=mov,mp4`、`codec=h264`）、**时长 82.4s**。两处病：① 内容是 mp4 却命名 `.webm`（Edge 请求 webm 底层偷录成 mp4，挂羊头卖狗肉）→ 播放器按扩展名打不开；② 旧逻辑「边 seek 处理边 captureStream 录」，**录制时长=实际处理耗时**（这台 13s、用户 Edge 82s），与原视频无关。Chromium 能力探测 mp4 三格式全 true，说明用户命中旧缓存页（写死 webm 名）。
+- **修法**：① `pickMime()` **mp4 优先**（avc1.42E01E→mp4→webm）；② 新增 `detectContainer()` **读 blob 头魔数验身**（`ftyp`→mp4、`1A45DFA3`→webm），不信 mime 声明，按真实容器命名 + 重建 Blob 的 type；③ **重构为两阶段**：阶段一逐帧 seek→采样→函数→画回，同时 `getImageData` 留档每帧像素 + 函数文本（进度条反映真实处理）；阶段二用**独立离屏画布** `putImageData` 按固定 `1000/fps` 节拍回放 + `captureStream` 录制 → **输出时长=帧数/fps**，与处理耗时彻底解耦；④ 结果区加复选框「输出视频右侧展示当前函数」+ 左右分栏（左 `<video controls>` 播放还原视频、右 textarea 当前帧函数），`timeupdate` 按 `currentTime/duration` 比例映射到帧索引、同步切函数文本与「x/N · xs」标签；⑤ 下载按钮改用校正后的 `this.download` 属性；⑥ 阶段二仍套 try 失败降级 PNG，全程 finally 收口不变。
+- **验收（Chromium + WebKit 双引擎）**：Chromium——产物文件头 `ftypisom` 真 MP4、下载名 `.mp4`、**8帧/4fps→时长 1.79s**（不再 82s）、面板开关 `no-side` 生效、播放跳 80% 时右侧从 1/10 切到 8/10 且函数文本同步变化、0 错误；WebKit（iPad/Safari）——无 MediaRecorder 走降级导出 PNG、面板开关生效、0 错误。工具卡版本 `d→e` 破缓存。
+- **回执**：修 bug + 小功能（非访客可感知大改动，工具上线 ㉚ 已公告），按 §0 不发公告 / 不发邮件。提交推送见下。
