@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>视频转函数 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。纯前端离线处理，视频不上传。">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+<link rel="stylesheet" href="../fs-skin.css?v=20261121a">
+<script src="/net-guard.js?v=20261107"></script>
+<script src="/site-nav.js?v=20261121a"></script>
+<style>
+  .v2f-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .v2f-full{grid-column:1/-1}
+  .v2f-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    min-height:140px;padding:20px;border:1.5px dashed rgba(145,169,255,.35);border-radius:14px;
+    background:rgba(145,169,255,.045);cursor:pointer;transition:all .2s ease;text-align:center}
+  .v2f-drop:hover,.v2f-drop.over{border-color:rgba(145,169,255,.75);background:rgba(145,169,255,.11)}
+  .v2f-drop .big{font-size:13px;color:#cdd8ff;font-weight:600}
+  .v2f-drop .small{font-size:12px;color:#8e99b4;line-height:1.7}
+  .v2f-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#c9d2e6;cursor:pointer;user-select:none}
+  .v2f-check input{width:16px;height:16px;accent-color:#7b8cf6}
+  .v2f-stage{position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:#080b14;min-height:180px}
+  .v2f-stage video,.v2f-stage canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+  .v2f-pipeline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;margin:14px 0}
+  .v2f-pipeline span{padding:6px 10px;border:1px solid rgba(140,165,255,.2);border-radius:999px;color:#93a0c0;background:rgba(255,255,255,.03)}
+  .v2f-pipeline span.on{color:#cdd8ff;border-color:rgba(91,140,255,.6);background:rgba(91,140,255,.12)}
+  .v2f-pipeline b{color:#4ff0d0}
+  .v2f-bar{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px}
+  .v2f-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4ff0d0,#5b8cff);transition:width .15s}
+  .v2f-stat{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#8e99b4;margin-top:10px}
+  .v2f-stat b{color:#cdd8ff;font-variant-numeric:tabular-nums}
+  .v2f-out{width:100%;min-height:140px;font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;resize:vertical;white-space:pre;overflow:auto}
+  @media(max-width:620px){.v2f-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">视频转函数</h1>
+  <span class="tk-badge">纯前端 · 视频不上传</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">上传一段视频，走完整条链路：<b>视频 → 图片组 → 函数组 → 图片组 → 视频</b>。每一帧先采样成彩色网格，再变成一堆带颜色的函数（用 <code>+0√(x−xmin)+0√(xmax−x)</code> 锁住定义域），最后函数把帧画回来合成视频。全程只在你的浏览器里跑，视频不会上传。</p>
+
+  <div class="v2f-pipeline" id="v2fPipe">
+    <span data-p="video">① 视频</span><b>→</b>
+    <span data-p="frames">② 图片组</span><b>→</b>
+    <span data-p="funcs">③ 函数组</span><b>→</b>
+    <span data-p="frames2">④ 图片组</span><b>→</b>
+    <span data-p="outvideo">⑤ 视频</span>
+  </div>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">⬆</span>1 · 选择视频</h2>
+    <div class="v2f-drop" id="v2fDrop" role="button" tabindex="0" aria-label="选择或拖入视频">
+      <span class="big" id="v2fDropTitle">点击选择视频，或拖到这里</span>
+      <span class="small">支持 MP4 / WebM / MOV（取决于浏览器）；建议短一点（5~20 秒），帧数越多处理越久</span>
+    </div>
+    <input type="file" id="v2fFile" accept="video/*" hidden>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">⚙</span>2 · 转换设置</h2>
+    <div class="v2f-grid">
+      <div class="tk-col">
+        <label class="tk-label" for="v2fRes">分辨率（每行像素数）</label>
+        <input class="tk-input" id="v2fRes" type="range" min="8" max="80" value="32" step="1">
+        <span class="tk-help">当前：<b id="v2fResVal">32</b> 像素宽</span>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="v2fFps">每秒抽帧数</label>
+        <input class="tk-input" id="v2fFps" type="range" min="2" max="15" value="6" step="1">
+        <span class="tk-help">当前：<b id="v2fFpsVal">6</b> 帧/秒</span>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="v2fMode">颜色量化</label>
+        <select class="tk-select" id="v2fMode">
+          <option value="2">2 级 / 通道（8 色，函数少）</option>
+          <option value="4" selected>4 级 / 通道（64 色，推荐）</option>
+          <option value="6">6 级 / 通道（216 色，细腻）</option>
+        </select>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="v2fMax">最多处理帧数</label>
+        <input class="tk-num" id="v2fMax" type="number" min="1" max="240" value="90" step="1">
+        <span class="tk-help">防止长视频卡死，超出部分截断</span>
+      </div>
+      <label class="v2f-check"><input type="checkbox" id="v2fMerge" checked> 合并同行相邻同色（函数数更少）</label>
+      <label class="v2f-check"><input type="checkbox" id="v2fSkipBg"> 跳过近白背景</label>
+    </div>
+    <div class="tk-row" style="margin-top:14px">
+      <button class="tk-btn primary" id="v2fRun" type="button" disabled>开始转换</button>
+      <button class="tk-btn ghost" id="v2fCancel" type="button" disabled>停止</button>
+      <span class="tk-help" id="v2fStatus" style="margin-left:auto">先选择一段视频</span>
+    </div>
+    <div class="v2f-bar"><i id="v2fBar"></i></div>
+  </section>
+
+  <section class="tk-card" id="v2fPreview" style="display:none">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">◈</span>3 · 原片 / 函数还原对照</h2>
+    <div class="v2f-grid">
+      <div class="tk-col"><div class="v2f-stage"><video id="v2fSrc" muted playsinline></video></div><p class="tk-help">原视频</p></div>
+      <div class="tk-col"><div class="v2f-stage"><canvas id="v2fCanvas"></canvas></div><p class="tk-help">函数还原预览（当前帧）</p></div>
+    </div>
+    <div class="v2f-stat">
+      <span>抽帧 <b id="v2fFrames">—</b></span>
+      <span>总函数 <b id="v2fFuncs">—</b></span>
+      <span>网格 <b id="v2fGrid">—</b></span>
+      <span>耗时 <b id="v2fTime">—</b></span>
+    </div>
+  </section>
+
+  <section class="tk-card" id="v2fResult" style="display:none">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">▤</span>4 · 结果</h2>
+    <div class="tk-row">
+      <button class="tk-btn primary" id="v2fDownload" type="button">下载还原视频</button>
+      <button class="tk-btn ghost" id="v2fFrameTxt" type="button">导出当前帧函数</button>
+      <span class="tk-help" id="v2fResultNote"></span>
+    </div>
+    <textarea class="tk-textarea v2f-out" id="v2fOut" spellcheck="false" readonly aria-label="当前帧函数文本" placeholder="当前帧的函数会显示在这里，可在「函数显示器」中打开还原"></textarea>
+    <p class="fx-note" style="color:#8e99b4;margin-top:8px">
+      原理：根号下不能为负。<code>+0√(x−xmin)</code> 让 x 小于 xmin 时无定义，<code>+0√(xmax−x)</code> 让 x 大于 xmax 时无定义，乘 0 又不改变函数值——每条函数只在自己那一小段画出来，一帧的所有函数拼起来就是这一帧的像素图。
+    </p>
+  </section>
+</main>
+<script>
+(function(){
+  'use strict';
+  var $=function(id){return document.getElementById(id);};
+  var file=$('v2fFile'), srcV=$('v2fSrc'), outC=$('v2fCanvas');
+  var running=false, cancelFlag=false, lastFrameFuncs=[], lastCols=0, lastRows=0;
+  var objectUrl=null, outUrl=null, recorder=null, chunks=[];
+
+  /* 选视频 */
+  function loadFile(f){
+    if(!f||!/^video\//.test(f.type)){$('v2fStatus').textContent='请选择视频文件';return;}
+    if(objectUrl)URL.revokeObjectURL(objectUrl);
+    objectUrl=URL.createObjectURL(f);
+    srcV.src=objectUrl;
+    srcV.onloadedmetadata=function(){
+      $('v2fRun').disabled=false;
+      $('v2fStatus').textContent='已载入 '+Math.round(srcV.videoWidth)+'×'+Math.round(srcV.videoHeight)+' · '+srcV.duration.toFixed(1)+'s';
+      $('v2fDropTitle').textContent=f.name;
+      drawFrameAt(0);
+    };
+    srcV.onerror=function(){$('v2fStatus').textContent='视频解码失败，换个格式试试';};
+  }
+  $('v2fDrop').addEventListener('click',function(){file.click();});
+  $('v2fDrop').addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}});
+  ['dragenter','dragover'].forEach(function(t){$('v2fDrop').addEventListener(t,function(e){e.preventDefault();$('v2fDrop').classList.add('over');});});
+  ['dragleave','drop'].forEach(function(t){$('v2fDrop').addEventListener(t,function(e){e.preventDefault();$('v2fDrop').classList.remove('over');});});
+  $('v2fDrop').addEventListener('drop',function(e){if(e.dataTransfer.files&&e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+  file.addEventListener('change',function(){if(file.files&&file.files[0])loadFile(file.files[0]);});
+  $('v2fRes').addEventListener('input',function(){$('v2fResVal').textContent=this.value;});
+  $('v2fFps').addEventListener('input',function(){$('v2fFpsVal').textContent=this.value;});
+
+  /* 颜色量化（与图片转函数同款） */
+  function quant(v,l){var s=255/(l-1);return Math.max(0,Math.min(255,Math.round(Math.round(v/s)*s)));}
+  function hex(r,g,b){return '#'+[r,g,b].map(function(v){var s=v.toString(16);return s.length===1?'0'+s:s;}).join('');}
+
+  /* 离屏画布：把当前 video 帧采样成网格 */
+  var gridC=document.createElement('canvas');
+  function sampleGrid(cols,levels,skipBg){
+    var rows=Math.max(1,Math.round(cols*srcV.videoHeight/srcV.videoWidth));
+    rows=Math.min(100,rows);
+    gridC.width=cols;gridC.height=rows;
+    var g=gridC.getContext('2d');
+    g.drawImage(srcV,0,0,cols,rows);
+    var data;
+    try{data=g.getImageData(0,0,cols,rows).data;}
+    catch(e){return {rows:rows,grid:null,err:e.message};}
+    var grid=[];
+    for(var r=0;r<rows;r++){
+      var row=[];
+      for(var c=0;c<cols;c++){
+        var i=(r*cols+c)*4;
+        var R=quant(data[i],levels),G=quant(data[i+1],levels),B=quant(data[i+2],levels),A=data[i+3];
+        var isBg=skipBg&&R>235&&G>235&&B>235;
+        row.push({code:hex(R,G,B),empty:(A<40||isBg)});
+      }
+      grid.push(row);
+    }
+    return {rows:rows,grid:grid,data:null};
+  }
+
+  /* 网格 → 函数组（纯数据，不拼文本） */
+  function gridToFuncs(grid,cols,rows,merge){
+    var funcs=[];
+    for(var r=0;r<rows;r++){
+      var c=0;
+      while(c<cols){
+        if(grid[r][c].empty){c++;continue;}
+        var code=grid[r][c].code,start=c,end=c+1;
+        if(merge){while(end<cols&&!grid[r][end].empty&&grid[r][end].code===code)end++;}
+        funcs.push({color:code,x0:start,x1:end,y:rows-r});
+        c=end;
+      }
+    }
+    return funcs;
+  }
+
+  /* 函数组 → 在输出画布画回像素帧 */
+  function drawFuncs(funcs,cols,rows){
+    var cell=Math.max(2,Math.floor(640/cols));
+    var w=cols*cell,h=rows*cell;
+    if(outC.width!==w||outC.height!==h){outC.width=w;outC.height=h;}
+    var ctx=outC.getContext('2d');
+    ctx.fillStyle='#080b14';ctx.fillRect(0,0,w,h);
+    for(var i=0;i<funcs.length;i++){
+      var f=funcs[i];
+      ctx.fillStyle=f.color;
+      ctx.fillRect(f.x0*cell,(rows-f.y)*cell,(f.x1-f.x0)*cell,cell);
+    }
+  }
+
+  function funcsToText(funcs){
+    return funcs.map(function(f){return f.color+'  y = '+f.y+' + 0*sqrt(x - '+f.x0+') + 0*sqrt('+f.x1+' - x)';}).join('\n');
+  }
+
+  function seek(t){
+    return new Promise(function(res){srcV.onseeked=function(){res();};srcV.currentTime=t;});
+  }
+
+  /* 预览某一帧（不录制） */
+  function drawFrameAt(t){
+    if(!srcV.videoWidth)return;
+    var cols=parseInt($('v2fRes').value,10)||32;
+    var levels=parseInt($('v2fMode').value,10)||4;
+    var s=sampleGrid(cols,levels,false);
+    if(!s.grid)return;
+    var funcs=gridToFuncs(s.grid,cols,s.rows,$('v2fMerge').checked);
+    lastFrameFuncs=funcs;lastCols=cols;lastRows=s.rows;
+    drawFuncs(funcs,cols,s.rows);
+    $('v2fOut').value=funcsToText(funcs);
+  }
+  srcV.addEventListener('seeked',function(){if(!running)drawFrameAt(srcV.currentTime);});
+
+  function pipe(name,on){
+    var el=document.querySelector('[data-p="'+name+'"]');
+    if(el){if(on)el.classList.add('on');else el.classList.remove('on');}
+  }
+  function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+
+  /* 主流程：逐帧 seek→采样→函数→画回→captureStream 录制 */
+  async function run(){
+    if(running||!srcV.videoWidth)return;
+    running=true;cancelFlag=false;
+    $('v2fRun').disabled=true;$('v2fCancel').disabled=false;
+    ['video','frames','funcs','frames2','outvideo'].forEach(function(n){pipe(n,false);});
+    pipe('video',true);
+    var cols=parseInt($('v2fRes').value,10)||32;
+    var levels=parseInt($('v2fMode').value,10)||4;
+    var fps=parseInt($('v2fFps').value,10)||6;
+    var maxFrames=parseInt($('v2fMax').value,10)||90;
+    var merge=$('v2fMerge').checked, skipBg=$('v2fSkipBg').checked;
+    var dur=srcV.duration, total=Math.min(maxFrames,Math.max(1,Math.round(dur*fps)));
+    var interval=Math.max(0.05,dur/total);
+    var rows=Math.max(1,Math.round(cols*srcV.videoHeight/srcV.videoWidth));
+    rows=Math.min(100,rows);
+    var cell=Math.max(2,Math.floor(640/cols));
+    outC.width=cols*cell;outC.height=rows*cell;
+    var stream=outC.captureStream(fps);
+    var mime=(window.MediaRecorder&&MediaRecorder.isTypeSupported)?
+      (['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].filter(function(m){return MediaRecorder.isTypeSupported(m);})[0]||'video/webm'):'video/webm';
+    chunks=[];
+    recorder=new MediaRecorder(stream,{mimeType:mime});
+    recorder.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
+    recorder.start();
+    $('v2fPreview').style.display='block';
+    $('v2fResult').style.display='none';
+    var t0=performance.now(), totalFuncs=0;
+    try{
+      for(var i=0;i<total;i++){
+        if(cancelFlag)break;
+        var t=Math.min(dur-0.02,i*interval);
+        await seek(t);
+        if(cancelFlag)break;
+        var s=sampleGrid(cols,levels,skipBg);
+        if(!s.grid)continue;
+        var funcs=gridToFuncs(s.grid,cols,s.rows,merge);
+        totalFuncs+=funcs.length;
+        drawFuncs(funcs,cols,s.rows);
+        lastFrameFuncs=funcs;lastCols=cols;lastRows=s.rows;
+        pipe('video',true);pipe('frames',true);pipe('funcs',true);pipe('frames2',true);
+        $('v2fBar').style.width=Math.round((i+1)/total*100)+'%';
+        $('v2fStatus').textContent='处理中 '+Math.round((i+1)/total*100)+'% ('+(i+1)+'/'+total+')';
+        await sleep(Math.max(0,1000/fps-8));
+      }
+    }catch(e){$('v2fStatus').textContent='出错：'+e.message;}
+    // 停录
+    var done=new Promise(function(res){recorder.onstop=res;});
+    try{recorder.stop();}catch(e){}
+    await done;
+    var secs=(performance.now()-t0)/1000;
+    $('v2fFrames').textContent=total+' 帧';
+    $('v2fFuncs').textContent=totalFuncs+' 条';
+    $('v2fGrid').textContent=cols+'×'+rows;
+    $('v2fTime').textContent=secs.toFixed(1)+'s';
+    $('v2fOut').value=funcsToText(lastFrameFuncs);
+    if(outUrl)URL.revokeObjectURL(outUrl);
+    outUrl=URL.createObjectURL(new Blob(chunks,{type:mime}));
+    $('v2fResultNote').textContent=cancelFlag?'已停止（部分片段）':('完成 · '+mime.split(';')[0]);
+    $('v2fResult').style.display='block';
+    ['frames','funcs','frames2','outvideo'].forEach(function(n){pipe(n,true);});
+    $('v2fStatus').textContent=cancelFlag?'已停止':'完成，可下载';
+    running=false;
+    $('v2fRun').disabled=false;$('v2fCancel').disabled=true;
+  }
+  $('v2fRun').addEventListener('click',run);
+  $('v2fCancel').addEventListener('click',function(){cancelFlag=true;$('v2fStatus').textContent='正在停止…';});
+
+  $('v2fDownload').addEventListener('click',function(){
+    if(!outUrl)return;
+    var a=document.createElement('a');a.href=outUrl;
+    a.download='video-functions.webm';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+  });
+  $('v2fFrameTxt').addEventListener('click',function(){
+    var blob=new Blob([$('v2fOut').value],{type:'text/plain;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='frame-functions.txt';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+  });
+})();
+</script>
+</body>
+</html>

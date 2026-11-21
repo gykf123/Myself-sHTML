@@ -73,7 +73,7 @@
 <header>
   <a class="返回主页" href="../index.html">← FeSui 主页</a>
   <h1>🧰 工具箱</h1>
-  <span class="徽章" id="工具数">21 个工具</span>
+  <span class="徽章" id="工具数">22 个工具</span>
 </header>
 <main>
   <p class="简介">这里放着一些自包含的小工具——绝大多数无需联网、无需服务端，打开就能用；标了「需联网」的只在你主动查询时请求公开接口。Minecraft 分类里有 MC 搜索子站的工具直达入口。</p>
@@ -86,6 +86,12 @@
       <span class="图标" aria-hidden="true">▦</span>
       <span class="名称">图片转函数</span>
       <span class="描述">上传图片，按分辨率采样成一堆带不同颜色的函数，用 0×根号把每条锁在自己的 x 区间。纯前端，图片不上传。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./video2func.html">
+      <span class="图标" aria-hidden="true">▶</span>
+      <span class="名称">视频转函数</span>
+      <span class="描述">视频→图片组→函数组→图片组→视频：逐帧采样成一堆带颜色的函数，再画回来合成视频。纯前端，视频不上传。</span>
       <span class="前往">打开 →</span>
     </a>
     <a class="工具卡" href="./function.html">
@@ -220,7 +226,7 @@
 (function(){
   // 工具 → 分类映射（href → 分类键）
   var CAT = {
-    './img2func.html':'dev', './function.html':'dev',
+    './img2func.html':'dev', './function.html':'dev', './video2func.html':'dev',
     './ore-finder.html':'mc', './minecraft-search/index.html':'mc',
     './minecraft-search/tools/crafting-calculator.html':'mc',
     './minecraft-search/tools/enchantment-planner.html':'mc',
