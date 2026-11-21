@@ -66,12 +66,14 @@
 </style>
   <script src="/net-guard.js?v=20261107"></script>
   <script src="/site-nav.js?v=20261115c"></script>
+  <link rel="stylesheet" href="../fs-skin.css?v=20261121a" />
+  <script src="../fs-icons.js?v=20261121a" defer></script>
 </head>
 <body>
 <header>
   <a class="返回主页" href="../index.html">← FeSui 主页</a>
   <h1>🧰 工具箱</h1>
-  <span class="徽章" id="工具数">19 个工具</span>
+  <span class="徽章" id="工具数">21 个工具</span>
 </header>
 <main>
   <p class="简介">这里放着一些自包含的小工具——绝大多数无需联网、无需服务端，打开就能用；标了「需联网」的只在你主动查询时请求公开接口。Minecraft 分类里有 MC 搜索子站的工具直达入口。</p>
@@ -80,6 +82,18 @@
     <div class="分类组" id="分类组" role="tablist" aria-label="工具分类"></div>
   </div>
   <div class="工具网格">
+    <a class="工具卡" href="./img2func.html">
+      <span class="图标" aria-hidden="true">▦</span>
+      <span class="名称">图片转函数</span>
+      <span class="描述">上传图片，按分辨率采样成一堆带不同颜色的函数，用 0×根号把每条锁在自己的 x 区间。纯前端，图片不上传。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./function.html">
+      <span class="图标" aria-hidden="true">ƒ</span>
+      <span class="名称">函数显示器</span>
+      <span class="描述">同一坐标系叠加绘制多行彩色函数，支持根号范围锁定与采样点，可直接还原图片转函数的结果。</span>
+      <span class="前往">打开 →</span>
+    </a>
     <a class="工具卡" href="./ore-finder.html">
       <span class="图标" aria-hidden="true">⛏️</span>
       <span class="名称">矿石查找器</span>
@@ -206,6 +220,7 @@
 (function(){
   // 工具 → 分类映射（href → 分类键）
   var CAT = {
+    './img2func.html':'dev', './function.html':'dev',
     './ore-finder.html':'mc', './minecraft-search/index.html':'mc',
     './minecraft-search/tools/crafting-calculator.html':'mc',
     './minecraft-search/tools/enchantment-planner.html':'mc',

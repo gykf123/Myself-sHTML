@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图片转函数 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="../toolkit.css?v=20261030">
+<link rel="stylesheet" href="../fs-skin.css?v=20261121a">
+<script src="/net-guard.js?v=20261107"></script>
+<script src="/site-nav.js?v=20261121a"></script>
+<style>
+  .i2f-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .i2f-full{grid-column:1/-1}
+  .i2f-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    min-height:150px;padding:20px;border:1.5px dashed rgba(145,169,255,.35);border-radius:14px;
+    background:rgba(145,169,255,.045);cursor:pointer;transition:all .2s ease;text-align:center}
+  .i2f-drop:hover,.i2f-drop.over{border-color:rgba(145,169,255,.75);background:rgba(145,169,255,.11)}
+  .i2f-drop .big{font-size:13px;color:#cdd8ff;font-weight:600}
+  .i2f-drop .small{font-size:12px;color:#8e99b4;line-height:1.7}
+  .i2f-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#c9d2e6;cursor:pointer;user-select:none}
+  .i2f-check input{width:16px;height:16px;accent-color:#7b8cf6}
+  .i2f-note{font-size:12px;line-height:1.85;color:#8e99b4;margin:10px 0 0}
+  .i2f-note b{color:#b9c6ff;font-weight:600}
+  .i2f-note code{font:12px ui-monospace,Menlo,Consolas,monospace;color:#9fd8ff;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:4px}
+  .i2f-stage{position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:#080b14;min-height:220px}
+  #i2fCanvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+  .i2f-out{width:100%;min-height:170px;font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    resize:vertical;white-space:pre;overflow:auto}
+  .i2f-stat{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#8e99b4;margin-top:10px}
+  .i2f-stat b{color:#cdd8ff;font-variant-numeric:tabular-nums}
+  .i2f-tabs{display:inline-flex;gap:4px;padding:3px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+  .i2f-tabs button{appearance:none;border:0;cursor:pointer;font:600 12px inherit;padding:6px 14px;border-radius:999px;background:transparent;color:#8e99b4}
+  .i2f-tabs button.active{background:rgba(145,169,255,.2);color:#dce5ff}
+  @media(max-width:620px){.i2f-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">图片转函数</h1>
+  <span class="tk-badge">纯前端 · 图片不上传</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">上传一张图片，按分辨率把它采样成一堆<b>带不同颜色</b>的函数：每个彩色像素变成一小段水平函数，用 <code>+0√(x−xmin)+0√(xmax−x)</code> 把定义域锁在自己的 x 区间里。导出的函数可直接粘进「函数显示器」叠加还原。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">⬆</span>1 · 选择图片</h2>
+    <div class="i2f-drop" id="i2fDrop" role="button" tabindex="0" aria-label="选择或拖入图片">
+      <span class="big" id="i2fDropTitle">点击选择图片，或拖到这里</span>
+      <span class="small">支持 PNG / JPG / WEBP / GIF（取首帧），全程只在你的浏览器里处理，不会上传</span>
+    </div>
+    <input type="file" id="i2fFile" accept="image/*" hidden>
+    <img id="i2fImg" alt="预览原图" style="display:none">
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">⚙</span>2 · 采样设置</h2>
+    <div class="i2f-grid">
+      <div class="tk-col">
+        <label class="tk-label" for="i2fRes">分辨率（每行像素数）</label>
+        <input class="tk-input" id="i2fRes" type="range" min="8" max="120" value="40" step="1">
+        <span class="tk-help">当前：<b id="i2fResVal">40</b> 像素宽</span>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="i2fMode">颜色量化</label>
+        <select class="tk-select" id="i2fMode">
+          <option value="2">2 级 / 通道（8 色，函数少）</option>
+          <option value="4" selected>4 级 / 通道（64 色，推荐）</option>
+          <option value="6">6 级 / 通道（216 色，细腻）</option>
+          <option value="8">8 级 / 通道（512 色，最细腻）</option>
+        </select>
+      </div>
+      <label class="i2f-check"><input type="checkbox" id="i2fMerge" checked> 合并同行相邻同色像素（大幅减少函数数）</label>
+      <label class="i2f-check"><input type="checkbox" id="i2fSkipBg" checked> 跳过近白背景（适合白底图）</label>
+    </div>
+    <p class="fx-note" style="color:#8e99b4">
+      原理：根号下不能为负。<code>+0√(x−xmin)</code> 让 x &lt; xmin 时无定义，<code>+0√(xmax−x)</code> 让 x &gt; xmax 时无定义，乘 0 又不改变函数值——于是每条函数只在自己那一小段画出来，拼成整张图。
+    </p>
+    <div class="tk-row" style="margin-top:14px">
+      <button class="tk-btn primary" id="i2fConvert" type="button" disabled>生成函数</button>
+      <span class="tk-help" id="i2fStatus" style="margin-left:auto">先选择一张图片</span>
+    </div>
+  </section>
+
+  <section class="tk-card" id="i2fPreviewCard" style="display:none">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">◈</span>3 · 还原预览</h2>
+    <div class="i2f-stage"><canvas id="i2fCanvas"></canvas></div>
+    <div class="i2f-stat">
+      <span>像素网格 <b id="i2fGrid">—</b></span>
+      <span>函数条数 <b id="i2fCount">—</b></span>
+      <span>颜色数 <b id="i2fColors">—</b></span>
+    </div>
+  </section>
+
+  <section class="tk-card" id="i2fOutCard" style="display:none">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">≡</span>4 · 导出的函数</h2>
+    <div class="i2f-tabs" role="tablist" aria-label="导出格式">
+      <button type="button" class="active" data-fmt="fx">显示器格式</button>
+      <button type="button" data-fmt="desmos">Desmos 点列</button>
+    </div>
+    <textarea class="tk-textarea i2f-out" id="i2fOut" spellcheck="false" readonly aria-label="导出的函数"></textarea>
+    <div class="tk-row" style="margin-top:12px">
+      <button class="tk-btn primary" id="i2fCopy" type="button">复制函数</button>
+      <button class="tk-btn ghost" id="i2fDownload" type="button">下载 .txt</button>
+      <button class="tk-btn ghost" id="i2fOpen" type="button">在函数显示器中打开</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  var $=function(id){return document.getElementById(id);};
+  var img=$('i2fImg'),canvas=$('i2fCanvas'),file=$('i2fFile');
+  var lastLines=[],lastFmt='fx';
+
+  /* ---------- 选图 ---------- */
+  function loadFile(f){
+    if(!f||!/^image\//.test(f.type)){$('i2fStatus').textContent='请选择图片文件';return;}
+    var reader=new FileReader();
+    reader.onload=function(e){
+      img.onload=function(){
+        $('i2fConvert').disabled=false;
+        $('i2fStatus').textContent='已载入 '+img.naturalWidth+'×'+img.naturalHeight;
+        $('i2fDropTitle').textContent=f.name;
+        convert();
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(f);
+  }
+  $('i2fDrop').addEventListener('click',function(){file.click();});
+  $('i2fDrop').addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}});
+  ['dragenter','dragover'].forEach(function(t){$('i2fDrop').addEventListener(t,function(e){e.preventDefault();$('i2fDrop').classList.add('over');});});
+  ['dragleave','drop'].forEach(function(t){$('i2fDrop').addEventListener(t,function(e){e.preventDefault();$('i2fDrop').classList.remove('over');});});
+  $('i2fDrop').addEventListener('drop',function(e){if(e.dataTransfer.files&&e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+  file.addEventListener('change',function(){if(file.files&&file.files[0])loadFile(file.files[0]);});
+
+  /* ---------- 颜色量化 ---------- */
+  function quant(v,levels){
+    var step=255/(levels-1);
+    return Math.max(0,Math.min(255,Math.round(Math.round(v/step)*step)));
+  }
+  function hex(r,g,b){
+    return '#'+[r,g,b].map(function(v){var s=v.toString(16);return s.length===1?'0'+s:s;}).join('');
+  }
+
+  /* ---------- 核心：图片 → 一堆带颜色的函数 ---------- */
+  function convert(){
+    if(!img.naturalWidth){return;}
+    var cols=parseInt($('i2fRes').value,10)||40;
+    var levels=parseInt($('i2fMode').value,10)||4;
+    var merge=$('i2fMerge').checked,skipBg=$('i2fSkipBg').checked;
+    /* 行高按比例，最多 100 行，避免函数爆炸 */
+    var rows=Math.max(1,Math.round(cols*img.naturalHeight/img.naturalWidth));
+    rows=Math.min(100,rows);
+
+    var off=document.createElement('canvas');
+    off.width=cols;off.height=rows;
+    var octx=off.getContext('2d');
+    octx.drawImage(img,0,0,cols,rows);
+    var data;
+    try{data=octx.getImageData(0,0,cols,rows).data;}
+    catch(e){$('i2fStatus').textContent='读取像素失败：'+e.message;return;}
+
+    /* 采样每格颜色 */
+    var grid=[];
+    for(var r=0;r<rows;r++){
+      var row=[];
+      for(var c=0;c<cols;c++){
+        var i=(r*cols+c)*4;
+        var R=quant(data[i],levels),G=quant(data[i+1],levels),B=quant(data[i+2],levels),A=data[i+3];
+        var code=hex(R,G,B);
+        var isBg=skipBg&&R>235&&G>235&&B>235;
+        row.push({code:code,r:R,g:G,b:B,a:A,empty:(A<40||isBg)});
+      }
+      grid.push(row);
+    }
+
+    /* 坐标：x 从 1..cols，y 从 rows..1（图片顶行 y 最大），符合数学坐标习惯 */
+    function yVal(row){return rows-row;}
+    var funcs=[],colorSet={};
+    for(r=0;r<rows;r++){
+      var c=0;
+      while(c<cols){
+        if(grid[r][c].empty){c++;continue;}
+        var code=grid[r][c].code,start=c,end=c+1;
+        if(merge){
+          while(end<cols&&!grid[r][end].empty&&grid[r][end].code===code)end++;
+        }
+        /* 第 c 列占 x 区间 [c, c+1]：合并 start..end-1 得 [start, end]，宽度=像素个数 */
+        var xmin=start,xmax=end;
+        var y=yVal(r);
+        /* 核心：水平函数 y=c，用 0√ 把定义域锁在 [xmin,xmax] */
+        var expr=y+' + 0*sqrt(x - '+xmin+') + 0*sqrt('+xmax+' - x)';
+        funcs.push({color:code,expr:expr,x0:xmin,x1:xmax,y:y});
+        colorSet[code]=1;
+        c=end;
+      }
+    }
+
+    lastLines=funcs.map(function(f){return f.color+'  y = '+f.expr;});
+    renderFx();
+    renderDesmos(funcs);
+    buildOutput(lastFmt);
+    drawPreview(funcs,cols,rows);
+
+    $('i2fGrid').textContent=cols+'×'+rows;
+    $('i2fCount').textContent=funcs.length;
+    $('i2fColors').textContent=Object.keys(colorSet).length;
+    $('i2fStatus').textContent='生成 '+funcs.length+' 条函数';
+    $('i2fPreviewCard').style.display='block';
+    $('i2fOutCard').style.display='block';
+  }
+
+  function renderFx(){
+    $('i2fOut').value=lastLines.join('\n');
+  }
+  function renderDesmos(funcs){
+    /* Desmos 里用点列表示：(x,y) 一堆点，按颜色分组注释 */
+    var byColor={},i;
+    for(i=0;i<funcs.length;i++){
+      var f=funcs[i];
+      (byColor[f.color]=byColor[f.color]||[]).push('('+((f.x0+f.x1)/2)+','+f.y+')');
+    }
+    var out=[];
+    for(var col in byColor){if(Object.prototype.hasOwnProperty.call(byColor,col)){
+      out.push('# '+col);
+      out.push(byColor[col].join(','));
+    }}
+    window._i2fDesmos=out.join('\n');
+  }
+  function buildOutput(fmt){
+    lastFmt=fmt;
+    $('i2fOut').value=(fmt==='desmos'?(window._i2fDesmos||''):lastLines.join('\n'));
+  }
+
+  /* ---------- 预览：把函数画回彩色像素 ---------- */
+  function drawPreview(funcs,cols,rows){
+    var cell=Math.max(4,Math.min(14,Math.floor(720/cols)));
+    var w=cols*cell,h=rows*cell;
+    canvas.width=w;canvas.height=h;
+    canvas.style.width=Math.min(100,w)+'%';
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#080b14';ctx.fillRect(0,0,w,h);
+    for(var i=0;i<funcs.length;i++){
+      var f=funcs[i];
+      var x0=f.x0*cell,y0=(rows-f.y)*cell;
+      ctx.fillStyle=f.color;
+      ctx.fillRect(x0,y0,(f.x1-f.x0)*cell,cell);
+    }
+  }
+
+  /* ---------- 交互 ---------- */
+  $('i2fRes').addEventListener('input',function(){$('i2fResVal').textContent=this.value;});
+  $('i2fRes').addEventListener('change',function(){if(img.naturalWidth)convert();});
+  ['i2fMode','i2fMerge','i2fSkipBg'].forEach(function(id){$(id).addEventListener('change',function(){if(img.naturalWidth)convert();});});
+  $('i2fConvert').addEventListener('click',convert);
+
+  document.querySelectorAll('.i2f-tabs button').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.i2f-tabs button').forEach(function(x){x.classList.remove('active');});
+      b.classList.add('active');
+      buildOutput(b.getAttribute('data-fmt'));
+    });
+  });
+
+  function copyText(text,btn){
+    var done=function(){var old=btn.textContent;btn.textContent='已复制 ✓';setTimeout(function(){btn.textContent=old;},1400);};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,fallback);}else fallback();
+    function fallback(){var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){}document.body.removeChild(ta);}
+  }
+  $('i2fCopy').addEventListener('click',function(){copyText($('i2fOut').value,this);});
+  $('i2fDownload').addEventListener('click',function(){
+    var blob=new Blob([$('i2fOut').value],{type:'text/plain;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='image-functions.txt';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(a.href);},1000);
+  });
+  $('i2fOpen').addEventListener('click',function(){
+    var text=lastLines.join('\n');
+    var url='./function.html#b64='+encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
+    window.open(url,'_blank');
+  });
+})();
+</script>
+</body>
+</html>

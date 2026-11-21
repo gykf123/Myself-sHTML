@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>函数显示器 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="在同一坐标系里绘制多行彩色函数，支持图片转函数生成的带色表达式、采样点与定义域锁定。纯前端离线可用。">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="../toolkit.css?v=20261030">
+<link rel="stylesheet" href="../fs-skin.css?v=20261121a">
+<script src="/net-guard.js?v=20261107"></script>
+<script src="/site-nav.js?v=20261121a"></script>
+<style>
+  .fx-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .fx-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .fx-full{grid-column:1/-1}
+  .fx-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#c9d2e6;cursor:pointer;user-select:none}
+  .fx-check input{width:16px;height:16px;accent-color:#7b8cf6}
+  .fx-note{font-size:12px;line-height:1.8;color:#8e99b4;margin:10px 0 0}
+  .fx-note b{color:#b9c6ff;font-weight:600}
+  .fx-plot{position:relative;width:100%;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:#080b14}
+  #fxCanvas{display:block;width:100%;height:480px}
+  .fx-legend{position:absolute;top:10px;left:12px;font-size:11px;color:#6f7b96;font-family:ui-monospace,Menlo,Consolas,monospace;pointer-events:none}
+  #fxExpr{min-height:150px;font:12.5px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical}
+  .fx-err{font-size:12px;line-height:1.7;color:#ff9a9a;margin-top:8px;white-space:pre-wrap}
+  @media(max-width:620px){.fx-grid,.fx-grid.three{grid-template-columns:1fr}#fxCanvas{height:360px}}
+</style>
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">函数显示器</h1>
+  <span class="tk-badge">多行彩色 · 实时绘图</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">在同一坐标系里画一堆函数。每行一个函数，行首可写 <b>#RRGGBB</b> 指定颜色——图片转函数工具导出的格式可以直接粘进来。支持 <b>√ 根号范围锁定</b>：每条函数用 <b>+0√(x−xmin)+0√(xmax−x)</b> 把自己限制在指定 x 区间，区间外不画。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">ƒ</span>函数列表（每行一条）</h2>
+    <div class="tk-col">
+      <label class="tk-label" for="fxExpr">函数表达式</label>
+      <textarea class="tk-textarea" id="fxExpr" spellcheck="false" placeholder="#ff6b6b  y = 5 + 0√(x−0) + 0√(1−x)&#10;#6bff9e  y = 4 + 0√(x−1) + 0√(2−x)&#10;sin(x)">sin(x)
+cos(x)
+x^2/20</textarea>
+      <p class="fx-note">格式：<b>#RRGGBB [y =] 表达式</b>。不写颜色时自动分配一种。支持 sin cos tan sqrt √ abs ln log exp min max pow、常量 pi π e tau、运算符 + - * / ^ % 与括号。</p>
+      <div class="fx-err" id="fxErr"></div>
+    </div>
+    <div class="fx-grid three" style="margin-top:14px">
+      <div class="tk-col"><label class="tk-label" for="fxXmin">x 最小</label>
+        <input class="tk-input tk-num" id="fxXmin" type="number" value="-10" step="any"></div>
+      <div class="tk-col"><label class="tk-label" for="fxXmax">x 最大</label>
+        <input class="tk-input tk-num" id="fxXmax" type="number" value="10" step="any"></div>
+      <div class="tk-col"><label class="tk-label" for="fxSamples">每条采样点</label>
+        <input class="tk-input tk-num" id="fxSamples" type="number" value="600" min="60" max="6000" step="1"></div>
+    </div>
+    <div class="fx-grid" style="margin-top:12px">
+      <label class="fx-check"><input type="checkbox" id="fxAutoY" checked> y 轴自动缩放（按所有函数）</label>
+      <label class="fx-check"><input type="checkbox" id="fxPoints"> 显示采样点</label>
+    </div>
+    <div class="tk-row" style="margin-top:16px">
+      <button class="tk-btn primary" id="fxDraw" type="button">绘制全部</button>
+      <button class="tk-btn ghost" id="fxClear" type="button">清空</button>
+      <span class="tk-help" id="fxStatus" style="margin-left:auto"></span>
+    </div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">◈</span>图像</h2>
+    <div class="fx-plot">
+      <canvas id="fxCanvas" aria-label="函数图像"></canvas>
+      <div class="fx-legend" id="fxLegend"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  var $=function(id){return document.getElementById(id);};
+
+  /* ---------- 安全表达式解析器（不用 eval） ---------- */
+  var FNS={sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,
+    sqrt:Math.sqrt,abs:Math.abs,exp:Math.exp,ln:Math.log,
+    log:Math.log10||function(v){return Math.log(v)/Math.LN10;},
+    floor:Math.floor,ceil:Math.ceil,round:Math.round,
+    sign:Math.sign||function(v){return v>0?1:(v<0?-1:0);},min:Math.min,max:Math.max,pow:Math.pow};
+  var CONST={pi:Math.PI,e:Math.E,tau:Math.PI*2};
+  var NUM=/[0-9]/,ID=/[a-zA-Z_]/,IDP=/[a-zA-Z0-9_]/;
+
+  function tokenize(src){
+    var out=[],i=0,n=src.length,ch,j,k;
+    while(i<n){
+      ch=src.charAt(i);
+      if(/\s/.test(ch)){i++;continue;}
+      if(NUM.test(ch)||(ch==='.'&&NUM.test(src.charAt(i+1)))){
+        j=i;while(NUM.test(src.charAt(j)))j++;
+        if(src.charAt(j)==='.'){j++;while(NUM.test(src.charAt(j)))j++;}
+        if(src.charAt(j)==='e'||src.charAt(j)==='E'){
+          k=j+1;if(src.charAt(k)==='+'||src.charAt(k)==='-')k++;
+          if(NUM.test(src.charAt(k))){k++;while(NUM.test(src.charAt(k)))k++;j=k;}
+        }
+        out.push({t:'num',v:parseFloat(src.slice(i,j))});i=j;continue;
+      }
+      if(ID.test(ch)){j=i+1;while(IDP.test(src.charAt(j)))j++;out.push({t:'id',v:src.slice(i,j)});i=j;continue;}
+      if(ch==='π'){out.push({t:'id',v:'pi'});i++;continue;}
+      if(ch==='√'){out.push({t:'id',v:'sqrt'});i++;continue;}
+      if('+-*/^%,()'.indexOf(ch)>=0){out.push({t:ch});i++;continue;}
+      if(ch==='['){out.push({t:'('});i++;continue;}
+      if(ch===']'){out.push({t:')'});i++;continue;}
+      throw new Error('无法识别的字符「'+ch+'」');
+    }
+    var merged=[];
+    for(i=0;i<out.length;i++){
+      var cur=out[i],prev=merged[merged.length-1];
+      if(prev&&((prev.t==='num'&&(cur.t==='id'||cur.t==='('))||
+                (prev.t===')'&&(cur.t==='id'||cur.t==='num'||cur.t==='(')))) merged.push({t:'*'});
+      merged.push(cur);
+    }
+    return merged;
+  }
+  function Parser(t){this.t=t;this.i=0;}
+  Parser.prototype.peek=function(){return this.t[this.i];};
+  Parser.prototype.eat=function(x){var p=this.peek();if(!p||(x&&p.t!==x))throw new Error(x?'缺少「'+x+'」':'表达式不完整');this.i++;return p;};
+  Parser.prototype.parse=function(){var r=this.expr();if(this.i<this.t.length)throw new Error('多余符号「'+this.t[this.i].t+'」');return r;};
+  Parser.prototype.expr=function(){var n=this.term();while(this.peek()&&(this.peek().t==='+'||this.peek().t==='-')){var o=this.eat().t;n={k:'bin',op:o,a:n,b:this.term()};}return n;};
+  Parser.prototype.term=function(){var n=this.unary();while(this.peek()&&(this.peek().t==='*'||this.peek().t==='/'||this.peek().t==='%')){var o=this.eat().t;n={k:'bin',op:o,a:n,b:this.unary()};}return n;};
+  Parser.prototype.unary=function(){if(this.peek()&&(this.peek().t==='+'||this.peek().t==='-')){var o=this.eat().t;return{k:'neg',op:o,a:this.unary()};}return this.power();};
+  Parser.prototype.power=function(){var n=this.primary();if(this.peek()&&this.peek().t==='^'){this.eat();n={k:'pow',a:n,b:this.unary()};}return n;};
+  Parser.prototype.primary=function(){
+    var p=this.peek();if(!p)throw new Error('表达式不完整');
+    if(p.t==='num'){this.eat();return{k:'num',v:p.v};}
+    if(p.t==='('){this.eat();var n=this.expr();this.eat(')');return n;}
+    if(p.t==='id'){
+      this.eat();var name=p.v;
+      if(this.peek()&&this.peek().t==='('){
+        this.eat('(');var args=[];
+        if(this.peek()&&this.peek().t!==')'){args.push(this.expr());while(this.peek()&&this.peek().t===','){this.eat(',');args.push(this.expr());}}
+        this.eat(')');
+        if(!FNS[name])throw new Error('未知函数「'+name+'」');
+        return{k:'call',name:name,args:args};
+      }
+      if(name==='x')return{k:'x'};
+      if(Object.prototype.hasOwnProperty.call(CONST,name))return{k:'num',v:CONST[name]};
+      throw new Error('未知变量「'+name+'」');
+    }
+    throw new Error('意外符号「'+p.t+'」');
+  };
+  function compile(n){
+    switch(n.k){
+      case 'num':var v=n.v;return function(){return v;};
+      case 'x':return function(x){return x;};
+      case 'neg':if(n.op==='+')return compile(n.a);var a=compile(n.a);return function(x){return -a(x);};
+      case 'pow':var p=compile(n.a),q=compile(n.b);return function(x){return Math.pow(p(x),q(x));};
+      case 'bin':var l=compile(n.a),r=compile(n.b),op=n.op;return function(x){
+        var a=l(x),b=r(x);
+        return op==='+'?a+b:op==='-'?a-b:op==='*'?a*b:op==='/'?a/b:a%b;};
+      case 'call':var fn=FNS[n.name],as=n.args.map(compile);return function(x){
+        var v=[],i;for(i=0;i<as.length;i++)v.push(as[i](x));return fn.apply(null,v);};
+    }
+    throw new Error('解析失败');
+  }
+  function build(src){var s=String(src||'').trim().replace(/^y\s*=/i,'');if(!s)throw new Error('空表达式');return compile(new Parser(tokenize(s)).parse());}
+
+  /* ---------- 行解析：颜色 + 表达式 ---------- */
+  var AUTO_COLORS=['#8ea9ff','#7ee0c0','#ffb86b','#ff8fb1','#b79cff','#7fd4ff','#ffe07a','#9be08a'];
+  function parseLine(line,idx){
+    var s=line.trim();if(!s||s.charAt(0)==='#'.charAt(0)&&/^#\s/.test(s))return null;
+    var color=null,m=s.match(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b\s*/);
+    if(m){color='#'+m[1];s=s.slice(m[0].length);}
+    color=color||AUTO_COLORS[idx%AUTO_COLORS.length];
+    return{color:color,src:s};
+  }
+
+  function niceStep(raw){
+    if(!isFinite(raw)||raw<=0)return 1;
+    var e=Math.floor(Math.log(raw)/Math.LN10),f=raw/Math.pow(10,e);
+    return(f<1.5?1:f<3?2:f<7?5:10)*Math.pow(10,e);
+  }
+  function fmt(v,step){if(v===0)return'0';var d=step<1?Math.min(6,Math.max(0,-Math.floor(Math.log(step)/Math.LN10))):0;return v.toFixed(d);}
+
+  var palette=[];
+  function draw(){
+    var err=$('fxErr');err.textContent='';
+    var xmin=parseFloat($('fxXmin').value),xmax=parseFloat($('fxXmax').value);
+    var samples=parseInt($('fxSamples').value,10);
+    if(!isFinite(xmin)||!isFinite(xmax)||xmax<=xmin){err.textContent='x 范围无效';return;}
+    if(!isFinite(samples)||samples<60)samples=600;
+    samples=Math.min(6000,samples);
+
+    var lines=$('fxExpr').value.split('\n'),items=[],i;
+    for(i=0;i<lines.length;i++){
+      var it=parseLine(lines[i],items.length);if(!it)continue;
+      try{it.fn=build(it.src);items.push(it);}
+      catch(e){err.textContent='第 '+(i+1)+' 行：'+e.message;return;}
+    }
+    if(!items.length){err.textContent='没有可绘制的函数';return;}
+
+    /* 先采样所有函数，统一 y 范围 */
+    var all=[],compiled=[];
+    for(i=0;i<items.length;i++){
+      var pts=[],k,x,y;
+      for(k=0;k<=samples;k++){
+        x=xmin+(xmax-xmin)*k/samples;y=items[i].fn(x);
+        if(typeof y==='number'&&isFinite(y))pts.push({x:x,y:y});
+      }
+      if(pts.length)all.push(pts);
+      compiled.push({color:items[i].color,pts:pts});
+    }
+    if(!all.length){err.textContent='区间内没有可绘制的点（检查范围锁定是否把区间设错了）';return;}
+    var ymin=Infinity,ymax=-Infinity;
+    for(i=0;i<all.length;i++)for(var j=0;j<all[i].length;j++){
+      if(all[i][j].y<ymin)ymin=all[i][j].y;if(all[i][j].y>ymax)ymax=all[i][j].y;
+    }
+    if(ymax-ymin<1e-9){ymin-=1;ymax+=1;}
+    var padY=(ymax-ymin)*.1;ymin-=padY;ymax+=padY;
+
+    var canvas=$('fxCanvas'),wrap=canvas.parentNode;
+    var w=Math.max(280,wrap.clientWidth),h=canvas.clientHeight||480,dpr=window.devicePixelRatio||1;
+    canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);
+    var ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle='#080b14';ctx.fillRect(0,0,w,h);
+    var pad={l:56,r:18,t:18,b:34},pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;
+    var sx=function(x){return pad.l+(x-xmin)/(xmax-xmin)*pw;};
+    var sy=function(y){return h-pad.b-(y-ymin)/(ymax-ymin)*ph;};
+
+    var gx=niceStep((xmax-xmin)/9),gy=niceStep((ymax-ymin)/7),g1,g2;
+    ctx.lineWidth=1;ctx.strokeStyle='rgba(255,255,255,.055)';ctx.beginPath();
+    for(g1=Math.ceil(xmin/gx)*gx;g1<=xmax+gx*1e-6;g1+=gx){var px=Math.round(sx(g1))+.5;ctx.moveTo(px,pad.t);ctx.lineTo(px,h-pad.b);}
+    for(g2=Math.ceil(ymin/gy)*gy;g2<=ymax+gy*1e-6;g2+=gy){var py=Math.round(sy(g2))+.5;ctx.moveTo(pad.l,py);ctx.lineTo(w-pad.r,py);}
+    ctx.stroke();
+    ctx.lineWidth=1.3;ctx.strokeStyle='rgba(180,195,255,.34)';ctx.beginPath();
+    if(ymin<0&&ymax>0){var ay=Math.round(sy(0))+.5;ctx.moveTo(pad.l,ay);ctx.lineTo(w-pad.r,ay);}
+    if(xmin<0&&xmax>0){var ax=Math.round(sx(0))+.5;ctx.moveTo(ax,pad.t);ctx.lineTo(ax,h-pad.b);}
+    ctx.stroke();
+    ctx.fillStyle='#7d89a5';ctx.font='10px ui-monospace,Menlo,Consolas,monospace';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    for(g1=Math.ceil(xmin/gx)*gx;g1<=xmax+gx*1e-6;g1+=gx){if(Math.abs(g1)<gx*1e-6)continue;ctx.fillText(fmt(g1,gx),sx(g1),h-pad.b+8);}
+    ctx.textAlign='right';ctx.textBaseline='middle';
+    for(g2=Math.ceil(ymin/gy)*gy;g2<=ymax+gy*1e-6;g2+=gy){if(Math.abs(g2)<gy*1e-6)continue;ctx.fillText(fmt(g2,gy),pad.l-7,sy(g2));}
+
+    for(i=0;i<compiled.length;i++){
+      var arr=compiled[i].pts;if(arr.length<2)continue;
+      ctx.strokeStyle=compiled[i].color;ctx.lineWidth=2.2;
+      ctx.lineJoin='round';ctx.lineCap='round';
+      ctx.shadowColor=compiled[i].color;ctx.shadowBlur=6;
+      ctx.beginPath();ctx.moveTo(sx(arr[0].x),sy(arr[0].y));
+      for(var q=1;q<arr.length;q++)ctx.lineTo(sx(arr[q].x),sy(arr[q].y));
+      ctx.stroke();ctx.shadowBlur=0;
+      if($('fxPoints').checked){
+        ctx.fillStyle=compiled[i].color;
+        var step=Math.max(1,Math.floor(arr.length/120));
+        for(q=0;q<arr.length;q+=step){ctx.beginPath();ctx.arc(sx(arr[q].x),sy(arr[q].y),1.8,0,Math.PI*2);ctx.fill();}
+      }
+    }
+    $('fxLegend').textContent=xmin+' ~ '+xmax+'  ·  '+items.length+' 条函数  ·  '+samples+' 采样/条';
+    $('fxStatus').textContent='已绘制 '+items.length+' 条函数';
+  }
+
+  $('fxDraw').addEventListener('click',draw);
+  $('fxClear').addEventListener('click',function(){$('fxExpr').value='';draw();});
+  $('fxExpr').addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter')draw();});
+  ['fxXmin','fxXmax','fxSamples'].forEach(function(id){$(id).addEventListener('change',draw);});
+  var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(draw,160);});
+  /* 支持从图片转函数工具通过 URL hash 传入（#b64=...） */
+  try{
+    var h=location.hash.match(/b64=([^&]+)/);
+    if(h){var txt=decodeURIComponent(escape(atob(h[1])));$('fxExpr').value=txt;}
+  }catch(e){}
+  draw();
+})();
+</script>
+</body>
+</html>
