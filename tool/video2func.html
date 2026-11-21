@@ -219,18 +219,20 @@
     return funcs;
   }
 
-  /* 函数组 → 在输出画布画回像素帧 */
-  function drawFuncs(funcs,cols,rows){
-    var cell=Math.max(2,Math.floor(640/cols));
-    var w=cols*cell,h=rows*cell;
-    if(outC.width!==w||outC.height!==h){outC.width=w;outC.height=h;}
-    var ctx=outC.getContext('2d');
-    ctx.fillStyle='#080b14';ctx.fillRect(0,0,w,h);
+  /* 函数组 → 画回像素帧（通用：可画到预览画布或 1px/格的小快照画布） */
+  function paintFuncs(ctx,funcs,cols,rows,cell){
+    ctx.fillStyle='#080b14';ctx.fillRect(0,0,cols*cell,rows*cell);
     for(var i=0;i<funcs.length;i++){
       var f=funcs[i];
       ctx.fillStyle=f.color;
       ctx.fillRect(f.x0*cell,(rows-f.y)*cell,(f.x1-f.x0)*cell,cell);
     }
+  }
+  function drawFuncs(funcs,cols,rows){
+    var cell=Math.max(2,Math.floor(640/cols));
+    var w=cols*cell,h=rows*cell;
+    if(outC.width!==w||outC.height!==h){outC.width=w;outC.height=h;}
+    paintFuncs(outC.getContext('2d'),funcs,cols,rows,cell);
   }
 
   function funcsToText(funcs){
@@ -277,13 +279,19 @@
   }
   function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 
-  /* 按浏览器能力挑录制格式：mp4 优先（Edge/Safari 都要），再退 webm */
-  function pickMime(){
-    if(!window.MediaRecorder||typeof MediaRecorder.isTypeSupported!=='function')return null;
-    var list=['video/mp4;codecs=avc1.42E01E','video/mp4',
-              'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
-    for(var i=0;i<list.length;i++){
-      try{if(MediaRecorder.isTypeSupported(list[i]))return list[i];}catch(e){}
+  /* 真·构造 MediaRecorder：不靠 isTypeSupported 预判（iPad Edge 会保守报 false 但其实能录）。
+     逐个格式真的 new 一个试，最后连「不指定 mimeType」都试——只要造得出来就能录。
+     返回 {recorder, mime}（mime 取 recorder 实际的 mimeType），全失败返回 null。 */
+  function makeRecorder(stream){
+    if(!window.MediaRecorder)return null;
+    var cands=['video/mp4;codecs=avc1.42E01E','video/mp4',
+               'video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm',null];
+    for(var i=0;i<cands.length;i++){
+      try{
+        var rec=cands[i]?new MediaRecorder(stream,{mimeType:cands[i],videoBitsPerSecond:2500000})
+                        :new MediaRecorder(stream);
+        return {recorder:rec,mime:(rec.mimeType||cands[i]||'video/webm')};
+      }catch(e){}
     }
     return null;
   }
@@ -327,11 +335,17 @@
       cell=Math.max(2,Math.floor(640/cols));
       outC.width=cols*cell;outC.height=rows*cell;
 
-      mime=pickMime();
+      // 阶段一用 1px/格的小画布留档（省内存：891帧从~820MB降到~12MB），回放时放大画回
+      var snapC=document.createElement('canvas');
+      snapC.width=cols;snapC.height=rows;
+      var snapCtx=snapC.getContext('2d');
+      var canRecord=!!window.MediaRecorder;
       $('v2fPreview').style.display='block';
       $('v2fResult').style.display='none';
+      var est=(canRecord?(total/fps):0)+Math.round(total*0.12);
+      $('v2fStatus').textContent='分析中 · '+total+' 帧，预计 '+est+' 秒内';
 
-      // ===== 阶段一：逐帧处理并留档 =====
+      // ===== 阶段一：逐帧处理并留档（进度 0→90%）=====
       for(var i=0;i<total;i++){
         if(cancelFlag)break;
         var t=Math.min(dur-0.02,i*interval);
@@ -343,44 +357,62 @@
         totalFuncs+=funcs.length;
         drawFuncs(funcs,cols,s.rows);
         lastFrameFuncs=funcs;lastCols=cols;lastRows=s.rows;
-        // 留档：像素快照 + 函数文本
+        // 留档：1px/格小快照 + 函数文本
         try{
-          var ctx=outC.getContext('2d');
-          frameImages.push(ctx.getImageData(0,0,outC.width,outC.height));
+          paintFuncs(snapCtx,funcs,cols,s.rows,1);
+          frameImages.push(snapCtx.getImageData(0,0,cols,s.rows));
           frameFuncsText.push(funcsToText(funcs));
         }catch(e){}
         pipe('video',true);pipe('frames',true);pipe('funcs',true);pipe('frames2',true);
-        $('v2fBar').style.width=Math.round((i+1)/total*100)+'%';
-        $('v2fStatus').textContent='处理中 '+Math.round((i+1)/total*100)+'% ('+(i+1)+'/'+total+')';
+        $('v2fBar').style.width=Math.round((i+1)/total*90)+'%';
+        $('v2fStatus').textContent='分析中 '+Math.round((i+1)/total*100)+'% ('+(i+1)+'/'+total+')';
       }
 
       // ===== 阶段二：固定节拍回放录制（时长 = 帧数/fps）=====
-      if(!cancelFlag&&frameImages.length&&mime){
+      var nFrames=frameImages.length;
+      if(!cancelFlag&&nFrames){
         try{
-          // 用一块独立离屏画布录制，避免与预览画布互相干扰
           var recC=document.createElement('canvas');
           recC.width=outC.width;recC.height=outC.height;
           var rctx=recC.getContext('2d');
-          rctx.putImageData(frameImages[0],0,0);
+          rctx.imageSmoothingEnabled=false;
+          // 把第一帧小快照放大画回录制画布
+          (function(){var tmp=document.createElement('canvas');tmp.width=cols;tmp.height=rows;
+            tmp.getContext('2d').putImageData(frameImages[0],0,0);
+            rctx.drawImage(tmp,0,0,recC.width,recC.height);})();
           stream=recC.captureStream(fps);
           chunks=[];
-          recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2500000});
-          recorder.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
-          recorder.start();
-          recOK=true;
-          // 匀速推帧：每帧固定停留 1000/fps 毫秒
-          for(var k=0;k<frameImages.length;k++){
+          var made=makeRecorder(stream); // 真构造：逐个格式试，含不指定格式兜底
+          if(made){
+            recorder=made.recorder;mime=made.mime;
+            recorder.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};
+            recorder.start();
+            recOK=true;
+            $('v2fStatus').textContent='合成视频 0% ('+nFrames+' 帧)';
+          }
+          // 匀速推帧：每帧固定停留 1000/fps 毫秒；进度 90→100%
+          for(var k=0;k<nFrames;k++){
             if(cancelFlag)break;
-            rctx.putImageData(frameImages[k],0,0);
+            var tmp2=(rctx._tmp||(rctx._tmp=(function(){var c=document.createElement('canvas');c.width=cols;c.height=rows;return c;})()));
+            tmp2.getContext('2d').putImageData(frameImages[k],0,0);
+            rctx.drawImage(tmp2,0,0,recC.width,recC.height);
+            if(recOK){
+              var pct=Math.round((k+1)/nFrames*100);
+              var left=Math.ceil((nFrames-k-1)/fps);
+              $('v2fBar').style.width=(90+Math.round((k+1)/nFrames*10))+'%';
+              $('v2fStatus').textContent='合成视频 '+pct+'% ('+(k+1)+'/'+nFrames+') · 约剩 '+left+'s';
+            }
             await sleep(Math.round(1000/fps));
           }
-          var stopped=false;
-          var done=new Promise(function(res){
-            recorder.onstop=function(){stopped=true;res();};
-            setTimeout(function(){if(!stopped)res();},3000);
-          });
-          try{recorder.stop();}catch(e){}
-          await done;
+          if(recOK){
+            var stopped=false;
+            var done=new Promise(function(res){
+              recorder.onstop=function(){stopped=true;res();};
+              setTimeout(function(){if(!stopped)res();},3000);
+            });
+            try{recorder.stop();}catch(e){}
+            await done;
+          }
         }catch(e){recOK=false;recorder=null;chunks=[];}
       }
       if(!recOK)$('v2fStatus').textContent='当前浏览器无法合成视频，已保留逐帧结果';

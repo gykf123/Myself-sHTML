@@ -612,3 +612,11 @@
 - **修法**：① `pickMime()` **mp4 优先**（avc1.42E01E→mp4→webm）；② 新增 `detectContainer()` **读 blob 头魔数验身**（`ftyp`→mp4、`1A45DFA3`→webm），不信 mime 声明，按真实容器命名 + 重建 Blob 的 type；③ **重构为两阶段**：阶段一逐帧 seek→采样→函数→画回，同时 `getImageData` 留档每帧像素 + 函数文本（进度条反映真实处理）；阶段二用**独立离屏画布** `putImageData` 按固定 `1000/fps` 节拍回放 + `captureStream` 录制 → **输出时长=帧数/fps**，与处理耗时彻底解耦；④ 结果区加复选框「输出视频右侧展示当前函数」+ 左右分栏（左 `<video controls>` 播放还原视频、右 textarea 当前帧函数），`timeupdate` 按 `currentTime/duration` 比例映射到帧索引、同步切函数文本与「x/N · xs」标签；⑤ 下载按钮改用校正后的 `this.download` 属性；⑥ 阶段二仍套 try 失败降级 PNG，全程 finally 收口不变。
 - **验收（Chromium + WebKit 双引擎）**：Chromium——产物文件头 `ftypisom` 真 MP4、下载名 `.mp4`、**8帧/4fps→时长 1.79s**（不再 82s）、面板开关 `no-side` 生效、播放跳 80% 时右侧从 1/10 切到 8/10 且函数文本同步变化、0 错误；WebKit（iPad/Safari）——无 MediaRecorder 走降级导出 PNG、面板开关生效、0 错误。工具卡版本 `d→e` 破缓存。
 - **回执**：修 bug + 小功能（非访客可感知大改动，工具上线 ㉚ 已公告），按 §0 不发公告 / 不发邮件。提交推送见下。
+
+## ㉞ 2026-11-21：修 iPad Edge 只能导出图片（MediaRecorder 预判误伤）+ 大帧数体验
+- **需求**：用户 iPad 上用 Edge，「刚才能导出后缀错视频，现在只能图片」——**意即浏览器有能力录制**，我上一版把它降级成 PNG 是误判。另反馈 891 帧时「处理完卡着」（后来说等一会就有，但要优化体验）。
+- **根因**：Linux 版 Playwright WebKit 测出 `MediaRecorder=false`，我据此一刀切降级；但 **iPad Edge 用 iOS WebKit，版本新、有能力**，只是 `isTypeSupported()` 保守返回 false（旧版硬指定 webm 都录出了 mp4，坐实能力在）。病根是**靠 isTypeSupported 预判**，而非真构造。
+- **修法**：① `pickMime()` 改 `makeRecorder(stream)`——**逐个格式真 `new MediaRecorder()` 试**（mp4→webm→**不指定 mimeType 兜底**），造得出来就录，取 `recorder.mimeType` 为准；② 阶段一改存 **1px/格小快照**（891帧内存 ~820MB→~12MB），回放时放大画回录制画布；③ 两阶段进度：阶段一 0→90%「分析中」、阶段二 90→100%「合成视频 X% · 约剩 Ns」，开头给预计耗时——消除「处理完卡着」的静默假象。
+- **验收（关键模拟）**：monkey-patch `MediaRecorder.isTypeSupported=()=>false` 模拟 iPad Edge——**无参数兜底成功录出真 MP4**（头 ftyp、时长1.78s、下载名.mp4、两阶段进度可见、0错误）；正常 Chromium 回归真 MP4 无缝；真 WebKit（无 MediaRecorder）仍正常降级 PNG。三场景全过。
+- **教训**：**能力检测要真构造，别信 isTypeSupported 预判**——尤其 iOS 各浏览器共用 WebKit 但版本/开关不同，沙箱 Linux WebKit 的代表性有限。用户说「刚才能导出」= 能力存在的硬证据，优先信用户实证。
+- **回执**：修 bug + 体验优化（非访客可感知大改动），按 §0 不发公告 / 不发邮件。提交推送见下。
