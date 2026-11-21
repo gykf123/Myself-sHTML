@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>这站有点东西 · FeSui 宣传片</title>
+<meta name="description" content="一个装工具的沙盒，一些写代码的日常。21 个工具、会自己干活的 AI、把图片变成一堆函数的离谱操作——进来看看，顺便加个群？">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./promo.css?v=20261121a">
+</head>
+<body>
+<!-- 顶部进度条 -->
+<div class="pg-progress" id="pgBar" aria-hidden="true"></div>
+<!-- 胶片颗粒 + 扫描线 -->
+<div class="pg-grain" aria-hidden="true"></div>
+
+<!-- ============ 00 开机自检 ============ -->
+<section class="boot" id="boot" aria-label="开机画面">
+  <div class="boot-inner">
+    <div class="boot-logo">F<span>ESUI</span></div>
+    <div class="boot-line" id="bootLine">正在加载互联网最奇怪的角落…</div>
+    <div class="boot-bar"><i id="bootBar"></i></div>
+    <div class="boot-skip" id="bootSkip">点一下跳过 →</div>
+  </div>
+</section>
+
+<!-- ============ 01 HERO ============ -->
+<header class="hero" id="top">
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="hero-glow" aria-hidden="true"></div>
+  <nav class="hero-nav">
+    <a class="brand" href="#top" aria-label="回到顶部">Fe<span>Sui</span><i>/ promo</i></a>
+    <div class="hero-nav-links">
+      <a href="#why">为啥建它</a>
+      <a href="#show">功能巡礼</a>
+      <a href="#ai">AI 打工</a>
+      <a href="#join" class="nav-cta">进群 <b>→</b></a>
+    </div>
+  </nav>
+
+  <div class="hero-body">
+    <div class="hero-kicker"><span class="dot"></span> 一个不太正经的技术站 · 2026 版</div>
+    <h1 class="hero-title" data-text="这站，有点东西。">这站，<em>有点东西</em>。</h1>
+    <p class="hero-sub">
+      <span class="typewriter" id="tw"></span><span class="caret" aria-hidden="true"></span>
+    </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary magnetic" href="https://fesui.xn--0iv.gay/" target="_blank" rel="noopener">直接冲进去 <span>↗</span></a>
+        <a class="btn btn-ghost magnetic" href="#show">先看看有啥 <span>↓</span></a>
+      </div>
+    <div class="hero-marquee" aria-hidden="true">
+      <div class="mq-track">
+        <span>21 个工具</span><b>✦</b><span>AI 每 12 小时自动上班</span><b>✦</b><span>图片转函数</span><b>✦</b><span>7×24 状态监控</span><b>✦</b><span>公告邮件秒到</span><b>✦</b>
+        <span>21 个工具</span><b>✦</b><span>AI 每 12 小时自动上班</span><b>✦</b><span>图片转函数</span><b>✦</b><span>7×24 状态监控</span><b>✦</b><span>公告邮件秒到</span><b>✦</b>
+      </div>
+    </div>
+  </div>
+  <a class="scroll-hint" href="#why" aria-label="向下滚动"><span></span> 往下滑，别划走</a>
+</header>
+
+<!-- ============ 02 WHY ============ -->
+<section class="sec why" id="why">
+  <div class="wrap">
+    <div class="sec-tag">01 / 起因</div>
+    <h2 class="sec-h reveal">说实话，<br><span class="accent">一开始就是想自己用。</span></h2>
+    <p class="sec-lead reveal delay-1">
+      你懂的——网上的工具站，要么广告比功能多，要么点进去先是三秒闪屏。
+      找个小工具跟闯关似的。于是我寻思：<b>算了，自己搓一个。</b>
+    </p>
+    <div class="why-cards">
+      <article class="why-card reveal delay-1"><span class="why-emoji" aria-hidden="true">01</span><h3>没有广告</h3><p>真的没有。不弹窗、不跳转、不在你点按钮的时候突然变出个「恭喜中奖」。</p></article>
+      <article class="why-card reveal delay-2"><span class="why-emoji" aria-hidden="true">02</span><h3>打开就能用</h3><p>不用注册、不用充会员、不用看 30 秒视频解锁。点开，然后就用。</p></article>
+      <article class="why-card reveal delay-3"><span class="why-emoji" aria-hidden="true">03</span><h3>它还在长</h3><p>不是那种建完就扔的站。工具在加、页面在改，连 AI 都被拉来打工了。</p></article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 主视觉 ============ -->
+<section class="sec showcase">
+  <div class="wrap">
+    <div class="sec-tag">02 / 长这样</div>
+    <h2 class="sec-h reveal">界面这事儿，<span class="accent">我较真了。</span></h2>
+    <p class="sec-lead reveal delay-1">以前那套糊紫渐变 + 满屏方块 emoji，自己看着都尴尬。现在——深蓝黑、细网格、分层卡片，<b>一个字：稳。</b></p>
+    <figure class="shot-frame tilt reveal delay-2">
+      <div class="shot-bar"><span class="dots"><i></i><i></i><i></i></span><span class="shot-url">fesui.xn--0iv.gay</span><a href="https://fesui.xn--0iv.gay/" target="_blank" rel="noopener" aria-label="打开门户首页">↗</a></div>
+      <img src="./assets/portal.jpg" alt="FeSui 门户首页真实截图：深蓝黑背景上的功能卡片网格" loading="lazy">
+      <figcaption>↑ 真·线上截图，不是效果图。点右上角能直接进去。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 04 功能巡礼 ============ -->
+<section class="sec show" id="show">
+  <div class="wrap">
+    <div class="sec-tag">03 / 有啥玩意</div>
+    <h2 class="sec-h reveal">功能有点多，<span class="accent">挑几个能吹的。</span></h2>
+
+    <!-- 图片转函数：主打 -->
+    <article class="feature feature-hero reveal">
+      <div class="feature-copy">
+        <div class="feature-no">招牌菜 / 01</div>
+        <h3>把图片，<br>变成一堆<span class="hl">函数</span>。</h3>
+        <p>对，你没看错。上传一张图，它按分辨率把每个彩色小格变成一条函数，还带颜色。每条函数用 <code>+0√(x−xmin)+0√(xmax−x)</code> 把自己锁死在小格子里——根号下不能为负嘛，区间外直接「不存在」。拼起来，就是原图。</p>
+        <p class="feature-quip">「 contemporary students' mental state 」——拿这张图试了试，539 条函数，还原出来还挺像。</p>
+        <div class="feature-links">
+          <a class="pill magnetic" href="https://fesui.xn--0iv.gay/tool/img2func.html" target="_blank" rel="noopener">图片转函数 ↗</a>
+          <a class="pill magnetic" href="https://fesui.xn--0iv.gay/tool/function.html" target="_blank" rel="noopener">函数显示器 ↗</a>
+        </div>
+      </div>
+      <div class="feature-visual">
+        <figure class="mini-shot"><img src="./assets/meme_source.jpg" alt="测试用猎奇梗图：Minecraft 风格角色趴在地上" loading="lazy"><figcaption>输入：当代学生精神状态</figcaption></figure>
+        <div class="arrow-flow" aria-hidden="true">→</div>
+        <figure class="mini-shot"><img src="./assets/function_restored.jpg" alt="由 539 条彩色函数在显示器中还原出的像素化图像" loading="lazy"><figcaption>输出：539 条函数画的</figcaption></figure>
+      </div>
+    </article>
+
+    <!-- 其它功能网格 -->
+    <div class="feature-grid">
+      <a class="fcard reveal" href="https://fesui.xn--0iv.gay/tool/" target="_blank" rel="noopener">
+        <div class="fcard-img"><img src="./assets/toolhub.jpg" alt="工具箱大厅截图" loading="lazy"></div>
+        <div class="fcard-body"><span class="fcard-tag">工具箱</span><h3>21 个工具，<br>一个大厅装下</h3><p>查询、转换、生成、实用小玩意儿。分类摆好，搜一下就到。</p><span class="fcard-go">进去逛逛 ↗</span></div>
+      </a>
+      <a class="fcard reveal delay-1" href="https://fesui.xn--0iv.gay/chat/" target="_blank" rel="noopener">
+        <div class="fcard-img"><img src="./assets/chat.jpg" alt="聊天室截图" loading="lazy"></div>
+        <div class="fcard-body"><span class="fcard-tag">聊天室</span><h3>有人在线，<br>就能唠两句</h3><p>GitHub 登录、中文昵称、自定义链接。不是摆设，是真能聊。</p><span class="fcard-go">去看看 ↗</span></div>
+      </a>
+      <a class="fcard reveal" href="https://fesui.xn--0iv.gay/blog/" target="_blank" rel="noopener">
+        <div class="fcard-img"><img src="./assets/blog.jpg" alt="博客与公告页截图" loading="lazy"></div>
+        <div class="fcard-body"><span class="fcard-tag">博客 / 公告</span><h3>写了点东西，<br>也公告点东西</h3><p>技术笔记和大改通知分开摆。订阅之后，有新动静邮件直接到。</p><span class="fcard-go">读一读 ↗</span></div>
+      </a>
+      <a class="fcard reveal delay-1" href="https://fesui.xn--0iv.gay/status/" target="_blank" rel="noopener">
+        <div class="fcard-img"><img src="./assets/status.jpg" alt="服务状态页截图" loading="lazy"></div>
+        <div class="fcard-body"><span class="fcard-tag">服务状态</span><h3>挂没挂，<br>一眼就知道</h3><p>七个监控点实时盯。连 405 都能给你翻译成「大概率正常」——主打一个说实话。</p><span class="fcard-go">查状态 ↗</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 AI ============ -->
+<section class="sec ai" id="ai">
+  <div class="wrap ai-wrap">
+    <div class="ai-copy">
+      <div class="sec-tag">04 / 隐藏打工人</div>
+      <h2 class="sec-h reveal">我睡觉了，<br><span class="accent">它还在干活。</span></h2>
+      <p class="sec-lead reveal delay-1">后台挂了个每 12 小时跑一次的 AI 任务。我在管理后台给它留了个「指令收件箱」，写一句话，到点它自己读、自己改、自己发公告。<b>属于是把老板权限外包了。</b></p>
+      <ul class="ai-list reveal delay-2">
+        <li><span>✓</span> 有写入权限，能真改代码、提 commit</li>
+        <li><span>✓</span> 公告发出去，邮件走自己的域名直发</li>
+        <li><span>✓</span> 干完还会在留言板汇报，比我勤快</li>
+      </ul>
+    </div>
+    <figure class="ai-shot tilt reveal delay-2">
+      <div class="shot-bar"><span class="dots"><i></i><i></i><i></i></span><span class="shot-url">管理员后台 / 给 AI 的指令</span></div>
+      <img src="./assets/home.jpg" alt="个人中心与后台页面真实截图" loading="lazy">
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 06 数据 ============ -->
+<section class="sec stats-band">
+  <div class="wrap">
+    <div class="stat-row">
+      <div class="stat"><b class="counter" data-to="21">0</b><span>个工具</span></div>
+      <div class="stat"><b class="counter" data-to="539">0</b><span>条函数画一张图</span></div>
+      <div class="stat"><b class="counter" data-to="28">0</b><span>个页面换了新皮肤</span></div>
+      <div class="stat"><b class="counter" data-to="12">0</b><span>小时 AI 自动上班一次</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 07 邀请 ============ -->
+<section class="sec join" id="join">
+  <div class="wrap join-wrap">
+    <div class="join-deco" aria-hidden="true">1131835986</div>
+    <div class="sec-tag">05 / 最后说两句</div>
+    <h2 class="sec-h reveal">看完别走，<br><span class="accent highlight">加个群呗？</span></h2>
+    <p class="join-lead reveal delay-1">有想法、有吐槽、想催更，或者单纯想看看我俩谁更闲——都欢迎。<br>群里聊技术、聊工具，也聊「当代学生良好的精神状态」。</p>
+    <div class="qq-card reveal delay-2">
+      <div class="qq-icon" aria-hidden="true">Q</div>
+      <div class="qq-info"><span>QQ 群</span><strong>1131835986</strong><small>点一下群号就复制，去 QQ 搜索加入</small></div>
+      <button class="qq-copy magnetic" id="copyBtn" type="button">复制群号</button>
+    </div>
+    <div class="join-actions reveal delay-3">
+      <a class="btn btn-primary magnetic" href="https://fesui.xn--0iv.gay/" target="_blank" rel="noopener">进入站点 <span>↗</span></a>
+      <a class="btn btn-ghost magnetic" href="https://fesui.xn--0iv.gay/tool/" target="_blank" rel="noopener">逛工具箱 <span>↗</span></a>
+    </div>
+    <p class="join-foot">站点：<a href="https://fesui.xn--0iv.gay/" target="_blank" rel="noopener">fesui.xn--0iv.gay</a> · Made with 咖啡和较真</p>
+  </div>
+</section>
+
+<footer class="pg-foot"><span>FeSui / promo</span><a href="#top">回到顶部 ↑</a></footer>
+
+<!-- 复制成功提示 -->
+<div class="toast" id="toast" role="status" aria-live="polite">已复制群号，去 QQ 粘贴就行 ✓</div>
+
+<script src="./promo.js?v=20261121a"></script>
+</body>
+</html>
