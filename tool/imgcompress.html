@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<script>try{var t=localStorage.getItem('theme')||'glass';if(t==='glass')document.documentElement.classList.add('theme-glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图片压缩 · FeSui 工具箱</title>
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="批量压缩图片、转换 WebP / JPEG / PNG 格式，可限制最大边长、调节质量，实时显示压缩前后体积，支持打包 ZIP 下载。纯前端处理，图片不上传。">
+<link rel="icon" href="../favicon.png">
+<link rel="stylesheet" href="./toolkit.css?v=20261030">
+<link rel="stylesheet" href="../fs-skin.css?v=20261121c">
+<script src="/net-guard.js?v=20261107"></script>
+<script src="/site-nav.js?v=20261121a"></script>
+<style>
+  .ic-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    min-height:150px;padding:20px;border:1.5px dashed var(--border);border-radius:14px;
+    background:var(--panel2);cursor:pointer;transition:border-color .2s,background .2s;text-align:center}
+  .ic-drop:hover,.ic-drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel2))}
+  .ic-drop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .ic-drop .big{font-size:13.5px;color:var(--text);font-weight:600}
+  .ic-drop .small{font-size:12px;color:var(--text-dim);line-height:1.7}
+
+  .ic-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+  .ic-grid .full{grid-column:1/-1}
+  @media(max-width:560px){.ic-grid{grid-template-columns:1fr}.ic-grid .full{grid-column:1/-1}}
+
+  .ic-range{width:100%;accent-color:var(--accent)}
+  .ic-warn{color:#9a4a06 !important;font-weight:600}
+  html.theme-glass .ic-warn{color:#ffc078 !important}
+  @media (prefers-color-scheme:dark){html:not(.theme-glass) .ic-warn{color:#ffc078 !important}}
+  .ic-qval{font-family:var(--mono);color:var(--text);font-weight:700}
+
+  .ic-sum{display:flex;flex-wrap:wrap;gap:16px;align-items:baseline;padding:10px 12px;border:1px solid var(--border);
+    border-radius:10px;background:var(--panel2);font-size:13px;color:var(--text-dim);margin-bottom:12px}
+  .ic-sum b{color:var(--text);font-family:var(--mono)}
+  .ic-sum .save{color:#1a7f37;font-weight:700}
+  html.theme-glass .ic-sum .save{color:#4ee08a}
+  @media (prefers-color-scheme:dark){html:not(.theme-glass) .ic-sum .save{color:#4ee08a}}
+
+  .ic-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+  .ic-item{display:flex;gap:12px;align-items:center;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--panel2)}
+  .ic-thumb{flex:0 0 56px;width:56px;height:56px;border-radius:9px;overflow:hidden;background:var(--border);
+    display:flex;align-items:center;justify-content:center}
+  .ic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .ic-meta{flex:1;min-width:0}
+  .ic-name{font-size:13px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ic-spec{font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-top:2px;word-break:break-all}
+  .ic-bar{height:5px;border-radius:4px;background:var(--border);overflow:hidden;margin-top:6px;max-width:320px}
+  .ic-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+  .ic-save{flex:0 0 auto;font-size:13px;font-weight:700;font-family:var(--mono);color:var(--text);text-align:right;min-width:64px}
+  .ic-save.up{color:#9a4a06}
+  html.theme-glass .ic-save.up{color:#ffc078}
+  @media (prefers-color-scheme:dark){html:not(.theme-glass) .ic-save.up{color:#ffc078}}
+  .ic-act{flex:0 0 auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .ic-act .tk-btn{padding:6px 10px;font-size:12px}
+  .ic-item.err{border-color:#d9534f55}
+  .ic-item.err .ic-spec{color:#d9534f}
+  .ic-empty{font-size:13px;color:var(--text-dim);margin:4px 0 0}
+  @media(max-width:640px){
+    .ic-item{flex-wrap:wrap;row-gap:8px}
+    .ic-thumb,.ic-meta,.ic-save{order:1}
+    .ic-save{text-align:right;min-width:0}
+    .ic-act{order:2;width:100%;justify-content:flex-start}
+  }
+  .ic-faq details{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--panel2)}
+  .ic-faq summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--text);list-style:none;display:flex;justify-content:space-between;gap:10px}
+  .ic-faq summary::-webkit-details-marker{display:none}
+  .ic-faq summary::after{content:'+';color:var(--text-dim);font-weight:400}
+  .ic-faq details[open] summary::after{content:'\2212'}
+  .ic-faq p{margin:10px 0 0;font-size:13px;line-height:1.75;color:var(--text-dim)}
+</style>
+<link rel="canonical" href="https://fesui.xn--0iv.gay/tool/imgcompress.html" />
+<meta property="og:title" content="图片压缩 · FeSui 工具箱" />
+<meta property="og:description" content="批量压缩图片、转 WebP / JPEG / PNG，限制最大边长、调质量，实时对比压缩前后体积，可打包 ZIP。纯前端，图片不上传。" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://fesui.xn--0iv.gay/tool/imgcompress.html" />
+<meta property="og:image" content="https://fesui.xn--0iv.gay/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="图片压缩 · FeSui 工具箱" />
+<meta name="twitter:description" content="批量压缩图片、转 WebP / JPEG / PNG，限制最大边长、调质量，实时对比压缩前后体积，可打包 ZIP。纯前端，图片不上传。" />
+<meta name="twitter:image" content="https://fesui.xn--0iv.gay/og-image.png" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","name":"图片压缩 · FeSui 工具箱","description":"批量压缩图片、转换 WebP / JPEG / PNG 格式，可限制最大边长、调节质量，实时显示压缩前后体积，支持打包 ZIP 下载。纯前端处理，图片不上传。","url":"https://fesui.xn--0iv.gay/tool/imgcompress.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}},{"@type":"HowTo","name":"怎么批量压缩图片","url":"https://fesui.xn--0iv.gay/tool/imgcompress.html","totalTime":"PT1M","step":[{"@type":"HowToStep","position":1,"name":"选择图片","text":"拖入、粘贴或点击选择若干张图片，浏览器本地读取。"},{"@type":"HowToStep","position":2,"name":"设置输出","text":"选择 WebP / JPEG / PNG，调整质量与最大边长。"},{"@type":"HowToStep","position":3,"name":"开始压缩","text":"逐张在 Canvas 里重绘并编码，实时显示压缩前后体积。"},{"@type":"HowToStep","position":4,"name":"下载","text":"单张下载，或把全部结果打包成一个 ZIP。"}]},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://fesui.xn--0iv.gay/"},{"@type":"ListItem","position":2,"name":"工具箱","item":"https://fesui.xn--0iv.gay/tool/"},{"@type":"ListItem","position":3,"name":"图片压缩","item":"https://fesui.xn--0iv.gay/tool/imgcompress.html"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"图片会被上传到服务器吗？","acceptedAnswer":{"@type":"Answer","text":"不会。读取、缩放、重新编码全部在浏览器 Canvas 里完成，断网也能用，图片不会离开你的设备。"}},{"@type":"Question","name":"为什么压缩后体积反而变大了？","acceptedAnswer":{"@type":"Answer","text":"本来就已经压过的 JPG 转成无损 PNG，或者质量给得过高，都可能变大。遇到这种情况工具会保留原图并标注「未压缩」，也可以换成 WebP 或把质量降到 75 左右再试。"}},{"@type":"Question","name":"WebP 兼容性怎么样？","acceptedAnswer":{"@type":"Answer","text":"Chrome、Edge、Firefox 以及 Safari 14 以上都支持。浏览器不支持 WebP 时会自动退回 JPEG，并在结果里说明。"}},{"@type":"Question","name":"透明背景会保留吗？","acceptedAnswer":{"@type":"Answer","text":"输出 WebP 或 PNG 时保留透明通道；输出 JPEG 时透明区域会被填成白底，因为 JPEG 本身不支持透明。"}},{"@type":"Question","name":"最大边长能设多大？","acceptedAnswer":{"@type":"Answer","text":"输入框上限是 32768 像素，但超过 8192 就会给出提醒：图越大越吃内存，手机和低配设备可能卡住甚至直接失败。日常分享图 1920 足够，想保留细节用 4096 以内比较稳；填 0 表示完全按原尺寸重新编码。"}},{"@type":"Question","name":"一次能处理多少张？","acceptedAnswer":{"@type":"Answer","text":"建议单次不超过 30 张。工具是逐张串行处理的，张数太多、单张分辨率太高都会吃内存，手机浏览器尤其明显。"}}]}]}</script>
+</head>
+<body>
+<header class="tk-header">
+  <a class="tk-back" href="./index.html">← 工具箱</a>
+  <h1 class="tk-h1">图片压缩</h1>
+  <span class="tk-badge">纯前端 · 图片不上传</span>
+</header>
+<main class="tk-main">
+  <p class="tk-intro">把图片重新编码成更小的体积：可批量、可转 <b>WebP / JPEG / PNG</b>、可限制最大边长、可调质量，压完立刻看到「原体积 → 新体积」和省了多少。全部在你的浏览器里完成，图片不会上传。压完还能一键送去<a href="./img2func.html">图片转函数</a>。</p>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">⬆</span>1 · 选择图片</h2>
+    <div class="ic-drop" id="icDrop" role="button" tabindex="0" aria-label="选择或拖入图片，也可以直接粘贴">
+      <span class="big" id="icDropTitle">点击选择图片，或拖到这里</span>
+      <span class="small">支持 JPG / PNG / WebP / GIF（取首帧）等浏览器能解码的格式，可多选，也可直接 Ctrl+V 粘贴截图</span>
+    </div>
+    <input type="file" id="icFile" accept="image/*" multiple hidden>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">⚙</span>2 · 压缩设置</h2>
+    <div class="ic-grid">
+      <div class="tk-col">
+        <label class="tk-label" for="icFormat">输出格式</label>
+        <select class="tk-select" id="icFormat">
+          <option value="image/webp" selected>WebP（体积最小，推荐）</option>
+          <option value="image/jpeg">JPEG（兼容性最好）</option>
+          <option value="image/png">PNG（无损、保留透明）</option>
+          <option value="keep">保持原格式</option>
+        </select>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="icQuality">质量 <span class="ic-qval" id="icQVal">80</span></label>
+        <input class="ic-range" id="icQuality" type="range" min="10" max="100" step="1" value="80">
+        <span class="tk-help">只对 WebP / JPEG 生效，PNG 为无损</span>
+      </div>
+      <div class="tk-col">
+        <label class="tk-label" for="icMaxEdge">最大边长（像素）</label>
+        <input class="tk-input" id="icMaxEdge" type="number" min="0" max="32768" step="10" value="1920" inputmode="numeric">
+        <span class="tk-help" id="icEdgeHelp">超出就等比缩小，填 0 表示不改尺寸；上限 32768px</span>
+      </div>
+      <label class="tk-check full" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text)">
+        <input type="checkbox" id="icKeep" checked style="width:16px;height:16px;accent-color:var(--accent)">
+        体积反而变大时保留原图（不改尺寸的前提下）
+      </label>
+      <div class="full tk-row">
+        <button class="tk-btn primary" id="icRun" type="button" disabled>开始压缩</button>
+        <button class="tk-btn ghost" id="icClear" type="button">清空列表</button>
+        <span class="tk-help" id="icStatus" style="margin-left:auto">先选择图片</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="tk-card" id="icResultCard">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">📦</span>3 · 压缩结果</h2>
+    <div class="ic-sum" id="icSum" hidden>
+      <span>共 <b id="icCount">0</b> 张</span>
+      <span>合计 <b id="icTotalIn">—</b> → <b id="icTotalOut">—</b></span>
+      <span class="save" id="icTotalSave">—</span>
+      <button class="tk-btn sm primary" id="icZip" type="button" style="margin-left:auto">打包下载 ZIP</button>
+    </div>
+    <p class="ic-empty" id="icEmpty">还没有图片。选几张图，点「开始压缩」。</p>
+    <ul class="ic-list" id="icList" aria-live="polite"></ul>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">?</span>常见问题</h2>
+    <div class="ic-faq">
+      <details><summary>图片会被上传到服务器吗？</summary><p>不会。读取、缩放、重新编码全部在浏览器 Canvas 里完成，断网也能用，图片不会离开你的设备。</p></details>
+      <details><summary>为什么压缩后体积反而变大了？</summary><p>本来就已经压过的 JPG 转成无损 PNG，或者质量给得过高，都可能变大。遇到这种情况工具会保留原图并标注「未压缩」，也可以换成 WebP 或把质量降到 75 左右再试。</p></details>
+      <details><summary>WebP 兼容性怎么样？</summary><p>Chrome、Edge、Firefox 以及 Safari 14 以上都支持。浏览器不支持 WebP 时会自动退回 JPEG，并在结果里说明。</p></details>
+      <details><summary>透明背景会保留吗？</summary><p>输出 WebP 或 PNG 时保留透明通道；输出 JPEG 时透明区域会被填成白底，因为 JPEG 本身不支持透明。</p></details>
+      <details><summary>最大边长能设多大？</summary><p>输入框上限是 32768 像素，但超过 8192 就会给出提醒：图越大越吃内存，手机和低配设备可能卡住甚至直接失败。日常分享图 1920 足够，想保留细节用 4096 以内比较稳；填 0 表示完全按原尺寸重新编码。</p></details>
+      <details><summary>一次能处理多少张？</summary><p>建议单次不超过 30 张。工具是逐张串行处理的，张数太多、单张分辨率太高都会吃内存，手机浏览器尤其明显。</p></details>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var drop = $('icDrop'), fileInput = $('icFile'), list = $('icList');
+  var items = [], seq = 0, busy = false, webpOK = null;
+  /* 浏览器 Canvas 单边普遍上限 16384（Chrome/Edge），留出这个硬顶；
+     超过 8K 就属于「能跑但可能卡」的区间，输入时直接提醒。 */
+  var EDGE_MAX = 32768, EDGE_HARD = 16384, EDGE_WARN = 8192, EDGE_HEAVY = 4096;
+
+  function fmtSize(n){
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+    return (n/1048576).toFixed(2) + ' MB';
+  }
+  function toast(msg){
+    var t = document.createElement('div');
+    t.className = 'tk-toast'; t.textContent = msg; document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('show'); });
+    setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.remove(); }, 250); }, 1900);
+  }
+
+  /* ---------- WebP 能力探测 ---------- */
+  function checkWebp(){
+    return new Promise(function(res){
+      if (webpOK !== null) return res(webpOK);
+      var c = document.createElement('canvas'); c.width = c.height = 1;
+      c.toBlob(function(b){
+        webpOK = !!b && b.type === 'image/webp';
+        res(webpOK);
+      }, 'image/webp', 0.8);
+    });
+  }
+
+  /* ---------- 解码 ---------- */
+  function decode(file){
+    if (window.createImageBitmap){
+      return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function(){
+        return decodeByImg(file);
+      });
+    }
+    return decodeByImg(file);
+  }
+  function decodeByImg(file){
+    return new Promise(function(res, rej){
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function(){ URL.revokeObjectURL(url); res(img); };
+      img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('浏览器无法解码这个文件')); };
+      img.src = url;
+    });
+  }
+
+  function updateEdgeHint(){
+    var el = $('icMaxEdge'), help = $('icEdgeHelp');
+    var v = parseInt(el.value, 10);
+    if (isNaN(v)) v = 0;
+    help.classList.remove('ic-warn');
+    if (v === 0){
+      help.textContent = '不缩放，按原尺寸重新编码；上限 32768px';
+    } else if (v > EDGE_MAX){
+      help.textContent = '⚠ 超过安全上限（32768px），已自动压回 32768';
+      help.classList.add('ic-warn');
+    } else if (v > EDGE_HARD){
+      help.textContent = '⚠ ' + v + 'px 超过 16K：桌面浏览器通常能试，手机和部分设备会直接分配失败，建议 8192 以内';
+      help.classList.add('ic-warn');
+    } else if (v > EDGE_WARN){
+      help.textContent = '⚠ ' + v + 'px 已超过 8K：大图会明显变慢，内存紧张的设备可能卡住或失败，建议 4096 以内';
+      help.classList.add('ic-warn');
+    } else if (v > EDGE_HEAVY){
+      help.textContent = '⚠ ' + v + 'px 属于高分辨率输出，处理大图时会较慢，请耐心等';
+      help.classList.add('ic-warn');
+    } else {
+      help.textContent = '超出就等比缩小，填 0 表示不改尺寸；上限 32768px';
+    }
+  }
+
+  function targetDims(w, h, maxEdge){
+    if (!maxEdge || maxEdge <= 0) return [w, h];
+    var s = Math.min(1, maxEdge / Math.max(w, h));
+    return [Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))];
+  }
+  function extOf(mime){
+    return mime === 'image/webp' ? 'webp' : mime === 'image/jpeg' ? 'jpg' : mime === 'image/png' ? 'png' : 'img';
+  }
+  function baseName(name){ return name.replace(/\.[^.]+$/, ''); }
+
+  /* ---------- 列表渲染 ---------- */
+  function addFiles(files){
+    var added = 0;
+    for (var i = 0; i < files.length; i++){
+      var f = files[i];
+      if (!f || !/^image\//.test(f.type)) continue;
+      if (f.size === 0) continue;
+      if (items.length >= 40){ toast('一次最多 40 张，先压完这批吧'); break; }
+      items.push({ id: ++seq, file: f, name: f.name, origSize: f.size, status: 'pending', out: null, error: '' });
+      added++;
+    }
+    if (!added) { toast('没有可用的图片文件'); return; }
+    $('icEmpty').hidden = true;
+    $('icRun').disabled = false;
+    $('icStatus').textContent = '已选择 ' + items.length + ' 张，点「开始压缩」';
+    render();
+  }
+
+  function render(){
+    list.innerHTML = '';
+    items.forEach(function(it){
+      var li = document.createElement('li');
+      li.className = 'ic-item' + (it.error ? ' err' : '');
+
+      var thumb = document.createElement('div'); thumb.className = 'ic-thumb';
+      var im = document.createElement('img');
+      im.alt = ''; im.loading = 'lazy';
+      if (!it.origUrl) it.origUrl = URL.createObjectURL(it.file);
+      im.src = it.out ? it.out.url : it.origUrl;
+      thumb.appendChild(im);
+
+      var meta = document.createElement('div'); meta.className = 'ic-meta';
+      var nm = document.createElement('div'); nm.className = 'ic-name'; nm.textContent = it.name; nm.title = it.name;
+      var spec = document.createElement('div'); spec.className = 'ic-spec';
+      if (it.error){
+        spec.textContent = it.error;
+      } else if (it.status === 'pending'){
+        spec.textContent = fmtSize(it.origSize) + ' · 等待压缩';
+      } else if (it.status === 'working'){
+        spec.textContent = '正在压缩…';
+      } else if (it.out){
+        spec.textContent = it.out.w + '×' + it.out.h + ' · ' + fmtSize(it.origSize) + ' → ' + fmtSize(it.out.size) +
+          (it.out.note ? ' · ' + it.out.note : '');
+      }
+      var bar = document.createElement('div'); bar.className = 'ic-bar';
+      var fill = document.createElement('i');
+      if (it.out && it.origSize){
+        fill.style.width = Math.max(2, Math.min(100, Math.round(it.out.size / it.origSize * 100))) + '%';
+      }
+      bar.appendChild(fill);
+      meta.appendChild(nm); meta.appendChild(spec); meta.appendChild(bar);
+
+      var save = document.createElement('div'); save.className = 'ic-save';
+      if (it.out && !it.error){
+        var pct = it.origSize ? Math.round((1 - it.out.size / it.origSize) * 100) : 0;
+        save.textContent = it.out.kept ? '原图' : (pct > 0 ? '省 ' + pct + '%' : (pct === 0 ? '持平' : '增 ' + (-pct) + '%'));
+        if (pct < 0) save.classList.add('up');
+      } else {
+        save.textContent = '—';
+      }
+
+      var act = document.createElement('div'); act.className = 'ic-act';
+      if (it.out && !it.error){
+        var dl = document.createElement('button');
+        dl.type = 'button'; dl.className = 'tk-btn sm'; dl.textContent = '下载';
+        dl.addEventListener('click', function(){ downloadItem(it); });
+        act.appendChild(dl);
+        var toFx = document.createElement('button');
+        toFx.type = 'button'; toFx.className = 'tk-btn sm ghost'; toFx.textContent = '转函数';
+        toFx.addEventListener('click', function(){ sendToFunc(it); });
+        act.appendChild(toFx);
+      }
+
+      li.appendChild(thumb); li.appendChild(meta); li.appendChild(save); li.appendChild(act);
+      list.appendChild(li);
+    });
+    updateSum();
+  }
+
+  function updateSum(){
+    var done = items.filter(function(x){ return x.out && !x.error; });
+    var inS = 0, outS = 0;
+    done.forEach(function(x){ inS += x.origSize; outS += x.out.size; });
+    var sum = $('icSum');
+    if (!done.length){ sum.hidden = true; return; }
+    sum.hidden = false;
+    $('icCount').textContent = done.length;
+    $('icTotalIn').textContent = fmtSize(inS);
+    $('icTotalOut').textContent = fmtSize(outS);
+    var pct = inS ? Math.round((1 - outS / inS) * 100) : 0;
+    $('icTotalSave').textContent = pct > 0 ? '共省 ' + pct + '%' : (pct === 0 ? '体积持平' : '反而大了 ' + (-pct) + '%');
+  }
+
+  /* ---------- 压缩 ---------- */
+  function currentFormat(file){
+    var v = $('icFormat').value;
+    if (v === 'keep'){
+      if (file.type === 'image/webp' || file.type === 'image/jpeg' || file.type === 'image/png') return file.type;
+      return 'image/png';
+    }
+    return v;
+  }
+
+  function compressOne(it, opts){
+    return decode(it.file).then(function(bmp){
+      var w = bmp.width, h = bmp.height;
+      var dims = targetDims(w, h, opts.maxEdge);
+      var tw = dims[0], th = dims[1];
+      var mp = tw * th / 1e6;
+      if (tw * th > 120e6){
+        throw new Error('目标 ' + tw + '×' + th + '（约 ' + Math.round(mp) + ' 百万像素）太大，浏览器很可能分配失败，请把最大边长调到 8192 以内');
+      }
+      if (mp > 30){
+        $('icStatus').textContent += '（目标 ' + Math.round(mp) + ' 百万像素，可能要等一会儿）';
+      }
+      var c = document.createElement('canvas');
+      c.width = tw; c.height = th;
+      var ctx = c.getContext('2d');
+      if (!ctx || c.width !== tw || c.height !== th){
+        throw new Error('输出尺寸 ' + tw + '×' + th + ' 超出浏览器画布上限，请把最大边长调小');
+      }
+      var mime = currentFormat(it.file), note = '';
+      if (it.file.type === 'image/gif' && mime !== 'image/gif') note = '取首帧';
+      if (mime === 'image/webp' && !webpOK){
+        mime = 'image/jpeg'; note = '已退回 JPEG';
+      }
+      if (mime === 'image/jpeg'){
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tw, th);
+      }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bmp, 0, 0, tw, th);
+      if (bmp.close) bmp.close();
+
+      return new Promise(function(res, rej){
+        c.toBlob(function(blob){
+          if (!blob){ rej(new Error('编码失败，换个输出格式试试')); return; }
+          var kept = false;
+          // 没改尺寸、结果还更大，且用户允许 → 直接留原图，别让「压缩」把文件变大
+          if (opts.keepOriginal && blob.size >= it.file.size && tw === w && th === h){
+            kept = true;
+            blob = it.file;
+            note = '压缩后更大，保留原图';
+          }
+          it.out = {
+            blob: blob, size: blob.size, w: tw, h: th,
+            url: URL.createObjectURL(blob),
+            name: kept ? it.name : baseName(it.name) + '.' + extOf(mime),
+            mime: kept ? it.file.type : mime, kept: kept, note: note
+          };
+          it.status = 'done';
+          it.error = '';
+          res();
+        }, mime, mime === 'image/png' ? undefined : opts.quality);
+      });
+    }).catch(function(e){
+      it.error = (e && e.message) ? e.message : '处理失败';
+      it.status = 'error';
+    });
+  }
+
+  function run(){
+    if (busy) return;
+    var queue = items.slice();
+    if (!queue.length){ toast('先选择图片'); return; }
+    busy = true;
+    $('icRun').disabled = true;
+
+    checkWebp().then(function(){
+      var opts = {
+        quality: Math.max(0.1, Math.min(1, parseInt($('icQuality').value, 10) / 100)),
+        maxEdge: parseInt($('icMaxEdge').value, 10) || 0,
+        keepOriginal: $('icKeep').checked
+      };
+      var i = 0;
+      function step(){
+        if (i >= queue.length){
+          busy = false;
+          $('icRun').disabled = items.length === 0;
+          $('icStatus').textContent = '压缩完成，共 ' + items.filter(function(x){ return x.out; }).length + ' 张';
+          render();
+          return;
+        }
+        var it = queue[i];
+        if (it.out){ URL.revokeObjectURL(it.out.url); it.out = null; }
+        it.error = '';
+        it.status = 'working';
+        $('icStatus').textContent = '正在压缩 ' + (i + 1) + ' / ' + queue.length + '：' + it.name;
+        render();
+        compressOne(it, opts).then(function(){
+          i++;
+          setTimeout(step, 0);
+        });
+      }
+      step();
+    });
+  }
+
+  /* ---------- 下载 ---------- */
+  function saveBlob(blob, name){
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1500);
+  }
+  function downloadItem(it){
+    if (!it.out) return;
+    saveBlob(it.out.blob, it.out.name);
+    toast('已下载 ' + it.out.name);
+  }
+
+  /* ---------- 送去图片转函数 ---------- */
+  function sendToFunc(it){
+    if (!it.out) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      try {
+        sessionStorage.setItem('fe:img2func:seed', JSON.stringify({
+          name: it.out.name,
+          dataUrl: reader.result
+        }));
+        location.href = './img2func.html?src=compress';
+      } catch (e) {
+        toast('图片太大，存不进会话，请先下载再手动选择');
+      }
+    };
+    reader.onerror = function(){ toast('读取失败'); };
+    reader.readAsDataURL(it.out.blob);
+  }
+
+  /* ---------- ZIP（store 无压缩，UTF-8 文件名） ---------- */
+  var CRC_TABLE = (function(){
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++){
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(u8){
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function dosTime(d){
+    return {
+      time: ((d.getHours() & 31) << 11) | ((d.getMinutes() & 63) << 5) | ((d.getSeconds() / 2) & 31),
+      date: (((d.getFullYear() - 1980) & 127) << 9) | (((d.getMonth() + 1) & 15) << 5) | (d.getDate() & 31)
+    };
+  }
+  function buildZip(entries){
+    var enc = new TextEncoder();
+    var dt = dosTime(new Date());
+    var parts = [], central = [], offset = 0;
+    return Promise.all(entries.map(function(e){
+      return e.blob.arrayBuffer();
+    })).then(function(bufs){
+      entries.forEach(function(e, i){
+        var data = new Uint8Array(bufs[i]);
+        var nameBytes = enc.encode(e.name);
+        var crc = crc32(data);
+
+        var lh = new Uint8Array(30 + nameBytes.length);
+        var lv = new DataView(lh.buffer);
+        lv.setUint32(0, 0x04034b50, true);
+        lv.setUint16(4, 20, true);
+        lv.setUint16(6, 0x0800, true);          // UTF-8 文件名
+        lv.setUint16(8, 0, true);                // store
+        lv.setUint16(10, dt.time, true);
+        lv.setUint16(12, dt.date, true);
+        lv.setUint32(14, crc, true);
+        lv.setUint32(18, data.length, true);
+        lv.setUint32(22, data.length, true);
+        lv.setUint16(26, nameBytes.length, true);
+        lv.setUint16(28, 0, true);
+        lh.set(nameBytes, 30);
+        parts.push(lh, data);
+
+        var cd = new Uint8Array(46 + nameBytes.length);
+        var cv = new DataView(cd.buffer);
+        cv.setUint32(0, 0x02014b50, true);
+        cv.setUint16(4, 20, true);
+        cv.setUint16(6, 20, true);
+        cv.setUint16(8, 0x0800, true);
+        cv.setUint16(10, 0, true);
+        cv.setUint16(12, dt.time, true);
+        cv.setUint16(14, dt.date, true);
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, data.length, true);
+        cv.setUint32(24, data.length, true);
+        cv.setUint16(28, nameBytes.length, true);
+        cv.setUint16(30, 0, true);
+        cv.setUint16(32, 0, true);
+        cv.setUint16(34, 0, true);
+        cv.setUint16(36, 0, true);
+        cv.setUint32(38, 0, true);
+        cv.setUint32(42, offset, true);
+        cd.set(nameBytes, 46);
+        central.push(cd);
+
+        offset += lh.length + data.length;
+      });
+
+      var cdSize = central.reduce(function(a, b){ return a + b.length; }, 0);
+      var eocd = new Uint8Array(22);
+      var ev = new DataView(eocd.buffer);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(8, entries.length, true);
+      ev.setUint16(10, entries.length, true);
+      ev.setUint32(12, cdSize, true);
+      ev.setUint32(16, offset, true);
+
+      var all = parts.concat(central, [eocd]);
+      return new Blob(all, { type: 'application/zip' });
+    });
+  }
+
+  /* ---------- 事件 ---------- */
+  drop.addEventListener('click', function(){ fileInput.click(); });
+  drop.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); }
+  });
+  ['dragenter', 'dragover'].forEach(function(t){
+    drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function(t){
+    drop.addEventListener(t, function(e){ e.preventDefault(); drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function(e){
+    if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', function(){
+    if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+  document.addEventListener('paste', function(e){
+    var dt = e.clipboardData;
+    if (!dt) return;
+    var fs = [];
+    for (var i = 0; i < dt.items.length; i++){
+      var it = dt.items[i];
+      if (it.kind === 'file' && it.type.indexOf('image/') === 0){
+        var f = it.getAsFile();
+        if (f) fs.push(f);
+      }
+    }
+    if (fs.length){ e.preventDefault(); addFiles(fs); toast('已粘贴 ' + fs.length + ' 张图片'); }
+  });
+
+  $('icMaxEdge').addEventListener('input', function(){
+    var v = parseInt(this.value, 10);
+    if (v > EDGE_MAX){
+      this.value = EDGE_MAX;
+      toast('最大边长上限 ' + EDGE_MAX + 'px，已自动调整');
+    }
+    updateEdgeHint();
+  });
+  $('icMaxEdge').addEventListener('blur', updateEdgeHint);
+  $('icQuality').addEventListener('input', function(){ $('icQVal').textContent = this.value; });
+  $('icFormat').addEventListener('change', function(){
+    var isPng = this.value === 'image/png';
+    $('icQuality').disabled = isPng;
+    $('icQuality').style.opacity = isPng ? .45 : 1;
+  });
+  $('icRun').addEventListener('click', run);
+  $('icClear').addEventListener('click', function(){
+    if (busy) return;
+    items.forEach(function(x){
+      if (x.out) URL.revokeObjectURL(x.out.url);
+      if (x.origUrl) URL.revokeObjectURL(x.origUrl);
+    });
+    items = []; list.innerHTML = ''; $('icSum').hidden = true;
+    $('icEmpty').hidden = false; $('icRun').disabled = true;
+    $('icStatus').textContent = '先选择图片';
+  });
+  $('icZip').addEventListener('click', function(){
+    var done = items.filter(function(x){ return x.out && !x.error; });
+    if (!done.length){ toast('还没有可打包的结果'); return; }
+    var used = Object.create(null), entries = done.map(function(x){
+      var n = x.out.name;
+      if (used[n]) { used[n]++; n = baseName(n) + '-' + used[n] + '.' + n.split('.').pop(); }
+      else used[n] = 1;
+      return { name: n, blob: x.out.blob };
+    });
+    toast('正在打包…');
+    buildZip(entries).then(function(zip){
+      saveBlob(zip, 'fesui-images-' + done.length + '.zip');
+      toast('已打包 ' + done.length + ' 张');
+    }).catch(function(){ toast('打包失败'); });
+  });
+
+  updateEdgeHint();
+  checkWebp();
+})();
+</script>
+  <script src="/visit.js?v=20261107" defer></script>
+</body>
+</html>

@@ -354,7 +354,7 @@ html.theme-glass .identity-card:hover {
 .egg-btn {
   display: inline-flex; align-items: center; gap: 6px;
   margin: 4px 0 16px; padding: 8px 14px;
-  background: var(--accent); color: #fff; border: 0; border-radius: 999px;
+  background: linear-gradient(135deg, #3f5fe0, #6d4bd8); color: #fff; border: 0; border-radius: 999px;
   font-size: 14px; font-weight: 600; cursor: pointer;
   box-shadow: 0 4px 12px rgba(79,124,255,.35);
   transition: transform .15s var(--ease), box-shadow .2s, background .2s;

@@ -9,7 +9,7 @@
 <meta name="description" content="上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。">
 <link rel="icon" href="../favicon.png">
 <link rel="stylesheet" href="./toolkit.css?v=20261030">
-<link rel="stylesheet" href="../fs-skin.css?v=20261121b">
+<link rel="stylesheet" href="../fs-skin.css?v=20261121c">
 <script src="/net-guard.js?v=20261107"></script>
 <script src="/site-nav.js?v=20261121a"></script>
 <style>
@@ -85,6 +85,7 @@
       <span class="small">支持 PNG / JPG / WEBP / GIF（取首帧），全程只在你的浏览器里处理，不会上传</span>
     </div>
     <input type="file" id="i2fFile" accept="image/*" hidden>
+    <p class="tk-help" style="margin-top:10px">图片太大？先到 <a href="./imgcompress.html">图片压缩</a> 批量缩小 / 转 WebP，压完可以一键送回来直接转函数。</p>
     <img id="i2fImg" alt="预览原图" style="display:none">
   </section>
 
@@ -336,6 +337,22 @@
     var url='./function.html#b64='+enc+'&cols='+lastCols+'&rows='+lastRows;
     window.open(url,'_blank');
   });
+
+  /* ---------- 从「图片压缩」带图跳转过来 ---------- */
+  (function(){
+    var raw=null;
+    try{ raw=sessionStorage.getItem('fe:img2func:seed'); }catch(e){}
+    if(!raw){ return; }
+    try{ sessionStorage.removeItem('fe:img2func:seed'); }catch(e){}
+    var seed=null;
+    try{ seed=JSON.parse(raw); }catch(e){ return; }
+    if(!seed||!seed.dataUrl){ return; }
+    fetch(seed.dataUrl).then(function(r){ return r.blob(); }).then(function(b){
+      var f=new File([b],seed.name||'compressed.webp',{type:b.type||'image/webp'});
+      loadFile(f);
+      $('i2fStatus').textContent='已载入压缩结果，正在生成函数…';
+    }).catch(function(){ /* 会话数据失效就静默回退到手动选图 */ });
+  })();
 })();
 </script>
 </body>

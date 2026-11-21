@@ -182,7 +182,9 @@ function renderFriendLinks() {
   style.textContent =
     '.friend-versions{display:inline-block;margin-left:8px;padding:1px 8px;' +
     'border-radius:999px;font-size:11px;font-weight:600;vertical-align:2px;' +
-    'color:#58a6ff;background:rgba(88,166,255,.14);border:1px solid rgba(88,166,255,.35)}';
+    'color:#2a4fd0;background:rgba(42,79,208,.10);border:1px solid rgba(42,79,208,.32)}' +
+    'html.theme-glass .friend-versions{color:#a9bcff;background:rgba(145,169,255,.16);border-color:rgba(145,169,255,.40)}' +
+    '@media (prefers-color-scheme: dark){html:not(.theme-glass) .friend-versions{color:#a9bcff;background:rgba(145,169,255,.16);border-color:rgba(145,169,255,.40)}}';
   (document.head || document.documentElement).appendChild(style);
 })();
 
