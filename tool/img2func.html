@@ -35,6 +35,12 @@
   .i2f-tabs button{appearance:none;border:0;cursor:pointer;font:600 12px inherit;padding:6px 14px;border-radius:999px;background:transparent;color:#8e99b4}
   .i2f-tabs button.active{background:rgba(145,169,255,.2);color:#dce5ff}
   @media(max-width:620px){.i2f-grid{grid-template-columns:1fr}}
+  .i2f-faq details{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--panel2)}
+  .i2f-faq summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--text);list-style:none;display:flex;justify-content:space-between;gap:10px}
+  .i2f-faq summary::-webkit-details-marker{display:none}
+  .i2f-faq summary::after{content:'+';color:var(--dim);font-weight:400}
+  .i2f-faq details[open] summary::after{content:'\2212'}
+  .i2f-faq p{margin:10px 0 0;font-size:13px;line-height:1.75;color:var(--dim)}
 </style>
   <link rel="canonical" href="https://fesui.xn--0iv.gay/tool/img2func.html" />
   <meta property="og:title" content="图片转函数 · FeSui 工具箱" />
@@ -46,7 +52,7 @@
   <meta name="twitter:title" content="图片转函数 · FeSui 工具箱" />
   <meta name="twitter:description" content="上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。" />
   <meta name="twitter:image" content="https://fesui.xn--0iv.gay/og-image.png" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"图片转函数 · FeSui 工具箱","description":"上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。","url":"https://fesui.xn--0iv.gay/tool/img2func.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"HowTo","name":"图片转函数：把一张图拆成一堆带颜色的函数","url":"https://fesui.xn--0iv.gay/tool/img2func.html","totalTime":"PT1M","step":[{"@type":"HowToStep","position":1,"name":"选择图片","text":"上传一张图片，浏览器本地读取，不上传服务器。"},{"@type":"HowToStep","position":2,"name":"选择分辨率","text":"设置采样网格的列数与行数，网格越细还原越接近原图。"},{"@type":"HowToStep","position":3,"name":"生成函数","text":"逐行采样颜色，把同色相邻格子合并成一条带定义域锁定的函数。"},{"@type":"HowToStep","position":4,"name":"复制或下载","text":"可以复制到函数显示器或 Desmos，也可以下载 Txt 留档。"}]},{"@type":"SoftwareApplication","name":"图片转函数 · FeSui 工具箱","description":"上传图片，按分辨率采样成一堆带不同颜色的函数；每条函数用 0×根号 把定义域锁在自己的一小段 x 区间里。纯前端离线处理，图片不上传。","url":"https://fesui.xn--0iv.gay/tool/img2func.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://fesui.xn--0iv.gay/"},{"@type":"ListItem","position":2,"name":"工具箱","item":"https://fesui.xn--0iv.gay/tool/"},{"@type":"ListItem","position":3,"name":"图片转函数","item":"https://fesui.xn--0iv.gay/tool/img2func.html"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"分辨率选多少合适？","acceptedAnswer":{"@type":"Answer","text":"32×18 适合快速预览，几十条函数就能看出大概轮廓；想要更接近原图就把网格调细，64×36 甚至更高，代价是函数条数按格子数量线性增长，页面和函数显示器都会更吃力。"}},{"@type":"Question","name":"为什么导出的函数这么多？","acceptedAnswer":{"@type":"Answer","text":"每一行里颜色相同的相邻格子会合并成一条函数，一条函数只在自己那一小段 x 区间里画出来。网格越细，需要覆盖的像素段越多，条数自然就上去了。"}},{"@type":"Question","name":"「显示器格式」和「Desmos 点列」有什么区别？","acceptedAnswer":{"@type":"Answer","text":"显示器格式是每行「#RRGGBB y = 表达式」，可以直接粘到本工具的「函数显示器」里逐条画；Desmos 点列是坐标列表，适合整段贴进 Desmos 当散点。"}},{"@type":"Question","name":"为什么还原出来的图比原图糊？","acceptedAnswer":{"@type":"Answer","text":"因为采样时每一格只取一个平均色，相当于把原图降采样成 cols×rows 的像素画。想要更清楚只能提高网格密度，函数数量也会跟着涨。"}},{"@type":"Question","name":"图片会被上传到服务器吗？","acceptedAnswer":{"@type":"Answer","text":"不会。图片用浏览器本地 Canvas 读取和采样，断网也能用。"}},{"@type":"Question","name":"能在 Desmos 里直接画吗？","acceptedAnswer":{"@type":"Answer","text":"可以，把函数或点列贴进去就行。但 Desmos 对表达式条数有上限，条数超了会明显变卡，建议先降到 32×18 左右再试。"}}]}]}</script>
 </head>
 <body>
 <header class="tk-header">
@@ -117,6 +123,18 @@
       <button class="tk-btn primary" id="i2fCopy" type="button">复制函数</button>
       <button class="tk-btn ghost" id="i2fDownload" type="button">下载 .txt</button>
       <button class="tk-btn ghost" id="i2fOpen" type="button">在函数显示器中打开</button>
+    </div>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">?</span>常见问题</h2>
+    <div class="i2f-faq">
+      <details><summary>分辨率选多少合适？</summary><p>32×18 适合快速预览，几十条函数就能看出大概轮廓；想要更接近原图就把网格调细，64×36 甚至更高，代价是函数条数按格子数量线性增长，页面和函数显示器都会更吃力。</p></details>
+      <details><summary>为什么导出的函数这么多？</summary><p>每一行里颜色相同的相邻格子会合并成一条函数，一条函数只在自己那一小段 x 区间里画出来。网格越细，需要覆盖的像素段越多，条数自然就上去了。</p></details>
+      <details><summary>「显示器格式」和「Desmos 点列」有什么区别？</summary><p>显示器格式是每行「#RRGGBB y = 表达式」，可以直接粘到本工具的「函数显示器」里逐条画；Desmos 点列是坐标列表，适合整段贴进 Desmos 当散点。</p></details>
+      <details><summary>为什么还原出来的图比原图糊？</summary><p>因为采样时每一格只取一个平均色，相当于把原图降采样成 cols×rows 的像素画。想要更清楚只能提高网格密度，函数数量也会跟着涨。</p></details>
+      <details><summary>图片会被上传到服务器吗？</summary><p>不会。图片用浏览器本地 Canvas 读取和采样，断网也能用。</p></details>
+      <details><summary>能在 Desmos 里直接画吗？</summary><p>可以，把函数或点列贴进去就行。但 Desmos 对表达式条数有上限，条数超了会明显变卡，建议先降到 32×18 左右再试。</p></details>
     </div>
   </section>
 </main>

@@ -38,6 +38,12 @@
   .v2f-result-grid.no-side .v2f-result-funcs{display:none}
   .v2f-result-video video{width:100%;max-height:420px;background:#05070f}
   @media(max-width:720px){.v2f-grid{grid-template-columns:1fr}.v2f-result-grid{grid-template-columns:1fr}}
+  .v2f-faq details{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:var(--panel2)}
+  .v2f-faq summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--text);list-style:none;display:flex;justify-content:space-between;gap:10px}
+  .v2f-faq summary::-webkit-details-marker{display:none}
+  .v2f-faq summary::after{content:'+';color:var(--dim);font-weight:400}
+  .v2f-faq details[open] summary::after{content:'\2212'}
+  .v2f-faq p{margin:10px 0 0;font-size:13px;line-height:1.75;color:var(--dim)}
 </style>
   <link rel="canonical" href="https://fesui.xn--0iv.gay/tool/video2func.html" />
   <meta property="og:title" content="视频转函数 · FeSui 工具箱" />
@@ -49,7 +55,7 @@
   <meta name="twitter:title" content="视频转函数 · FeSui 工具箱" />
   <meta name="twitter:description" content="上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。可选保留原视频音频，支持下载/导入全部帧函数 Txt，纯前端离线处理，视频不上传。" />
   <meta name="twitter:image" content="https://fesui.xn--0iv.gay/og-image.png" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"视频转函数 · FeSui 工具箱","description":"上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。可选保留原视频音频，支持下载/导入全部帧函数 Txt，纯前端离线处理，视频不上传。","url":"https://fesui.xn--0iv.gay/tool/video2func.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"HowTo","name":"视频转函数：把视频拆成函数再还原成视频","url":"https://fesui.xn--0iv.gay/tool/video2func.html","totalTime":"PT2M","step":[{"@type":"HowToStep","position":1,"name":"选择视频","text":"上传一段短视频，浏览器本地解码。"},{"@type":"HowToStep","position":2,"name":"设置网格与帧率","text":"选择采样分辨率、每秒帧数与是否保留原声。"},{"@type":"HowToStep","position":3,"name":"开始转换","text":"逐帧采样成彩色网格并合并为带颜色的函数。"},{"@type":"HowToStep","position":4,"name":"下载还原视频","text":"函数回放画回像素并合成 MP4，也可导出全部帧 Txt。"}]},{"@type":"SoftwareApplication","name":"视频转函数 · FeSui 工具箱","description":"上传视频，逐帧抽成图片组、每帧转成一堆带颜色的函数，再由函数还原成图片组并合成视频。可选保留原视频音频，支持下载/导入全部帧函数 Txt，纯前端离线处理，视频不上传。","url":"https://fesui.xn--0iv.gay/tool/video2func.html","applicationCategory":"UtilitiesApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://fesui.xn--0iv.gay/"},{"@type":"ListItem","position":2,"name":"工具箱","item":"https://fesui.xn--0iv.gay/tool/"},{"@type":"ListItem","position":3,"name":"视频转函数","item":"https://fesui.xn--0iv.gay/tool/video2func.html"}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"导出的视频没有声音？","acceptedAnswer":{"@type":"Answer","text":"转换设置里「保留原视频音频」默认是勾选的。如果结果说明写的是「无声」，通常是浏览器不支持录制音频轨（Safari 上常见）或自动播放被拦截，此时会退回无声输出。换 Chrome / Edge 再试一般就有声音。"}},{"@type":"Question","name":"支持哪些视频格式？","acceptedAnswer":{"@type":"Answer","text":"只要浏览器能解码就行：MP4（H.264）、WebM（VP8 / VP9）、MOV 通常都可以。HEVC / H.265 在部分浏览器里解不了，这类文件会直接提示加载失败。"}},{"@type":"Question","name":"导出的视频是什么格式？","acceptedAnswer":{"@type":"Answer","text":"优先 MP4（H.264 + AAC）；浏览器不支持时退回 WebM；两者都不支持（例如部分 Safari）就降级导出 PNG 序列，需要自己再合成视频。"}},{"@type":"Question","name":"为什么处理要等这么久？","acceptedAnswer":{"@type":"Answer","text":"因为要逐帧走完整条链路。帧数约等于视频时长乘以 FPS，20 秒 6 FPS 就是 120 帧，每一帧都要采样、生成函数、再画回来。想快就把 FPS 或分辨率调低。"}},{"@type":"Question","name":"导出的 Txt 有什么用？","acceptedAnswer":{"@type":"Answer","text":"Txt 里是每一帧的全部函数、FPS 和网格尺寸。可以重新导入本工具再合成一次视频，也可以直接贴到「函数显示器」逐帧查看。"}},{"@type":"Question","name":"视频会被上传到服务器吗？","acceptedAnswer":{"@type":"Answer","text":"不会。采样、生成函数、回放录制全部在浏览器本地完成，断网也能跑。"}}]}]}</script>
 </head>
 <body>
 <header class="tk-header">
@@ -156,6 +162,18 @@
     <p class="fx-note" style="color:#8e99b4;margin-top:8px">
       原理：根号下不能为负。<code>+0√(x−xmin)</code> 让 x 小于 xmin 时无定义，<code>+0√(xmax−x)</code> 让 x 大于 xmax 时无定义，乘 0 又不改变函数值——每条函数只在自己那一小段画出来，一帧的所有函数拼起来就是这一帧的像素图。
     </p>
+  </section>
+
+  <section class="tk-card">
+    <h2 class="tk-card-h"><span class="ico" aria-hidden="true">?</span>5 · 常见问题</h2>
+    <div class="v2f-faq">
+      <details><summary>导出的视频没有声音？</summary><p>转换设置里「保留原视频音频」默认是勾选的。如果结果说明写的是「无声」，通常是浏览器不支持录制音频轨（Safari 上常见）或自动播放被拦截，此时会退回无声输出。换 Chrome / Edge 再试一般就有声音。</p></details>
+      <details><summary>支持哪些视频格式？</summary><p>只要浏览器能解码就行：MP4（H.264）、WebM（VP8 / VP9）、MOV 通常都可以。HEVC / H.265 在部分浏览器里解不了，这类文件会直接提示加载失败。</p></details>
+      <details><summary>导出的视频是什么格式？</summary><p>优先 MP4（H.264 + AAC）；浏览器不支持时退回 WebM；两者都不支持（例如部分 Safari）就降级导出 PNG 序列，需要自己再合成视频。</p></details>
+      <details><summary>为什么处理要等这么久？</summary><p>因为要逐帧走完整条链路。帧数约等于视频时长乘以 FPS，20 秒 6 FPS 就是 120 帧，每一帧都要采样、生成函数、再画回来。想快就把 FPS 或分辨率调低。</p></details>
+      <details><summary>导出的 Txt 有什么用？</summary><p>Txt 里是每一帧的全部函数、FPS 和网格尺寸。可以重新导入本工具再合成一次视频，也可以直接贴到「函数显示器」逐帧查看。</p></details>
+      <details><summary>视频会被上传到服务器吗？</summary><p>不会。采样、生成函数、回放录制全部在浏览器本地完成，断网也能跑。</p></details>
+    </div>
   </section>
 </main>
 <script>
