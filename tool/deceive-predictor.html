@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>骗过预测器</title>
+<style>
+  :root{
+    --ink:#e8eef5;
+    --dim:#7f8f9f;
+    --mint:#3ee0cf;
+    --pink:#ff4d6d;
+    --gold:#ffc857;
+    --card:rgba(255,255,255,0.030);
+    --line:rgba(255,255,255,0.075);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    background:
+      radial-gradient(1100px 760px at 72% -12%, rgba(62,224,207,0.11), transparent 62%),
+      radial-gradient(900px 620px at 6% 112%, rgba(255,77,109,0.09), transparent 62%),
+      #06090d;
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:22px 18px 30px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{width:min(962px,100%)}
+  .head{margin-bottom:16px}
+  .title{font-size:22px;font-weight:650;letter-spacing:.3px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .tag{
+    font-size:11px;font-weight:500;letter-spacing:.4px;color:var(--mint);
+    border:1px solid rgba(62,224,207,.3);background:rgba(62,224,207,.07);
+    padding:3px 8px;border-radius:999px;
+  }
+  .sub{color:var(--dim);font-size:13.5px;margin-top:7px;line-height:1.65;max-width:600px}
+
+  main{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:18px;align-items:start}
+  @media (max-width:820px){ main{grid-template-columns:1fr} }
+
+  .stagewrap{display:flex;justify-content:center;min-width:0}
+  .stage{
+    position:relative;display:flex;justify-content:center;align-items:center;
+    width:fit-content;max-width:100%;padding:10px;
+    border-radius:18px;overflow:hidden;
+    background:rgba(255,255,255,0.015);
+    border:1px solid var(--line);
+    box-shadow:0 24px 70px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  canvas{display:block;border-radius:10px;touch-action:manipulation;cursor:crosshair}
+
+  .overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,9,13,.9);backdrop-filter:blur(3px);
+    padding:26px;text-align:center;transition:opacity .25s;
+  }
+  .overlay.hide{opacity:0;pointer-events:none}
+  .ocard{max-width:400px}
+  .otitle{font-size:19px;font-weight:650;margin-bottom:12px}
+  .ocard p{color:#b6c3d0;font-size:13.5px;line-height:1.85;margin:0 0 9px}
+  .ocard b{color:var(--ink);font-weight:600}
+  .ohint{color:var(--dim)!important;font-size:12.5px!important}
+  .bigscore{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums;
+    font-size:52px;line-height:1;letter-spacing:-2px;color:#fff;margin:6px 0 4px;
+    text-shadow:0 0 40px rgba(62,224,207,.5);
+  }
+  .bigscore small{font-size:20px;color:var(--mint);letter-spacing:0;margin-left:2px}
+  .subscore{font-size:12.5px;color:var(--dim);margin-bottom:12px}
+  .subscore b{color:var(--gold);font-family:ui-monospace,Menlo,monospace}
+  .stats{
+    display:grid;grid-template-columns:1fr 1fr;gap:9px 22px;
+    font-size:12.5px;color:var(--dim);margin:0 auto 20px;max-width:330px;text-align:left;
+  }
+  .stats div{display:flex;justify-content:space-between;gap:6px}
+  .rhint{
+    font-size:12.5px;color:#8a99a7;line-height:1.7;
+    margin:2px auto 18px;max-width:330px;
+  }
+  .stats b{color:#cfd9e4;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  .btn{
+    border:0;cursor:pointer;font-family:inherit;
+    background:linear-gradient(180deg,#4ff0dd,#22c4b2);color:#04211e;
+    font-weight:700;font-size:14px;padding:11px 26px;border-radius:11px;
+    box-shadow:0 10px 24px -10px rgba(62,224,207,.85);
+    transition:transform .12s;
+  }
+  .btn:hover{transform:translateY(-1px)}
+
+  .toast{
+    position:absolute;top:14px;left:50%;transform:translate(-50%,-8px);
+    background:rgba(12,17,23,.92);border:1px solid var(--line);
+    padding:7px 14px;border-radius:999px;font-size:12.5px;color:#cfd9e4;
+    opacity:0;transition:opacity .18s,transform .18s;pointer-events:none;white-space:nowrap;
+  }
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  .hud{display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
+  .lab{font-size:11.5px;color:var(--dim);letter-spacing:.4px}
+  .val{
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:40px;line-height:1.05;letter-spacing:-1px;margin:5px 0 4px;
+    font-variant-numeric:tabular-nums;color:#fff;
+    text-shadow:0 0 26px rgba(62,224,207,.45);
+  }
+  .val span{font-size:19px;color:var(--mint);margin-left:2px;text-shadow:none}
+  .val.hot{color:var(--gold);text-shadow:0 0 30px rgba(255,200,87,.5)}
+  .lab2{font-size:12px;color:var(--dim);margin-top:5px}
+  .lab2 b{color:#cfd9e4;font-weight:600;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+  .ebar{height:7px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden;margin:8px 0 0}
+  .ebar i{display:block;height:100%;width:100%;border-radius:4px;background:linear-gradient(90deg,#22c4b2,#4ff0dd);transition:width .1s linear,background .3s}
+  .ebar.warn i{background:linear-gradient(90deg,#c98a12,#ffc857)}
+  .ebar.danger i{background:linear-gradient(90deg,#c22d47,#ff4d6d)}
+
+  .probs{margin:9px 0 7px;display:flex;flex-direction:column;gap:6px}
+  .prow{display:flex;align-items:center;gap:8px}
+  .plbl{width:14px;text-align:center;font-size:13px;color:#98a8b8}
+  .bar{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden}
+  .bar i{display:block;height:100%;width:0%;border-radius:3px;background:rgba(255,77,109,.5);transition:width .12s linear}
+  .ppct{width:34px;text-align:right;font-size:11px;color:#7f8f9f;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  .prow.top .plbl{color:var(--pink)}
+  .prow.top .ppct{color:var(--pink)}
+  .prow.top .bar i{background:linear-gradient(90deg,rgba(255,77,109,.45),#ff4d6d)}
+
+  .chain{display:flex;gap:5px;margin-top:9px}
+  .chain i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.13);transition:.14s}
+  .chain i.on{background:var(--pink);box-shadow:0 0 9px rgba(255,77,109,.85)}
+
+  .row{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--dim);padding:3px 0}
+  .row b{color:#dbe4ee;font-weight:600;font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+  .ghost{
+    background:transparent;border:1px solid var(--line);color:#93a3b3;
+    padding:9px;border-radius:11px;font-size:12.5px;cursor:pointer;font-family:inherit;transition:.15s;
+  }
+  .ghost:hover{color:#dbe4ee;border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.03)}
+  .foot{margin-top:2px;font-size:11.5px;color:#5f6d7b;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="head">
+    <div class="title">骗过预测器 <span class="tag">端侧实时训练 · 数据不出浏览器</span></div>
+    <div class="sub">它每走一步都要猜你往哪走，猜中就扣你的能量。而你得一直去抢数据包续命。</div>
+  </div>
+
+  <main>
+    <div class="stagewrap" id="stagewrap">
+      <div class="stage" id="stage">
+        <canvas id="cv"></canvas>
+        <div class="toast" id="toast"></div>
+
+        <div class="overlay" id="intro">
+          <div class="ocard">
+            <div class="otitle">它已经在看了</div>
+            <p>用 <b>方向键</b> 或 <b>WASD</b> 移动，也可以直接点相邻格子。<br>去捡金色的<b>数据包</b>，那是你的能量来源。</p>
+            <p class="ohint">能量一直在掉。你得一边追包，一边让它猜不中 —— 这两件事天然打架。</p>
+            <button class="btn" id="startBtn">开始骗它</button>
+          </div>
+        </div>
+
+        <div class="overlay hide" id="result">
+          <div class="ocard">
+            <div class="otitle" id="rTitle">它把你摸清了</div>
+            <div class="bigscore" id="rScore">0.0<small>s</small></div>
+            <div class="subscore">历史最佳 <b id="rBest">0.0s</b></div>
+            <div class="rhint" id="rHint"></div>
+            <div class="stats">
+              <div><span>躲过的步数</span><b id="rDodge">0</b></div>
+              <div><span>被摸透</span><b id="rHits">0</b></div>
+              <div><span>数据包</span><b id="rPack">0</b></div>
+              <div><span>它的准确率</span><b id="rAcc">0%</b></div>
+            </div>
+            <button class="btn" id="againBtn">再来一次</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="hud">
+      <div class="card">
+        <div class="lab">已经骗了它</div>
+        <div class="val" id="streak">0.0<span>s</span></div>
+        <div class="lab2">历史最佳 <b id="best">0.0s</b></div>
+      </div>
+
+      <div class="card">
+        <div class="lab">能量 <b id="ecolor">100</b></div>
+        <div class="ebar" id="ebar"><i id="efill"></i></div>
+        <div class="lab2">追到数据包 +40 · 被连中三步 −20</div>
+      </div>
+
+      <div class="card">
+        <div class="lab">它在猜你下一步</div>
+        <div class="probs" id="probs"></div>
+        <div class="chain" id="chain"><i></i><i></i><i></i></div>
+        <div class="lab2" id="guess">还没开始</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span>它的准确率</span><b id="acc">–</b></div>
+        <div class="row"><span>数据包</span><b id="col">0</b></div>
+        <div class="row"><span>记住的模式</span><b id="mem">0</b></div>
+        <div class="row"><span>总步数</span><b id="steps">0</b></div>
+      </div>
+
+      <button class="ghost" id="resetBtn">重开一局</button>
+      <div class="foot">模型是 4 类 softmax 回归，特征取自你的历史走位、贴边情况、在网格里的相对位置，每步更新一次权重。数字调参在文件顶部的 CFG 里。</div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ------------------------- 可调参数 ------------------------- */
+  var CFG = {
+    size: 24,          // 网格边长（格）
+    energyMax: 100,
+    drain: 4.5,        // 每秒掉多少能量
+    packBonus: 40,     // 吃到数据包
+    combo: 3,          // 连续猜中几步才算"摸透"
+    caughtPenalty: 20, // 被摸透扣多少
+    conf: 0.42,        // 模型自信到这个程度，猜中才算"抓到你"
+    lr: 0.18           // 模型学习率
+  };
+
+  var N = CFG.size;
+  var DIRS = [
+    {dx:0, dy:-1, s:'↑', name:'上'},
+    {dx:1, dy:0,  s:'→', name:'右'},
+    {dx:0, dy:1,  s:'↓', name:'下'},
+    {dx:-1,dy:0,  s:'←', name:'左'}
+  ];
+  var BEST_KEY = 'deceive-predictor-best-v2';
+
+  var canvas = document.getElementById('cv');
+  var ctx = canvas.getContext('2d');
+  var stagewrap = document.getElementById('stagewrap');
+  var intro = document.getElementById('intro');
+  var result = document.getElementById('result');
+  var toastEl = document.getElementById('toast');
+
+  var size = 520, cell = size / N;
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+
+  /* ---------------- 模型：4 类 softmax 回归 ---------------- */
+  var Wmap = new Map();
+  function getW(k){
+    var w = Wmap.get(k);
+    if (!w) { w = new Float32Array(4); Wmap.set(k, w); }
+    return w;
+  }
+  function featurize(px, py, hist, tx, ty){
+    var f = ['b'];
+    var n = hist.length;
+    f.push(n >= 1 ? 'd1' + hist[n-1] : 'd1x');
+    f.push(n >= 2 ? 'd2' + hist[n-2] + hist[n-1] : 'd2x');
+    f.push(n >= 3 ? 'd3' + hist[n-3] + hist[n-2] + hist[n-1] : 'd3x');
+    f.push(n >= 4 ? 'd4' + hist[n-4] + hist[n-3] + hist[n-2] + hist[n-1] : 'd4x');
+    if (n >= 3) {
+      f.push('same3' + ((hist[n-1] === hist[n-2] && hist[n-2] === hist[n-3]) ? 1 : 0));
+    }
+    var sdx = Math.sign(tx - px), sdy = Math.sign(ty - py);
+    var dist = Math.abs(tx - px) + Math.abs(ty - py);
+    var band = dist <= 3 ? 'N' : (dist <= 8 ? 'M' : 'F');
+    f.push('t' + sdx + '_' + sdy);
+    f.push('tb' + band + sdx + '_' + sdy);
+    f.push(n >= 1 ? 'h1t' + hist[n-1] + sdx + '_' + sdy : 'h1tx');
+    var ex = px === 0 ? -1 : (px === N-1 ? 1 : 0);
+    var ey = py === 0 ? -1 : (py === N-1 ? 1 : 0);
+    f.push('e' + ex + '_' + ey);
+    f.push('g' + Math.floor(px/6) + '_' + Math.floor(py/6));
+    f.push('pp' + (px & 1) + '_' + (py & 1));
+    return f;
+  }
+  function logits(f){
+    var s = [0,0,0,0];
+    for (var i = 0; i < f.length; i++){
+      var w = Wmap.get(f[i]);
+      if (!w) continue;
+      s[0] += w[0]; s[1] += w[1]; s[2] += w[2]; s[3] += w[3];
+    }
+    return s;
+  }
+  function softmax(s){
+    var m = Math.max(s[0], s[1], s[2], s[3]);
+    var e0 = Math.exp(s[0]-m), e1 = Math.exp(s[1]-m), e2 = Math.exp(s[2]-m), e3 = Math.exp(s[3]-m);
+    var z = e0 + e1 + e2 + e3;
+    return [e0/z, e1/z, e2/z, e3/z];
+  }
+  function argmaxRand(p){
+    var best = -1, idx = [];
+    for (var i = 0; i < 4; i++){
+      if (p[i] > best + 1e-9){ best = p[i]; idx = [i]; }
+      else if (Math.abs(p[i] - best) <= 1e-9){ idx.push(i); }
+    }
+    return idx[(Math.random() * idx.length) | 0];
+  }
+  function learn(f, label, lr){
+    var p = softmax(logits(f));
+    for (var i = 0; i < f.length; i++){
+      var w = getW(f[i]);
+      for (var c = 0; c < 4; c++){
+        w[c] -= lr * (p[c] - (c === label ? 1 : 0));
+      }
+    }
+  }
+
+  /* ---------------- 状态 ---------------- */
+  var S = {
+    mode: 'intro',            // intro | playing | over
+    px: 12, py: 12, tx: 6, ty: 6,
+    hist: [], trail: [],
+    time: 0,
+    energy: CFG.energyMax,
+    best: parseFloat(localStorage.getItem(BEST_KEY) || '0') || 0,
+    hits: 0, steps: 0, collected: 0, caught: 0, combo: 0,
+    recent: [],
+    probs: [0.25,0.25,0.25,0.25],
+    pred: -1,
+    hitFlash: 0,
+    lastFrame: 0
+  };
+  var rpx = S.px, rpy = S.py;
+
+  function respawnTarget(){
+    for (var i = 0; i < 300; i++){
+      var x = (Math.random() * N) | 0, y = (Math.random() * N) | 0;
+      var d = Math.abs(x - S.px) + Math.abs(y - S.py);
+      if (d >= 6 && d <= 14){ S.tx = x; S.ty = y; return; }
+    }
+    S.tx = (S.px + 9) % N; S.ty = (S.py + 7) % N;
+  }
+
+  var toastTimer = 0;
+  function toast(msg, ms){
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('on'); }, ms || 1300);
+  }
+
+  function start(){
+    if (S.mode === 'playing') return;
+    S.mode = 'playing';
+    S.time = 0;
+    S.energy = CFG.energyMax;
+    S.hist = []; S.trail = []; S.recent = [];
+    S.hits = 0; S.steps = 0; S.collected = 0; S.caught = 0; S.combo = 0;
+    S.probs = [0.25,0.25,0.25,0.25];
+    S.pred = -1;
+    S.px = 12; S.py = 12;
+    rpx = S.px; rpy = S.py;
+    Wmap.clear();
+    respawnTarget();
+    S.lastFrame = Date.now();
+    intro.classList.add('hide');
+    result.classList.add('hide');
+    toast('开始 —— 让它猜不中', 1400);
+  }
+
+  function endGame(){
+    S.mode = 'over';
+    var sec = S.time / 1000;
+    if (sec > S.best){ S.best = sec; try { localStorage.setItem(BEST_KEY, String(sec)); } catch(e){} }
+    document.getElementById('rScore').innerHTML = sec.toFixed(1) + '<small>s</small>';
+    document.getElementById('rBest').textContent = S.best.toFixed(1) + 's';
+    document.getElementById('rDodge').textContent = (S.steps - S.hits);
+    document.getElementById('rHits').textContent = S.caught;
+    document.getElementById('rPack').textContent = S.collected;
+    var sum = 0;
+    for (var i = 0; i < S.recent.length; i++) sum += S.recent[i];
+    document.getElementById('rAcc').textContent = S.recent.length ? Math.round(sum / S.recent.length * 100) + '%' : '0%';
+    document.getElementById('rTitle').textContent =
+      sec >= 60 ? '它有点跟不上了' : sec >= 30 ? '还行，它开始摸到门道' : '它把你摸清了';
+    document.getElementById('rHint').textContent =
+      sec >= 60 ? '你走路的规律还没被它吃透 —— 再试试能不能更久。'
+      : (S.collected < 3 ? '能量多半是自然耗光的：得去追金色数据包。'
+      : '提示：直奔数据包最容易被猜中，路上绕一下反而活得久。');
+    result.classList.remove('hide');
+  }
+
+  function step(dir){
+    if (S.mode === 'intro') start();
+    if (S.mode !== 'playing') return;
+
+    var nx = S.px + DIRS[dir].dx, ny = S.py + DIRS[dir].dy;
+    if (nx < 0 || nx >= N || ny < 0 || ny >= N){
+      toast('那边是墙', 600);
+      return;
+    }
+
+    var f = featurize(S.px, S.py, S.hist, S.tx, S.ty);
+    var probs = softmax(logits(f));
+    var pred = argmaxRand(probs);
+    var hit = (pred === dir && probs[pred] >= CFG.conf);
+
+    S.probs = probs;
+    S.pred = pred;
+
+    if (hit){
+      S.hits++;
+      S.combo++;
+      S.hitFlash = Date.now() + 320;
+      if (S.combo >= CFG.combo){
+        S.combo = 0;
+        S.caught++;
+        S.energy -= CFG.caughtPenalty;
+        S.hitFlash = Date.now() + 520;
+        toast('连中三步 —— 它把你摸透了 −' + CFG.caughtPenalty, 1300);
+      } else if (S.combo === CFG.combo - 1){
+        toast('它已经连中两下，下一步换个方向', 900);
+      }
+    } else {
+      S.combo = 0;
+    }
+    S.steps++;
+    S.recent.push(hit ? 1 : 0);
+    if (S.recent.length > 60) S.recent.shift();
+
+    learn(f, dir, CFG.lr);
+
+    S.hist.push(dir);
+    if (S.hist.length > 6) S.hist.shift();
+
+    S.trail.push({x: S.px, y: S.py});
+    if (S.trail.length > 10) S.trail.shift();
+
+    S.px = nx; S.py = ny;
+
+    if (nx === S.tx && ny === S.ty){
+      S.collected++;
+      S.energy = Math.min(CFG.energyMax, S.energy + CFG.packBonus);
+      respawnTarget();
+      toast('数据包 +' + CFG.packBonus, 700);
+    }
+
+    if (S.energy <= 0){ S.energy = 0; endGame(); }
+  }
+
+  /* ---------------- 尺寸 ---------------- */
+  function resize(){
+    var vw = Math.min(stagewrap.clientWidth || window.innerWidth, window.innerWidth) - 34;
+    var top = stagewrap.getBoundingClientRect().top;
+    var vh = window.innerHeight - top - 26;
+    size = Math.floor(Math.max(240, Math.min(vw, vh, 640)));
+    cell = size / N;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    canvas.width = Math.floor(size * dpr);
+    canvas.height = Math.floor(size * dpr);
+  }
+  window.addEventListener('resize', resize);
+
+  /* ---------------- 绘制 ---------------- */
+  function roundRect(x, y, w, h, r){
+    ctx.beginPath();
+    if (ctx.roundRect){ ctx.roundRect(x, y, w, h, r); return; }
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function draw(now){
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+    ctx.fillStyle = '#070b10';
+    ctx.fillRect(0, 0, size, size);
+
+    // 网格
+    ctx.strokeStyle = 'rgba(125,170,210,0.085)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (var i = 0; i <= N; i++){
+      var p = Math.round(i * cell) + 0.5;
+      ctx.moveTo(p, 0); ctx.lineTo(p, size);
+      ctx.moveTo(0, p); ctx.lineTo(size, p);
+    }
+    ctx.stroke();
+
+    // 模型对相邻四格的倾向
+    var live = S.steps > 0;
+    for (var d = 0; d < 4; d++){
+      var qx = S.px + DIRS[d].dx, qy = S.py + DIRS[d].dy;
+      if (qx < 0 || qx >= N || qy < 0 || qy >= N) continue;
+      var pr = live ? S.probs[d] : 0.25;
+      var a = Math.min(0.40, Math.pow(pr, 1.9) * 1.25);
+      var gx = (qx + 0.5) * cell, gy = (qy + 0.5) * cell;
+      var grad = ctx.createRadialGradient(gx, gy, cell * 0.05, gx, gy, cell * 1.5);
+      grad.addColorStop(0, 'rgba(255,72,104,' + a.toFixed(3) + ')');
+      grad.addColorStop(1, 'rgba(255,72,104,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(gx - cell*1.6, gy - cell*1.6, cell*3.2, cell*3.2);
+    }
+
+    // 预测格描边
+    if (live && S.pred >= 0){
+      var tx2 = S.px + DIRS[S.pred].dx, ty2 = S.py + DIRS[S.pred].dy;
+      if (tx2 >= 0 && tx2 < N && ty2 >= 0 && ty2 < N){
+        var pulse = 0.55 + 0.45 * Math.sin(now / 180);
+        ctx.strokeStyle = 'rgba(255,77,109,' + (0.30 + 0.42 * pulse).toFixed(3) + ')';
+        ctx.lineWidth = 1.5;
+        roundRect(tx2*cell + 2, ty2*cell + 2, cell - 4, cell - 4, Math.max(2, cell*0.18));
+        ctx.stroke();
+      }
+    }
+
+    // 拖尾
+    for (var t = 0; t < S.trail.length; t++){
+      var tp = S.trail[t];
+      var k = (t + 1) / S.trail.length;
+      ctx.fillStyle = 'rgba(62,224,207,' + (k * 0.13).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc((tp.x + 0.5) * cell, (tp.y + 0.5) * cell, cell * 0.2 * k, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 数据包
+    var pulse2 = 0.5 + 0.5 * Math.sin(now / 320);
+    var tcx = (S.tx + 0.5) * cell, tcy = (S.ty + 0.5) * cell;
+    var tg = ctx.createRadialGradient(tcx, tcy, 0, tcx, tcy, cell * 2.1);
+    tg.addColorStop(0, 'rgba(255,200,87,' + (0.20 + 0.14 * pulse2).toFixed(3) + ')');
+    tg.addColorStop(1, 'rgba(255,200,87,0)');
+    ctx.fillStyle = tg;
+    ctx.beginPath(); ctx.arc(tcx, tcy, cell * 2.1, 0, Math.PI * 2); ctx.fill();
+
+    var half = cell * (0.25 + 0.03 * pulse2);
+    ctx.fillStyle = '#ffc857';
+    ctx.save();
+    ctx.translate(tcx, tcy);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillRect(-half, -half, half * 2, half * 2);
+    ctx.restore();
+
+    // 玩家
+    rpx += (S.px - rpx) * 0.34;
+    rpy += (S.py - rpy) * 0.34;
+    var cx = (rpx + 0.5) * cell, cy = (rpy + 0.5) * cell;
+
+    var pg = ctx.createRadialGradient(cx, cy, 0, cx, cy, cell * 2.4);
+    pg.addColorStop(0, 'rgba(62,224,207,0.30)');
+    pg.addColorStop(1, 'rgba(62,224,207,0)');
+    ctx.fillStyle = pg;
+    ctx.beginPath(); ctx.arc(cx, cy, cell * 2.4, 0, Math.PI * 2); ctx.fill();
+
+    if (now < S.hitFlash){
+      var hk = Math.max(0, Math.min(1, (S.hitFlash - now) / 420));
+      ctx.strokeStyle = 'rgba(255,77,109,' + (hk * 0.85).toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cell * (0.55 + (1 - hk) * 2.8), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#d8fffa';
+    ctx.beginPath(); ctx.arc(cx, cy, cell * 0.27, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3ee0cf';
+    ctx.beginPath(); ctx.arc(cx, cy, cell * 0.19, 0, Math.PI * 2); ctx.fill();
+  }
+
+  /* ---------------- HUD ---------------- */
+  var el = {
+    streak: document.getElementById('streak'),
+    best: document.getElementById('best'),
+    efill: document.getElementById('efill'),
+    ebar: document.getElementById('ebar'),
+    ecolor: document.getElementById('ecolor'),
+    acc: document.getElementById('acc'),
+    col: document.getElementById('col'),
+    mem: document.getElementById('mem'),
+    steps: document.getElementById('steps'),
+    guess: document.getElementById('guess'),
+    probs: document.getElementById('probs')
+  };
+  var chainDots = Array.prototype.slice.call(document.querySelectorAll('#chain i'));
+  var rows = [];
+  for (var c = 0; c < 4; c++){
+    var row = document.createElement('div');
+    row.className = 'prow';
+    row.innerHTML = '<span class="plbl">' + DIRS[c].s + '</span>' +
+      '<div class="bar"><i></i></div><span class="ppct">–</span>';
+    el.probs.appendChild(row);
+    rows.push({row: row, fill: row.querySelector('i'), pct: row.querySelector('.ppct')});
+  }
+
+  function hud(now){
+    var sec = S.time / 1000;
+    el.streak.innerHTML = sec.toFixed(1) + '<span>s</span>';
+    el.streak.classList.toggle('hot', sec >= 30);
+    el.best.textContent = S.best.toFixed(1) + 's';
+
+    var e = Math.max(0, S.energy);
+    var pctE = Math.round(e / CFG.energyMax * 100);
+    el.efill.style.width = pctE + '%';
+    el.ecolor.textContent = pctE;
+    el.ebar.classList.toggle('warn', pctE <= 55 && pctE > 28);
+    el.ebar.classList.toggle('danger', pctE <= 28);
+
+    var sum = 0;
+    for (var i = 0; i < S.recent.length; i++) sum += S.recent[i];
+    el.acc.textContent = S.recent.length ? Math.round(sum / S.recent.length * 100) + '%' : '–';
+    el.col.textContent = S.collected;
+    el.mem.textContent = Wmap.size;
+    el.steps.textContent = S.steps;
+
+    var p = S.probs, top = 0;
+    for (var c = 1; c < 4; c++) if (p[c] > p[top]) top = c;
+    for (var c2 = 0; c2 < 4; c2++){
+      var pc = Math.round(p[c2] * 100);
+      rows[c2].fill.style.width = pc + '%';
+      rows[c2].pct.textContent = pc + '%';
+      rows[c2].row.classList.toggle('top', c2 === top && S.steps > 0);
+    }
+    for (var ci = 0; ci < chainDots.length; ci++){
+      chainDots[ci].classList.toggle('on', ci < S.combo);
+    }
+
+    if (S.steps === 0){
+      el.guess.textContent = '还没开始';
+    } else if (S.mode === 'over'){
+      el.guess.textContent = '这局结束了';
+    } else if (S.combo > 0){
+      el.guess.textContent = S.combo >= CFG.combo - 1
+        ? '它连中 ' + S.combo + ' 下 —— 再中一次就要扣能量'
+        : '它连中 ' + S.combo + ' 下，换个方向走';
+    } else {
+      el.guess.textContent = '下一步它赌你往' + DIRS[top].name + '（' + Math.round(p[top]*100) + '%）';
+    }
+  }
+
+  /* ---------------- 主循环 ---------------- */
+  function loop(){
+    requestAnimationFrame(loop);
+    var now = Date.now();
+    try {
+      var dt = Math.min(120, Math.max(0, now - (S.lastFrame || now)));
+      S.lastFrame = now;
+      if (S.mode === 'playing'){
+        S.time += dt;
+        S.energy -= CFG.drain * dt / 1000;
+        if (S.energy <= 0){ S.energy = 0; endGame(); }
+      }
+      draw(now);
+      hud(now);
+    } catch (err) {
+      if (window.console) console.error(err);
+    }
+  }
+
+  /* ---------------- 交互 ---------------- */
+  var KEYMAP = {
+    ArrowUp:0, ArrowRight:1, ArrowDown:2, ArrowLeft:3,
+    w:0, d:1, s:2, a:3, W:0, D:1, S:2, A:3,
+    k:0, l:1, j:2, h:3
+  };
+  var lastKeyStep = 0;
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      if (S.mode !== 'playing') start();
+      return;
+    }
+    var d = KEYMAP[e.key];
+    if (d === undefined) return;
+    e.preventDefault();
+    var t = Date.now();
+    if (t - lastKeyStep < 85) return;
+    lastKeyStep = t;
+    step(d);
+  });
+
+  canvas.addEventListener('pointerdown', function(e){
+    var r = canvas.getBoundingClientRect();
+    var gx = Math.floor((e.clientX - r.left) / cell);
+    var gy = Math.floor((e.clientY - r.top) / cell);
+    var dx = gx - S.px, dy = gy - S.py;
+    var d = -1;
+    if (dx === 0 && dy === -1) d = 0;
+    else if (dx === 1 && dy === 0) d = 1;
+    else if (dx === 0 && dy === 1) d = 2;
+    else if (dx === -1 && dy === 0) d = 3;
+    if (d >= 0) step(d);
+    else if (S.mode === 'playing') toast('只能走到相邻的格子', 700);
+  });
+
+  document.getElementById('startBtn').addEventListener('click', start);
+  document.getElementById('againBtn').addEventListener('click', start);
+  document.getElementById('resetBtn').addEventListener('click', function(){
+    S.mode = 'intro';
+    S.time = 0; S.energy = CFG.energyMax;
+    S.hist = []; S.trail = []; S.recent = [];
+    S.hits = 0; S.steps = 0; S.collected = 0; S.caught = 0; S.combo = 0;
+    S.probs = [0.25,0.25,0.25,0.25]; S.pred = -1; S.hitFlash = 0;
+    Wmap.clear();
+    S.px = 12; S.py = 12; rpx = 12; rpy = 12;
+    respawnTarget();
+    result.classList.add('hide');
+    intro.classList.remove('hide');
+    toast('重置完成', 800);
+  });
+
+  el.best.textContent = S.best.toFixed(1) + 's';
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

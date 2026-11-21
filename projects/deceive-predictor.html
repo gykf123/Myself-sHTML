@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>骗过预测器 · 项目档案 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="骗过预测器：一个在浏览器里实时训练的 4 类 softmax 回归模型，边走边学你的走位并预测下一步，你要一边躲预测一边抢数据包续命。" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261115c" />
+  <link rel="stylesheet" href="../user/user.css?v=20261115c" />
+  <link rel="stylesheet" href="./projects.css?v=20261121a" />
+  <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+  <script src="/net-guard.js?v=20261107"></script>
+  <script src="/site-nav.js?v=20261115c"></script>
+  <link rel="stylesheet" href="../fs-skin.css?v=20261121a" />
+  <script src="../fs-icons.js?v=20261121a" defer></script>
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span><span class="hm-brand-tag" style="color:var(--text-dim);font-size:12px;margin-left:6px">/ 项目档案</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../tool/">工具箱</a>
+        <a href="./" class="active" aria-current="page">项目</a>
+        <a href="../blog/">博客</a>
+      </nav>
+    </header>
+
+    <main class="user-main prj-main">
+      <section class="prj-hero">
+        <span class="prj-kicker"><i></i> PROJECT · 03 / DECEIVE PREDICTOR</span>
+        <h1 class="prj-title">骗过预测器<br /><em>deceive-predictor</em></h1>
+        <p class="prj-lede">一个会实时学习你走位的 AI 小游戏：它每走一步都在猜你下一步往哪走，猜中就扣你的能量；而你得一边故意绕路让它猜不中，一边去抢金色数据包续命。模型在浏览器里现训，数据不出本机。</p>
+        <div class="prj-badges">
+          <span class="prj-badge on"><span class="dot"></span>已上线</span>
+          <span class="prj-badge">端侧实时训练</span>
+          <span class="prj-badge">softmax 回归</span>
+          <span class="prj-badge">纯前端小游戏</span>
+        </div>
+      </section>
+
+      <section class="prj-block">
+        <h2><span class="num">01</span>怎么玩</h2>
+        <p>用<b>方向键 / WASD</b> 移动，也可以直接点相邻格子。去捡金色的<b>数据包</b>补能量——能量一直在掉，光躲不追包会被耗死。</p>
+        <p>它根据你最近几步的走位、贴边情况、和数据包的相对位置做预测。你走得越有规律，它越容易连中；连中三步就"摸透"你一次，扣一大截能量。所以真正的活法是<b>追包时故意绕路</b>，别让它摸清你的习惯。</p>
+      </section>
+
+      <section class="prj-block">
+        <h2><span class="num">02</span>模型怎么训</h2>
+        <ul>
+          <li><b>4 类 softmax 回归</b>：输入是你最近 4 步的方向、是否连走同向、相对数据包的方位、贴边与网格位置等特征。</li>
+          <li><b>每步在线更新</b>：用你实际走的方向当标签，梯度下降现场改权重——它越玩越像你。</li>
+          <li><b>全程在浏览器里</b>：权重存在内存、最好成绩存在本机 localStorage，没有任何数据上传。</li>
+        </ul>
+      </section>
+
+      <section class="prj-block">
+        <h2><span class="num">03</span>相关链接</h2>
+        <div class="prj-links">
+          <a class="prj-link" href="../tool/deceive-predictor.html">
+            <span class="li"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-tool"/></svg></span>
+            <span class="lt"><strong>开始游戏</strong><small>打开就能玩，键盘或点击操作</small></span>
+            <span class="arrow"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-arrow"/></svg></span>
+          </a>
+          <a class="prj-link" href="../tool/">
+            <span class="li"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-tool"/></svg></span>
+            <span class="lt"><strong>工具箱大厅</strong><small>这个游戏也收在 23 个工具里</small></span>
+            <span class="arrow"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-arrow"/></svg></span>
+          </a>
+        </div>
+      </section>
+
+      <a class="prj-back" href="./index.html">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> 返回项目总览
+      </a>
+    </main>
+  </div>
+</body>
+</html>

@@ -73,7 +73,7 @@
 <header>
   <a class="返回主页" href="../index.html">← FeSui 主页</a>
   <h1>🧰 工具箱</h1>
-  <span class="徽章" id="工具数">22 个工具</span>
+  <span class="徽章" id="工具数">23 个工具</span>
 </header>
 <main>
   <p class="简介">这里放着一些自包含的小工具——绝大多数无需联网、无需服务端，打开就能用；标了「需联网」的只在你主动查询时请求公开接口。Minecraft 分类里有 MC 搜索子站的工具直达入口。</p>
@@ -208,6 +208,12 @@
       <span class="描述">两个日期相差几天几小时，未来日期实时倒计时。</span>
       <span class="前往">打开 →</span>
     </a>
+    <a class="工具卡" href="./deceive-predictor.html">
+      <span class="图标" aria-hidden="true">◎</span>
+      <span class="名称">骗过预测器</span>
+      <span class="描述">一个会实时学习你走位的 AI 预测器：它每步猜你往哪走，猜中就扣能量，你得一边绕路一边抢数据包续命。4 类 softmax 回归在浏览器里现训，数据不出本机。</span>
+      <span class="前往">打开 →</span>
+    </a>
     <a class="工具卡" href="./hash.html">
       <span class="图标" aria-hidden="true">#️⃣</span>
       <span class="名称">哈希计算</span>
@@ -236,7 +242,8 @@
     './timestamp.html':'daily', './json.html':'dev', './password.html':'dev',
     './base64.html':'dev', './text.html':'text', './color.html':'daily',
     './convert.html':'daily', './cron.html':'dev', './regex.html':'dev',
-    './markdown.html':'text', './datediff.html':'daily', './hash.html':'dev'
+    './markdown.html':'text', './datediff.html':'daily', './hash.html':'dev',
+    './deceive-predictor.html':'daily'
   };
   var CATS = [['all','全部'],['mc','🎮 Minecraft'],['dev','🛠️ 开发'],['text','📝 文本'],['daily','📐 日常']];
 
