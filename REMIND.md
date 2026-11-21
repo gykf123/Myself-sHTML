@@ -669,3 +669,10 @@
 - **重构**：把原来写在 `run()` 里的阶段二回放录制抽成公共 `composeVideo(cols,rows,fps,total,totalFuncs,t0,note)`，正常转换和导入 Txt 共用同一套 1280×720 双栏录制、魔数验身、MediaRecorder 真构造、PNG 降级逻辑；`showFatal()` 统一收口。导入时从函数文本重建 1px/格小快照，再直接 `composeVideo()` 生成还原视频。
 - **验收**：内联脚本 `node --check` 通过；Node 单测验证 serialize→parse 往返、纯文本/unicode √ 兼容；Chromium 端到端导入样例 Txt → 2 帧 / 3 条函数 / 4×3 网格 / 1/2 当前帧 / 结果说明「已导入 Txt · 完成 · MP4 · 时长约 0.3s」，再点下载得到 `video-functions.txt`（含 2 个 FRAME 标记、头部参数正确），0 JS 错误 / 0 资源错误。
 - **回执**：工具功能增强属访客可感知改动，按 §0 发公告 / 留言板汇报。`fs-notify.announce` 返回 **id=21**，`mailed=3 / failed=0 / provider=resend`；发前查最新公告确认无同标题/同正文，管理员态照旧「临时提权 → login → announce → finally 还原 role=user」。留言板 `wall-post` 返回 **id=10**。提交 `b5de5f1` 已推送，线上核验工具页与工具箱入口均生效。
+
+## ㊷ 2026-11-21：视频转函数可选保留原视频音频
+- **需求**：用户「对了，这个工具会弄没音频」——原链路只录 canvas 视频轨，导出必然无声。
+- **实现**：设置区新增「保留原视频音频」勾选框（默认开）。`wakeAudio()` 在用户点「开始转换 / 导入 Txt」的同步路径里先解锁 `AudioContext`；`prepareAudioTrack()` 用独立隐藏 `<audio>` 接 `createMediaElementSource → MediaStreamDestination`，**只进录制图不连扬声器**，再从 0 播放，把音频轨塞进 canvas 录制流。`makeRecorder(stream,hasAudio)` 按是否有音轨切换候选格式（MP4 `avc1+mp4a`、WebM `vp9/vp8+opus`，仍保留逐个真构造兜底）。收口只停视频轨、暂停 audio 元素，音频 destination 轨可复用。自动播放被拦或无 Web Audio 时静默降级无声，并在结果说明标出。
+- **音画同步坑**：旧代码 `interval=dur/total`，当 `maxFrames` 截断长视频时会把整段画面压进更短输出；保留音频后必须改成 `interval=1/fps`，输出时长 `total/fps` 与原片前一段对应，画面和音频才对得上。
+- **验收**：内联脚本 `node --check` 通过；用 ffmpeg 造 2s VP8+Opus 测试视频。Chromium 默认勾选转换 → 「完成 · 含原声 · MP4 · 时长约 2.0s」，`ffprobe` 产物含 `h264` 视频 + `opus` 音频；取消勾选 → 「完成 · 无声 · MP4」，`ffprobe` 只有视频轨；0 JS 错误。
+- **回执**：工具功能增强属访客可感知改动，按 §0 发公告 / 留言板汇报。`fs-notify.announce` 返回 **id=22**，`mailed=3 / failed=0 / provider=resend`；发前查最新公告确认无同标题/同正文，role 还原 `user`。留言板 `wall-post` 返回 **id=11**。功能提交 `0420684` 已推送。
