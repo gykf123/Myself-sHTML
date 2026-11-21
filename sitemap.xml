@@ -106,7 +106,7 @@
     <loc>https://fesui.xn--0iv.gay/tool/function.html</loc>
     <lastmod>2026-11-21</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://fesui.xn--0iv.gay/tool/hash.html</loc>
@@ -118,7 +118,7 @@
     <loc>https://fesui.xn--0iv.gay/tool/img2func.html</loc>
     <lastmod>2026-11-21</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
   <url>
     <loc>https://fesui.xn--0iv.gay/tool/</loc>
@@ -250,6 +250,6 @@
     <loc>https://fesui.xn--0iv.gay/tool/video2func.html</loc>
     <lastmod>2026-11-21</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
 </urlset>
