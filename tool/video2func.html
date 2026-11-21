@@ -220,8 +220,24 @@
     return funcs.map(function(f){return f.color+'  y = '+f.y+' + 0*sqrt(x - '+f.x0+') + 0*sqrt('+f.x1+' - x)';}).join('\n');
   }
 
+  /* 跳到指定时间：处理「首帧已在 0、设 currentTime 不触发 seeked」的永久卡死 */
   function seek(t){
-    return new Promise(function(res){srcV.onseeked=function(){res();};srcV.currentTime=t;});
+    return new Promise(function(res){
+      // 已经停在目标位置（尤其首帧 t=0），浏览器不会对相同值触发 seeked，直接放行
+      if(Math.abs(srcV.currentTime-t)<0.002){res();return;}
+      var done=false,timer=null;
+      function finish(){
+        if(done)return;done=true;
+        if(timer){clearTimeout(timer);timer=null;}
+        srcV.removeEventListener('seeked',onSeeked);
+        res();
+      }
+      function onSeeked(){finish();}
+      srcV.addEventListener('seeked',onSeeked);
+      // 超时兜底：某些编码/关键帧稀疏的视频 seek 会挂住，最多等 1.5s 继续，不让进度条假死
+      timer=setTimeout(finish,1500);
+      try{srcV.currentTime=t;}catch(e){finish();}
+    });
   }
 
   /* 预览某一帧（不录制） */
@@ -290,8 +306,12 @@
         await sleep(Math.max(0,1000/fps-8));
       }
     }catch(e){$('v2fStatus').textContent='出错：'+e.message;}
-    // 停录
-    var done=new Promise(function(res){recorder.onstop=res;});
+    // 停录（带超时兜底：浏览器偶发不触发 onstop 时不能把整条流程挂死）
+    var stopped=false;
+    var done=new Promise(function(res){
+      recorder.onstop=function(){stopped=true;res();};
+      setTimeout(function(){if(!stopped)res();},2000);
+    });
     try{recorder.stop();}catch(e){}
     await done;
     var secs=(performance.now()-t0)/1000;

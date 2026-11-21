@@ -590,3 +590,10 @@
 - **③ 顺手修真 bug**：`img2func.html`/`function.html`/`video2func.html` 三页的 `toolkit.css` 引用写成 `../toolkit.css`（根目录，线上 404），实际文件在 `tool/toolkit.css`。**线上 img2func/function 一直是 404、基础组件样式丢失**，之前验收只查 JS 异常没查 CSS 404 才漏掉。三处改 `./toolkit.css`。教训：**验收要抓 response≥400，不能只听 pageerror**。
 - **工具箱**：加视频转函数卡、计数 21→22、CAT 映射补 dev。
 - **回执**：提交 `49700a5` 已推送，`origin/main..HEAD` 为空，Pages `built @ 49700a5`。宣传 MP4 + 新工具属访客可感知大改动，**按 §0 发公告 / 发邮件**（见下）。MP4 交付路径 `promo/media/img2func-promo.mp4`。
+
+## ㉛ 2026-11-21：修视频转函数「卡死、进度条不动」
+- **需求**：用户反馈上传 10 秒视频（1920×1080 / 32 像素宽 / 4 帧每秒）点「开始转换」后卡死、进度条纹丝不动。
+- **根因（经典坑，一眼定位）**：`seek(t)` 用 `new Promise(res => {srcV.onseeked=()=>res(); srcV.currentTime=t;})`。循环首帧 `t=0`，视频载入后本来就停在 0，把 `currentTime` 设成同一个值**浏览器不会触发 `seeked` 事件** → Promise 永远 pending → `await seek(0)` 卡死在第一步，进度条 0%。且全程无超时兜底，任一帧 seek 挂住就永久假死。
+- **修法**：① `seek()` 先判 `Math.abs(currentTime-t)<0.002` 已在目标位就直接 `res()`（解决首帧）；② 改用 `addEventListener('seeked')` + **1500ms 超时兜底** + `removeEventListener` 清理，稀疏关键帧/卡顿也放行；③ 停录 `recorder.onstop` 也加 2000ms 超时兜底，防浏览器偶发不触发 onstop 挂死全流程。工具卡链接加 `?v=20261121c` 破缓存。
+- **验收**：本地 Playwright 端到端两轮——6 帧档进度 17%→100%、0 错误；**按用户实际参数 32 像素/4 帧/10s→40 帧**，进度逐步 3%→…→100%、**12330 条函数 / 10.3s 完成 / 结果区显示 / 产出 webm / 0 JS 异常**。修前必然卡 0%，修后 40 帧全跑通。
+- **回执**：修 bug 非访客可感知大改动（工具上线 ㉚ 已发过公告），**按 §0 不发公告 / 不发邮件**。提交推送见下。
