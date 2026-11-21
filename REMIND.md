@@ -682,3 +682,11 @@
 - **实现**：① `function.html` 顶部加工具链导航「图片转函数 → 函数显示器 → 视频转函数」，当前页高亮；② `video2func.html` 当前帧函数面板新增「在函数显示器打开本帧」，把 textarea 当前帧文本 base64 后连同 `cols/rows` 通过 hash 传给函数显示器，复用既有 `#b64=&cols=&rows=` 协议，自动锁定 x 范围与宽高比；③ 工具箱 / 项目页入口版本号 `20261121k` 破缓存。
 - **验收**：两个页面内联脚本 `node --check` 通过；Chromium 验证导航三项与当前项正确；导入样例 Txt 后点击跳转，弹窗 URL 带 `b64/cols=4/rows=3`，函数显示器首行还原为 `#ff0000 ...`，`fxXmin=0`、`fxXmax=4`、`fxAspect=true`，0 JS 错误。
 - **回执**：小改动，按既有判断不单独发公告、合并进后续公告；留言板 `wall-post` 返回 **id=12**。提交 `629ba0a` 已推送。
+
+## ㊹ 2026-11-21：全站 SEO 基建补齐
+- **需求**：用户「做SEO」。
+- **实现**：① 42 个公开页面统一补齐 `canonical`、`og:title/description/type/url/image`、`twitter:card/title/description/image`、单条 JSON-LD（首页 WebSite + Organization、工具页 SoftwareApplication、项目页 CreativeWork、博客 Blog，其余 WebPage）；② 13 个缺描述的页面（骗过预测器、矿石查找器、Minecraft 搜索各子工具）补上中文描述；③ 首页与个人主页的分享标题改成带关键词的写法，并补 `og:site_name`、`og:locale`；④ 重写 `robots.txt`，屏蔽 `/admin/`、`/login/`、`/user/`、`/chat/`、`/verify/`、`/preview/` 与 MC 物品详情模板页；⑤ `sitemap.xml` 由 12 条扩到 42 条，按真实域名重建并补 `changefreq/priority`。
+- **验收**：脚本遍历校验——公开页 `canonical` 与 `og:url` 全部一致、JSON-LD 全部可 `JSON.parse`、无 head 外误插；Chromium 抽查 6 个代表页，标题/h1/lang/结构化数据全部正常、0 页面错误；线上核验 `robots.txt`、`sitemap.xml`（42 条）、`tool/markdown.html` 标签已生效。
+- **附记**：中途按用户建议试装了 `chinese-thinking-guard` 技能，用户随后表示不愿用规则「囚禁」，已删除技能并还原 `REMIND.md` 相关条目，改为自我约束。
+- **回执**：属访客可感知改动，按 §0 发公告 / 留言板汇报。提交 `758d2d2` 已推送。
+- **公告回执**：`fs-notify.announce` 返回 **id=23**，`mailed=3 / failed=0 / provider=resend`；发前查最新三条确认无同标题/同正文，role 已还原 `user`。留言板 `wall-post` 返回 **id=13**。
