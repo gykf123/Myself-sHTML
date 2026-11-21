@@ -374,47 +374,52 @@
       var showInVideo=$('v2fSide').checked;
       if(!cancelFlag&&nFrames){
         try{
+          // 固定标准 16:9 输出，避免播放器上下大黑边；不勾选时也是 16:9 纯还原视频
+          var OUT_W=1280, OUT_H=720;
+          var headerH=showInVideo?46:0;
           var recC=document.createElement('canvas');
-          var imgW=outC.width, imgH=outC.height;
-          var panelW=showInVideo?Math.round(imgW*0.92):0; // 右侧函数面板宽度
-          var headerH=showInVideo?44:0;                    // 顶栏（帧号）
-          recC.width=imgW+panelW;
-          recC.height=imgH+headerH;
+          recC.width=OUT_W;recC.height=OUT_H;
           var rctx=recC.getContext('2d');
           rctx.imageSmoothingEnabled=false;
-
           var smallC=document.createElement('canvas');smallC.width=cols;smallC.height=rows;
           var smallCtx=smallC.getContext('2d');
-          // 把一帧画到录制画布（左图 + 右函数）
+
+          // 把一帧画到录制画布：整体 16:9，左半=还原图（等比居中），右半=当前帧函数（字号撑满栏宽）
           function paintRecordFrame(k){
-            rctx.fillStyle='#080b14';rctx.fillRect(0,0,recC.width,recC.height);
-            // 左：还原像素图
+            rctx.fillStyle='#080b14';rctx.fillRect(0,0,OUT_W,OUT_H);
+            var bodyTop=headerH, bodyH=OUT_H-headerH;
+            var leftW=showInVideo?Math.round(OUT_W*0.5):OUT_W;
+            // 左：还原图等比 contain 居中（拉伸会变形，保持原比例）
             smallCtx.putImageData(frameImages[k],0,0);
-            rctx.drawImage(smallC,0,headerH,imgW,imgH);
+            var scale=Math.min(leftW/cols,bodyH/rows);
+            var dw=cols*scale,dh=rows*scale;
+            var dx=(leftW-dw)/2,dy=bodyTop+(bodyH-dh)/2;
+            rctx.drawImage(smallC,dx,dy,dw,dh);
             if(!showInVideo)return;
-            // 顶栏
-            rctx.fillStyle='#0d1230';rctx.fillRect(0,0,recC.width,headerH);
-            rctx.fillStyle='#4ff0d0';rctx.font='bold '+Math.round(headerH*0.5)+'px ui-monospace,monospace';
+            // 顶栏（帧号/时间）
+            rctx.fillStyle='#0d1230';rctx.fillRect(0,0,OUT_W,headerH);
+            rctx.fillStyle='#4ff0d0';rctx.font='bold 23px ui-monospace,Menlo,Consolas,monospace';
             rctx.textBaseline='middle';
-            rctx.fillText('ƒ(x) 函数还原  ·  帧 '+(k+1)+' / '+nFrames+'  ·  '+((k+1)/fps).toFixed(1)+'s',12,headerH/2);
-            // 右侧面板底
-            rctx.fillStyle='#0a0d1c';rctx.fillRect(imgW,headerH,panelW,imgH);
-            rctx.fillStyle='rgba(91,140,255,.55)';rctx.fillRect(imgW,headerH,2,imgH); // 分隔线
-            // 函数文本：取当前帧，逐行绘制（自动缩放字号以塞进面板）
+            rctx.fillText('ƒ(x) 函数还原  ·  帧 '+(k+1)+' / '+nFrames+'  ·  '+((k+1)/fps).toFixed(1)+'s',18,headerH/2);
+            // 右侧面板
+            var panelX=leftW,panelW=OUT_W-leftW;
+            rctx.fillStyle='#0a0d1c';rctx.fillRect(panelX,bodyTop,panelW,bodyH);
+            rctx.fillStyle='rgba(91,140,255,.6)';rctx.fillRect(panelX,bodyTop,2,bodyH);
             var lines=(frameFuncsText[k]||'').split('\n');
-            var fs=Math.max(7,Math.min(15,Math.floor(imgH/Math.max(18,lines.length*1.25))));
+            var pad=16, availW=panelW-pad*2;
+            var maxChars=1;
+            for(var q=0;q<lines.length;q++)if(lines[q].length>maxChars)maxChars=lines[q].length;
+            // 字号以「最长行刚好填满栏宽」为准（等宽字体约 0.6em/字符），高度不够就截断行数
+            var fs=Math.max(11,Math.min(24,Math.floor(availW/(maxChars*0.61))));
+            var lineH=Math.round(fs*1.16);
+            var footH=34, availH=bodyH-footH-16;
+            var showN=Math.max(1,Math.min(lines.length,Math.floor(availH/lineH)));
             rctx.font=fs+'px ui-monospace,Menlo,Consolas,monospace';
-            rctx.textBaseline='top';
-            rctx.fillStyle='#cdd8ff';
-            var pad=10, lineH=fs+2, maxLines=Math.floor((imgH-16)/lineH);
-            var start=0;
-            if(lines.length>maxLines)start=Math.floor((lines.length-maxLines)*0.0); // 从头显示
-            for(var li=start;li<Math.min(lines.length,start+maxLines);li++){
-              rctx.fillText(lines[li],imgW+pad,headerH+8+(li-start)*lineH,panelW-pad*2);
-            }
-            // 底部计数
-            rctx.fillStyle='#ffd23f';rctx.font='bold '+Math.max(9,fs)+'px ui-monospace,monospace';
-            rctx.fillText('共 '+lines.length+' 条函数',imgW+pad,headerH+imgH-6-lineH);
+            rctx.textBaseline='top';rctx.fillStyle='#cdd8ff';
+            for(var li=0;li<showN;li++)rctx.fillText(lines[li],panelX+pad,bodyTop+12+li*lineH,availW);
+            // 底部：总数 + 网格信息（填满纵向空间）
+            rctx.fillStyle='#ffd23f';rctx.font='bold '+Math.max(12,Math.min(16,fs))+'px ui-monospace,monospace';
+            rctx.fillText('共 '+lines.length+' 条函数'+(showN<lines.length?'（显示前 '+showN+'）':''),panelX+pad,bodyTop+bodyH-footH,availW);
           }
           paintRecordFrame(0);
           stream=recC.captureStream(fps);
