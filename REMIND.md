@@ -668,4 +668,4 @@
 - **实现**：`tool/video2func.html` 结果区新增 3 按钮 + 隐藏 file input：「下载全部帧 Txt」「导出当前帧 Txt」「导入 Txt」。Txt 格式：`#V2F1.0` / `#FPS` / `#COLS` / `#ROWS` / `#FRAMES` 头 + `#===FRAME n===` 分帧，函数行沿用 `#RRGGBB  y = … + 0*sqrt(x - x0) + 0*sqrt(x1 - x)`，兼容无帧标记的纯函数文本、`√` 写法与说明注释。
 - **重构**：把原来写在 `run()` 里的阶段二回放录制抽成公共 `composeVideo(cols,rows,fps,total,totalFuncs,t0,note)`，正常转换和导入 Txt 共用同一套 1280×720 双栏录制、魔数验身、MediaRecorder 真构造、PNG 降级逻辑；`showFatal()` 统一收口。导入时从函数文本重建 1px/格小快照，再直接 `composeVideo()` 生成还原视频。
 - **验收**：内联脚本 `node --check` 通过；Node 单测验证 serialize→parse 往返、纯文本/unicode √ 兼容；Chromium 端到端导入样例 Txt → 2 帧 / 3 条函数 / 4×3 网格 / 1/2 当前帧 / 结果说明「已导入 Txt · 完成 · MP4 · 时长约 0.3s」，再点下载得到 `video-functions.txt`（含 2 个 FRAME 标记、头部参数正确），0 JS 错误 / 0 资源错误。
-- **回执**：工具功能增强属访客可感知改动，按 §0 发公告 / 留言板汇报，见下。提交推送见下。
+- **回执**：工具功能增强属访客可感知改动，按 §0 发公告 / 留言板汇报。`fs-notify.announce` 返回 **id=21**，`mailed=3 / failed=0 / provider=resend`；发前查最新公告确认无同标题/同正文，管理员态照旧「临时提权 → login → announce → finally 还原 role=user」。留言板 `wall-post` 返回 **id=10**。提交 `b5de5f1` 已推送，线上核验工具页与工具箱入口均生效。
