@@ -758,3 +758,22 @@
 - **顺手修的真实故障**：新反代监控 `api.fesui.是.gay` 一直是 DOWN —— 探的是根路径，代理对未知路径返回 `403 {"ok":false,"msg":"path not allowed"}`（这是代理的白名单设计，不是坏了）。把监控 URL 改成 `…/rest/v1/users?select=id&limit=1&apikey=<publishable>`（实测 200，且真的打通 REST + 数据库），改完即转 up，并清掉了 09:33 那条 403 故障记录的影响。
 - **前端**：`status/index.html` 文案改为「全部监控项……账号里新增的监控会自动出现」，「关于这些数字」补一条覆盖范围说明；`status.js` 总览加「N 项已暂停，不计入在线」、指标行加「检测方式」；`status.css` 宽屏两列，奇数时最后一张整行、卡内曲线与事件左右并排（避免右半边空一大块）。版本号 `status.css/js` → `?v=20261122a`。
 - **验收**：接口返回 5 项（`total:5 up:5 issues:0 all_ok:true`），标签 主站 / API 反代 / FKD / QQ bot · /healthy / QQ bot · 根路径；桌面与手机 0 溢出 0 JS 错误；卡片数 5 真实渲染；浅色主题新指标对比度正常。
+
+## 51. 2026-11-22：工具箱 ⇄ 账户轻量关联（不锁功能、不要求登录）
+- **需求原话**：「工具箱和用户系统有点关联，为了留住用户。但是不能失去免费，不要求登录的本质」。
+- **设计红线（写进 SQL 头注释）**：工具永远免登录可用，一行门槛都不加；登录 = 多出来的东西（积分、进度、连用、个性化排序、少一次确认），不是入场券。所有新 RPC 对 anon 都返回 `{ok:false,need_login:true}` 而不是报错，前端因此可以把「未登录」当成最轻分支。
+- **后端 `supabase/fs-tool-hooks.sql`（已在线执行）**：
+  - `fs_tools_usage_public()` 近 30 天热度，匿名可读，只含 `{tool: uses}`，不泄露任何个人信息；
+  - `fs_tool_mine()` 今日进度 / 余额 / 连用天数 / 最近 5 个常用工具 / 未过期券数；
+  - `fs_tool_streaks` + `fs_tool_streak_touch()`：连用天数，连续自然日口径，同一天不重复累加；
+  - `fs_tool_unlock`：每满 7 天连用送 1 张 30 天有效「免确认券」；
+  - `fs_tool_confirm(p_tool,p_cost)`：按工具给免费用量阈值（文本类 200 万、转函数 400 万、视频 800 万、压缩 4000 万），超了才 `need:true`；
+  - `fs_tool_reward` 升级：**同一工具同一天只计 1 次分**（3 次/天 = 15 分顶格不变），重复使用写 `counted=false` 留热度；返回 `streak` / `coupon`。
+- **踩坑（一次踩齐三个）**：① `slot` 原来是 `not null` + `check(slot between 1 and 3)` + `unique(user_id,day,slot)`，重复使用要留痕必然超 3 行 → 改 `slot drop not null` + 部分唯一索引 `where counted` 才算干净，只删约束不删 not null 会报 `23502`；② Management API 批量执行 SQL 时**单条报错不中断**，建表顺序错（函数先于依赖表）会静默留下「函数不存在」，只能靠 `select proname from pg_proc` 复核；③ psql 风格的 `with ... delete ... returning` 和同语句后续 `select` 看同一快照，清理后计数会是旧值。
+- **前端（tool-credit.js 重写）**：
+  - **未登录**：工具页**零 DOM、零请求、零提示**（原来连检测都不跑，现在跑但只写 localStorage，不上网）；大厅按本地「最近用过」排前，匿名也能感到「记得我」；
+  - **登录**：工具页顶部细条显示 `今日 x/3 · 余额 N` + 连用天数徽章 + 签到链接 + 关闭按钮；
+  - **重任务确认**：视频/压缩/图转函数/函数/找矿 5 类，估算超 200 万单位时用同步 XHR 问一次 `fs_tool_confirm`，`need:true` 才 `confirm()`，取消则 `stopPropagation` —— 工具逻辑一行没改；小任务完全不打扰；
+  - **检测器补洞**：原来只认 `.tk-result` 与 6 个固定 id，base64（`#encOut`）、timestamp（`#tsOut`）等页「用了不计分」。加 `[id$="Out"]/[id$="Status"]` 等通配 + 输入框/提示词排除规则，实测 base64 从「无反应」变正常计分。
+- **验收（本地 + 真库）**：4 个不同工具依次 `1/3 → 2/3 → 3/3`，第 4 个弹「今日工具积分已领满 3/3」；同一工具再点回「这个工具今天已经计过分了」；匿名调 `fs_tool_reward` 仍 401，调 `fs_tool_mine` 回 `need_login`，`fs_tool_confirm` 小任务直接 `need:false`；匿名用一次 base64 → `fs_tool_seen={"base64":1}`、无 toast、无工具条、再回大厅 base64 排第一；假 30MB 视频点「开始转换」弹出确认框；全站 27 页 × 3 场景（匿名桌面 / 登录桌面 / 登录手机）0 JS 错误 0 横向溢出；探针数据已清理、余额还原 10。
+- **提交**：`04dff32`。
