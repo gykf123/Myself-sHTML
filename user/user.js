@@ -202,6 +202,37 @@ async function renderProfile(payload) {
       '</div>' +
     '</section>' +
 
+    /* 每日签到 · 积分（异步填充） */
+    '<section class="user-card" id="memberCard">' +
+      '<h2><span class="card-ico" aria-hidden="true">🎁</span>每日签到与积分 <span class="badge" id="memberLevel">…</span></h2>' +
+      '<div class="sign-top">' +
+        '<div class="sign-flame"><b id="signStreak">—</b><span>连续天数</span></div>' +
+        '<div class="sign-body">' +
+          '<div class="sign-main" id="signMain">加载中…</div>' +
+          '<div class="sign-sub" id="signSub">签到、用工具都能攒积分</div>' +
+        '</div>' +
+        '<button class="sign-btn" id="signBtn" type="button" disabled>签到</button>' +
+      '</div>' +
+      '<div class="sign-week" id="signWeek"></div>' +
+      '<div class="credit-row">' +
+        '<div><span class="credit-num" id="creditBal">—</span><span class="credit-unit">积分</span></div>' +
+        '<div class="credit-mid">' +
+          '<div class="credit-level"><span id="creditLevel">—</span><span id="creditNext"></span></div>' +
+          '<div class="credit-bar"><i id="creditFill"></i></div>' +
+        '</div>' +
+        '<div class="credit-today">今日工具 <b id="creditToday">0/3</b></div>' +
+      '</div>' +
+      '<details class="credit-help">' +
+        '<summary>积分怎么来？能干什么？</summary>' +
+        '<ul>' +
+          '<li><b>签到</b>：基础 +5，连登每天 +1，每满 7 天额外 +10，单日封顶 +20。</li>' +
+          '<li><b>用工具</b>：每用一次工具 +5，每天最多 3 次（15 分）。</li>' +
+          '<li><b>用途</b>：与 FeSui 生态通用，可用于 FKD 站的 AI 对话。</li>' +
+          '<li><b>不影响免费</b>：所有工具免登录可用，登录只是把使用变成积分。</li>' +
+        '</ul>' +
+      '</details>' +
+    '</section>' +
+
     /* 账号资料（JWT + users 表合并，异步填充） */
     '<section class="user-card">' +
       '<h2><span class="card-ico" aria-hidden="true">🪪</span>账号资料</h2>' +
@@ -280,6 +311,7 @@ async function renderProfile(payload) {
   });
 
   // 异步加载账号详情、绑定关系、我的留言与我的访问记录
+  loadMemberCard();
   loadAccountDetail(uid);
   loadMyWall(uid);
   loadMyVisits(20);
@@ -309,6 +341,146 @@ function showToast(text) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+/* ============================================================
+   每日签到与积分
+   - 数据源：fs_member_overview()（余额 / 签到 / 工具进度 / 等级）
+   - 签到：do_sign_in()（服务端按 auth.uid() 计，重复签到返回 signed:false）
+   - 积分规则：签到 5 起、连登递增、每满 7 天 +10、单日封顶 20；
+               工具每用一次 +5、每天 3 次（后端 fs_tool_reward 控死）
+   - 全部为锦上添花：接口挂掉时只让这张卡降级，不影响账号其他功能
+   ============================================================ */
+const LEVEL_FLOOR = { '新面孔': 0, '常来': 5, '熟客': 15, '老朋友': 40, '元老': 100 };
+let memberBusy = false;
+
+async function rpcCall(name, body) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': ANON_KEY,
+      'Authorization': 'Bearer ' + getToken()
+    },
+    body: JSON.stringify(body || {})
+  });
+  const data = await res.json().catch(() => null);
+  return { ok: res.ok, status: res.status, data };
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function fmtNum(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return '0';
+  return String(Math.round(v * 100) / 100);
+}
+
+function localDayStr(d) {
+  const t = d || new Date();
+  return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2);
+}
+
+function renderSignWeek(week) {
+  const box = $('#signWeek');
+  if (!box) return;
+  const rows = Array.isArray(week) ? week : [];
+  const today = localDayStr();
+  box.innerHTML = rows.map(function (w) {
+    let label = '·';
+    try {
+      const d = new Date(String(w.date) + 'T00:00:00');
+      if (!isNaN(d.getTime())) label = (d.getMonth() + 1) + '/' + d.getDate();
+    } catch (e) {}
+    const cls = 'sign-day' + (w.signed ? ' on' : '') + (w.date === today ? ' today' : '');
+    return '<div class="' + cls + '"><b>' + (w.signed ? '✓' : label) + '</b>' +
+      (w.date === today ? '今天' : (w.signed ? '已签' : '未签')) + '</div>';
+  }).join('');
+}
+
+function renderMember(d) {
+  const s = d.sign || {}, t = d.tool || {}, lv = d.level || {};
+  setText('signStreak', String(s.streak || 0));
+  setText('memberLevel', 'Lv.' + (lv.name || '新面孔'));
+  setText('creditBal', fmtNum(d.balance));
+  setText('creditToday', (t.used || 0) + '/' + (t.limit || 3));
+
+  const btn = $('#signBtn');
+  if (s.signed_today) {
+    setText('signMain', '今天已签到，连登 ' + (s.streak || 1) + ' 天');
+    setText('signSub', '明天签到可得 +' + fmtNum(s.next_delta) + '，断签会从 1 重新开始');
+    if (btn) { btn.disabled = true; btn.textContent = '今日已签'; btn.classList.add('done'); }
+  } else {
+    setText('signMain', s.streak > 0 ? '连登 ' + s.streak + ' 天，别断了' : '今天还没签到');
+    setText('signSub', '签到可得 +' + fmtNum(s.next_delta) + ' 积分' +
+      ((s.streak || 0) % 7 === 6 ? '，这次满 7 天还有额外 +10' : ''));
+    if (btn) { btn.disabled = false; btn.textContent = '签到 +' + fmtNum(s.next_delta); btn.classList.remove('done'); }
+  }
+
+  renderSignWeek(s.week);
+
+  const base = LEVEL_FLOOR[lv.name] || 0;
+  const nextFloor = lv.next ? (LEVEL_FLOOR[lv.next] || 0) : 0;
+  const pct = lv.next
+    ? Math.max(0, Math.min(100, Math.round((lv.score - base) / Math.max(nextFloor - base, 1) * 100)))
+    : 100;
+  const fill = $('#creditFill');
+  if (fill) requestAnimationFrame(function () { fill.style.width = pct + '%'; });
+  setText('creditLevel', '累计 ' + (lv.score || 0) + ' 次 · ' + (lv.name || '新面孔'));
+  setText('creditNext', lv.next ? '再 ' + lv.need + ' 次到「' + lv.next + '」' : '已到最高等级');
+}
+
+async function loadMemberCard() {
+  const btn = $('#signBtn');
+  if (btn && !btn.dataset.bound) {
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', doSignIn);
+  }
+  const res = await rpcCall('fs_member_overview');
+  if (res.status === 401 || res.status === 403) {
+    setText('signMain', '登录已过期，请重新登录');
+    setText('signSub', '重新登录后就能签到攒积分');
+    return;
+  }
+  const d = res.data;
+  if (!res.ok || !d || d.ok !== true) {
+    setText('signMain', '积分服务暂时不可用');
+    setText('signSub', '不影响工具和其他账号功能，稍后刷新再试');
+    return;
+  }
+  renderMember(d);
+}
+
+async function doSignIn() {
+  if (memberBusy) return;
+  memberBusy = true;
+  const btn = $('#signBtn');
+  const old = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '签到中…'; }
+
+  const res = await rpcCall('do_sign_in');
+  memberBusy = false;
+  const d = res.data;
+
+  if (!res.ok || !d) {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+    showToast(res.status === 401 ? '登录已过期，请重新登录' : '签到失败，稍后再试');
+    return;
+  }
+  if (d.ok !== true) {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+    showToast(d.msg || '签到失败，稍后再试');
+    return;
+  }
+  if (d.signed) {
+    showToast('签到成功 +' + fmtNum(d.delta) + ' 积分 · 连登 ' + d.streak + ' 天');
+  } else {
+    showToast('今天已经签过了，明天再来');
+  }
+  loadMemberCard();
 }
 
 /* ---------- users 表详情填充（account 函数代理读，失败降级 anon 直读） ---------- */

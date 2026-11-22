@@ -466,3 +466,83 @@
 @media (prefers-reduced-motion: reduce) {
   .visit-list { scroll-behavior: auto; }
 }
+
+/* ---------- 每日签到 / 积分 ---------- */
+.sign-top {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.sign-flame {
+  flex: none; width: 62px; height: 62px; border-radius: 16px;
+  display: grid; place-items: center; text-align: center;
+  background: linear-gradient(135deg, rgba(255,138,76,.18), rgba(255,79,129,.16));
+  border: 1px solid rgba(255,138,76,.35);
+  color: var(--text); line-height: 1.05;
+}
+.sign-flame b { display: block; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.sign-flame span { font-size: 10.5px; color: var(--text-dim); }
+.sign-body { flex: 1; min-width: 170px; }
+.sign-main { font-size: 14px; font-weight: 650; color: var(--text); }
+.sign-sub { margin-top: 4px; font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+.sign-btn {
+  flex: none; padding: 10px 20px; border-radius: 10px; cursor: pointer;
+  font: inherit; font-size: 13.5px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #3f5fe0, #6d4bd8);
+  border: 0; transition: transform .18s var(--ease), box-shadow .18s var(--ease), opacity .18s;
+  box-shadow: 0 8px 20px -10px rgba(63,95,224,.8);
+}
+.sign-btn:hover:not(:disabled) { transform: translateY(-1px); }
+.sign-btn:disabled { opacity: .55; cursor: default; box-shadow: none; }
+.sign-btn.done { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--border); }
+
+.sign-week { display: flex; gap: 6px; margin-top: 14px; }
+.sign-day {
+  flex: 1; min-width: 0; text-align: center; padding: 8px 2px 7px;
+  border-radius: 9px; background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 10.5px; color: var(--text-dim);
+}
+.sign-day b { display: block; font-size: 12.5px; font-weight: 650; color: var(--text); margin-bottom: 2px; }
+.sign-day.on {
+  background: var(--accent-soft); border-color: var(--accent);
+  color: var(--accent);
+}
+.sign-day.on b { color: var(--accent); }
+.sign-day.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+.credit-row {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border);
+}
+.credit-num { font-size: 22px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.credit-unit { font-size: 11.5px; color: var(--text-dim); margin-left: 4px; }
+.credit-mid { flex: 1; min-width: 160px; }
+.credit-level { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-dim); margin-bottom: 5px; }
+.credit-bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--border); }
+.credit-bar i { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #3f5fe0, #6d4bd8); transition: width .5s var(--ease); }
+.credit-today { font-size: 12px; color: var(--text-dim); flex: none; }
+.credit-today b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.credit-help { margin-top: 12px; font-size: 12.5px; }
+.credit-help summary { cursor: pointer; color: var(--text-dim); list-style: none; }
+.credit-help summary::-webkit-details-marker { display: none; }
+.credit-help summary::before { content: '▸ '; }
+.credit-help[open] summary::before { content: '▾ '; }
+.credit-help ul { margin: 8px 0 0; padding-left: 18px; color: var(--text-dim); line-height: 1.85; }
+.credit-help li b { color: var(--text); }
+
+@media (max-width: 520px) {
+  .sign-top { gap: 12px; padding: 12px; }
+  .sign-flame { width: 54px; height: 54px; border-radius: 13px; }
+  .sign-flame b { font-size: 21px; }
+  .sign-btn { order: 3; flex: none; margin-left: 0; padding: 9px 18px; font-size: 13px; }
+  .credit-row { gap: 10px; }
+  .credit-mid { min-width: 0; flex: 1 1 100%; order: 3; }
+  .credit-level { flex-direction: column; gap: 1px; }
+  .credit-today { margin-left: auto; }
+  .sign-day { padding: 7px 1px 6px; font-size: 10px; }
+  .sign-day b { font-size: 11.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sign-btn, .credit-bar i { transition: none; }
+}
