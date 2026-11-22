@@ -2,7 +2,7 @@
    FeSui 网络韧性层（net-guard）
    ------------------------------------------------------------
    背景：境外 Supabase 节点在国内偶发不可达。站外已有反代
-   https://api.fkd.xn--0iv.gay ，放行 /rest/v1/ /functions/v1/
+   https://api.fesui.xn--0iv.gay ，放行 /rest/v1/ /functions/v1/
    /storage/v1/object/ /auth/v1/（auth 下另有敏感子路径拦截）。
 
    本层接管 window.fetch，只处理发往本项目 Supabase 的请求：
@@ -30,8 +30,12 @@
   'use strict';
 
   var PRIMARY = 'https://yowwyasttkywyqgseuqz.supabase.co';
-  var PROXY = 'https://api.fkd.xn--0iv.gay';
+  var PROXY = 'https://api.fesui.xn--0iv.gay';
   var ANON = 'sb_publishable_j4rpi2ejPTMGxo79uaaX3g_kQYrinS4';
+
+  /* 历史反代地址 → 现役地址。老访客 localStorage 里可能还留着旧端点，
+     直接删会让端点表退化到只剩官方域，所以就地迁移。 */
+  var LEGACY = { 'https://api.fkd.xn--0iv.gay': PROXY };
 
   var TIMEOUT_GET = 10000;
   var TIMEOUT_WRITE = 20000;   // 与 login 页 callFn 的 20s 超时对齐
@@ -93,6 +97,7 @@
     var out = [], i, n;
     for (i = 0; i < list.length; i++) {
       n = norm(list[i]);
+      if (LEGACY[n]) n = LEGACY[n];
       if (n && out.indexOf(n) === -1) out.push(n);
     }
     if (!out.length) out = [PRIMARY, PROXY];
@@ -321,9 +326,14 @@
   function probe(force) {
     if (endpoints.length < 2) return;
     try {
-      var last = parseInt(localStorage.getItem(LS_PROBE_AT) || '0', 10) || 0;
-      if (!force && Date.now() - last < PROBE_COOL_MS) return;
-      localStorage.setItem(LS_PROBE_AT, String(Date.now()));
+      var sig = endpoints.join('|');
+      var raw = localStorage.getItem(LS_PROBE_AT) || '';
+      var sep = raw.indexOf('|');
+      var last = parseInt(sep === -1 ? raw : raw.slice(0, sep), 10) || 0;
+      var lastSig = sep === -1 ? '' : raw.slice(sep + 1);
+      // 端点表变了（例如换反代域名）就立刻重探，不吃旧冷却。
+      if (!force && lastSig === sig && Date.now() - last < PROBE_COOL_MS) return;
+      localStorage.setItem(LS_PROBE_AT, String(Date.now()) + '|' + sig);
     } catch (e) {}
 
     var winner = false;
