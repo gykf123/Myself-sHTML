@@ -69,7 +69,11 @@
   var CSS = [
     '.fs-nav-root{position:fixed;right:16px;bottom:16px;z-index:9000;',
       'font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",',
-      '"Microsoft YaHei",sans-serif;text-align:left}',
+      '"Microsoft YaHei",sans-serif;text-align:left;',
+      // 滚动中淡出：手机上这根球会压住表单控件（下拉框箭头、复选框），
+      // 用户滚动找控件时先让开，停手 900ms 再回来。
+      'transition:opacity .22s ease}',
+    '.fs-nav-root.fs-nav-away{opacity:0;pointer-events:none}',
     '.fs-nav-root [hidden]{display:none!important}',
     '.fs-nav-toggle{width:46px;height:46px;border-radius:50%;cursor:pointer;',
       'border:1px solid var(--fsn-border);background:var(--fsn-bg);',
@@ -104,8 +108,12 @@
       '.fs-nav-toggle,.fs-nav-link{transition:none!important}',
       '.fs-nav-toggle:hover{transform:none}}',
     '@media (max-width:520px){',
-      '.fs-nav-root{right:12px;bottom:12px}',
-      '.fs-nav-panel{bottom:56px;width:184px}}',
+      // 手机上球会正好落在表单控件右侧，缩小 + 降不透明度，尽量少挡东西
+      '.fs-nav-root{right:10px;bottom:10px}',
+      '.fs-nav-toggle{width:40px;height:40px;font-size:17px;opacity:.74;',
+        'box-shadow:0 4px 14px rgba(0,0,0,.2)}',
+      '.fs-nav-toggle:active{opacity:1}',
+      '.fs-nav-panel{bottom:50px;width:184px}}',
     // 矮屏（横屏手机 / 小窗）：按钮再缩一圈，少挡住页面底部内容
     '@media (max-height:560px){',
       '.fs-nav-root{right:10px;bottom:10px}',
@@ -212,6 +220,84 @@
     root.appendChild(panel);
     root.appendChild(btn);
     document.body.appendChild(root);
+
+    /* 滚动淡出：只在触屏 / 窄屏上启用（桌面有鼠标，且右侧通常留白够）。
+       滚动时整根球淡到不可见且不接收点击，停手 900ms 后回来。
+       面板打开时不淡出，否则用户点了菜单又被自己藏起来。 */
+    var awayTimer = null;
+    var media = window.matchMedia ? window.matchMedia('(max-width:520px),(pointer:coarse)') : null;
+    function navAway() {
+      if (!media || !media.matches) return;
+      if (!panel.hidden) return;
+      root.classList.add('fs-nav-away');
+      if (awayTimer) clearTimeout(awayTimer);
+      awayTimer = setTimeout(function () {
+        awayTimer = null;
+        if (panel.hidden) root.classList.remove('fs-nav-away');
+      }, 900);
+    }
+    window.addEventListener('scroll', navAway, { passive: true, capture: true });
+    // 点开菜单时立刻恢复可见
+    btn.addEventListener('click', function () {
+      if (awayTimer) { clearTimeout(awayTimer); awayTimer = null; }
+      root.classList.remove('fs-nav-away');
+    });
+
+    /* 停手之后仍可能正好压在控件上（最典型：390px 下颜色量化下拉框的箭头）。
+       静止时探一下球心附近有什么，压到可交互控件就顺着右侧边缘往上挪，
+       挪到不遮挡的空档。找不到空档就退回原位（宁可挡，也不要乱飞）。 */
+    var liftTimer = null;
+    var BASE_BOTTOM = 0; // 记录初始 bottom，避免反复累加
+    var INTERACTIVE = 'input,select,textarea,button,a[href],[role="button"],.tk-btn,.v2f-radio,[contenteditable="true"]';
+
+    function blockingAt(cx, bottom) {
+      var size = btn.getBoundingClientRect().width || 40;
+      var top = window.innerHeight - bottom - size;
+      var left = cx - size / 2, right = cx + size / 2;
+      // 光靠 elementsFromPoint 会漏：控件被卡片背景盖住时中心点探到的不是它。
+      // 直接对可视区里的可交互控件做矩形相交，几何上叠了就算挡。
+      var cands = document.querySelectorAll(INTERACTIVE);
+      for (var i = 0; i < cands.length; i++) {
+        var el = cands[i];
+        var rc = el.getBoundingClientRect();
+        if (rc.width < 2 || rc.height < 2) continue;
+        if (rc.bottom < 0 || rc.top > window.innerHeight) continue;
+        if (rc.right < left || rc.left > right) continue;
+        if (rc.bottom < top || rc.top > top + size) continue;
+        // 只算真正可点的（hidden / display:none 的 getBoundingClientRect 是 0，已排除）
+        return el;
+      }
+      return null;
+    }
+    function liftIfBlocking() {
+      if (!media || !media.matches) return;
+      if (!panel.hidden) return;
+      if (root.classList.contains('fs-nav-away')) return;
+      var r = btn.getBoundingClientRect();
+      if (!r.width) return;
+      if (!BASE_BOTTOM) BASE_BOTTOM = parseFloat(getComputedStyle(root).bottom) || 10;
+      var cx = r.left + r.width / 2;
+      // 先把用户手动挪过的位置清掉，重新算
+      root.style.bottom = '';
+      if (!blockingAt(cx, BASE_BOTTOM)) return;
+      // 顺着右侧往上找空档，每 12px 试一次
+      var maxLift = window.innerHeight - r.width - 16;
+      for (var b = BASE_BOTTOM + 12; b <= maxLift; b += 12) {
+        if (!blockingAt(cx, b)) {
+          root.style.bottom = b + 'px';
+          return;
+        }
+      }
+      // 实在找不到：保持原位
+    }
+    function scheduleLift() {
+      if (liftTimer) clearTimeout(liftTimer);
+      liftTimer = setTimeout(liftIfBlocking, 420);
+    }
+    window.addEventListener('scroll', scheduleLift, { passive: true, capture: true });
+    window.addEventListener('resize', scheduleLift);
+    window.addEventListener('load', liftIfBlocking);
+    scheduleLift();
   }
 
   /* ============================================================

@@ -1107,8 +1107,16 @@
     if(!text.trim()){$('v2fStatus').textContent='还没有当前帧函数';return;}
     var cols=lastCols||parseInt($('v2fRes').value,10)||32;
     var rows=lastRows||Math.max(1,Math.round(cols*9/16));
-    var enc=encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
-    window.open('./function.html#b64='+enc+'&cols='+cols+'&rows='+rows,'_blank');
+    // 同图片转函数：数据走 localStorage + 一次性 token，地址栏只留短标记
+    var tok=(''+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+    var url='./function.html#src=1&t='+tok+'&cols='+cols+'&rows='+rows;
+    try{
+      localStorage.setItem('fe:func:payload',JSON.stringify({t:tok,text:text,cols:cols,rows:rows}));
+    }catch(e){
+      var enc=encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
+      url='./function.html#b64='+enc+'&cols='+cols+'&rows='+rows;
+    }
+    window.open(url,'_blank');
   });
   $('v2fFrameTxt').addEventListener('click',function(){
     var txt=$('v2fOut').value||'';

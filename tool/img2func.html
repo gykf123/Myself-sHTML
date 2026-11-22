@@ -396,12 +396,25 @@
   });
   $('i2fOpen').addEventListener('click',function(){
     var text=lastLines.join('\n');
-    /* base64 先按 URI 编码：+ / = 等字符在 hash 里才不会被误读。
-       接收端必须先 decodeURIComponent 再 atob（之前漏了前一步，直接 atob 抛错被吞，
-       于是显示器落到默认 3 行示例）。同时把网格尺寸传过去，显示器据此锁定 x/y 范围
-       并等比例绘制，否则只显示 x∈[-10,10] 左半截、还被 x/y 各自缩放拉成面团。 */
-    var enc=encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
-    var url='./function.html#b64='+enc+'&cols='+lastCols+'&rows='+lastRows;
+    /* 用 sessionStorage 传数据、URL 里只留 #src=1&cols=..&rows=..。
+       早期是整段 base64 塞进 hash：433 条就 8KB，200 档能到 40KB 以上，
+       微信/QQ 基本发不出去，函数内容还在地址栏明文可见。
+       sessionStorage 只有同源同标签页可读，且用完即删。 */
+    var tok=(''+Date.now().toString(36)+Math.random().toString(36).slice(2,8));
+    var url='./function.html#src=1&t='+tok+'&cols='+lastCols+'&rows='+lastRows;
+    var ok=false;
+    try{
+      // localStorage 才能跨标签页读（sessionStorage 按标签页隔离，window.open 读不到）
+      localStorage.setItem('fe:func:payload',JSON.stringify({t:tok,text:text,cols:lastCols,rows:lastRows}));
+      ok=true;
+    }catch(e){
+      // 隐私模式 / 配额满：退回老的 base64 方式，至少还能用
+      ok=false;
+    }
+    if(!ok){
+      var enc=encodeURIComponent(btoa(unescape(encodeURIComponent(text))));
+      url='./function.html#b64='+enc+'&cols='+lastCols+'&rows='+lastRows;
+    }
     window.open(url,'_blank');
   });
 

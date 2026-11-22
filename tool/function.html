@@ -24,6 +24,21 @@
   #fxCanvas{display:block;width:100%;height:480px}
   .fx-legend{position:absolute;top:10px;left:12px;font-size:11px;color:#93a0ba;font-family:ui-monospace,Menlo,Consolas,monospace;pointer-events:none}
   #fxExpr{min-height:150px;font:12.5px/1.65 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical}
+  /* 手机上 433 行挤在 150px 里根本滚不动：默认放大到 42vh，并给全屏编辑入口 */
+  @media (max-width:640px){
+    #fxExpr{min-height:42vh;font-size:12px}
+  }
+  .fx-edit-bar{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .fx-full{display:none}
+  /* 全屏编辑：贴满视口，只留一条退出按钮 */
+  .fx-full.on{display:flex;position:fixed;inset:0;z-index:9600;flex-direction:column;gap:10px;
+    background:#0b111f;padding:12px}
+  .fx-full.on .fx-full-head{display:flex;align-items:center;gap:10px;color:#cdd8ff;
+    font:600 13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}
+  .fx-full.on textarea{flex:1;min-height:0;width:100%;box-sizing:border-box;
+    font:12.5px/1.6 ui-monospace,Menlo,Consolas,monospace;resize:none;
+    background:#0d1424;color:#e6edf3;border:1px solid rgba(255,255,255,.14);
+    border-radius:10px;padding:10px 12px}
   .fx-chain{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:9px 12px;border:1px solid rgba(140,165,255,.18);border-radius:999px;background:rgba(255,255,255,.03);font-size:12px;color:#8e99b4}
   .fx-chain a{color:#9fb0e8;text-decoration:none;padding:2px 5px;border-radius:6px}
   .fx-chain a:hover{color:#dce5ff;background:rgba(145,169,255,.12)}
@@ -82,6 +97,10 @@
 cos(x)
 x^2/20</textarea>
       <p class="fx-note">格式：<b>#RRGGBB [y =] 表达式</b>。不写颜色时自动分配一种。支持 sin cos tan sqrt √ abs ln log exp min max pow、常量 pi π e tau、运算符 + - * / ^ % 与括号。</p>
+      <div class="fx-edit-bar">
+        <button class="tk-btn ghost" id="fxFullBtn" type="button">⤢ 全屏编辑</button>
+        <span class="tk-help" id="fxCount">3 行</span>
+      </div>
       <div class="fx-err" id="fxErr"></div>
     </div>
     <div class="fx-grid three" style="margin-top:14px">
@@ -125,6 +144,16 @@ x^2/20</textarea>
     </div>
   </section>
 </main>
+
+<!-- 全屏编辑层：手机上一次能多看好几行，不再跟 150px 的滚动条较劲 -->
+<div class="fx-full" id="fxFull" aria-hidden="true">
+  <div class="fx-full-head">
+    <span>函数表达式 · 全屏编辑</span>
+    <span id="fxFullCount" style="margin-left:auto;color:#8e99b4;font-weight:400">3 行</span>
+    <button class="tk-btn primary" id="fxFullDone" type="button" style="padding:6px 14px">完成</button>
+  </div>
+  <textarea id="fxFullArea" spellcheck="false" aria-label="函数表达式（全屏）"></textarea>
+</div>
 
 <script>
 (function(){
@@ -234,9 +263,50 @@ x^2/20</textarea>
   }
   function fmt(v,step){if(v===0)return'0';var d=step<1?Math.min(6,Math.max(0,-Math.floor(Math.log(step)/Math.LN10))):0;return v.toFixed(d);}
 
+  /* ---------- 从表达式里反推 x 值域 ----------
+     图片/视频转函数生成的每条都长这样：
+       #rrggbb  y = 12 + 0*sqrt(x - 3) + 0*sqrt(25 - x)
+     两个根号分别是「x 不能小于 3」和「x 不能大于 25」，合起来就是这条的可见区间。
+     全部行的并集，就是这个坐标系真正需要覆盖的范围。
+     手动粘贴时若沿用默认 -10~10，433 条（实际 0~48）只会露出左边 1/6——
+     所以粘贴时按这里算出来的范围自动填，别让用户自己踩。 */
+  function detectRange(text){
+    var lines=String(text||'').split('\n');
+    var lo=Infinity,hi=-Infinity,hits=0;
+    var reA=/(?:sqrt|√)\s*\(\s*x\s*-\s*(-?\d+(?:\.\d+)?)\s*\)/i;      // x - xmin
+    var reB=/(?:sqrt|√)\s*\(\s*(-?\d+(?:\.\d+)?)\s*-\s*x\s*\)/i;      // xmax - x
+    for(var i=0;i<lines.length;i++){
+      var s=lines[i];
+      if(!/\b[xy]\s*=/.test(s)&&!/sqrt|√/i.test(s))continue;
+      var a=s.match(reA),b=s.match(reB);
+      if(a){var v=parseFloat(a[1]);if(isFinite(v)){if(v<lo)lo=v;}}
+      if(b){var w=parseFloat(b[1]);if(isFinite(w)){if(w>hi)hi=w;}}
+      if(a||b)hits++;
+    }
+    if(!hits||!isFinite(lo)||!isFinite(hi)||hi<=lo)return null;
+    return {min:lo,max:hi,hits:hits};
+  }
+  /* 用户是否手动改过范围：改过就别乱动他的设置 */
+  var rangeTouched=false;
+  function applyAutoRange(force){
+    if(rangeTouched&&!force)return false;
+    var r=detectRange($('fxExpr').value);
+    if(!r)return false;
+    var curMin=parseFloat($('fxXmin').value),curMax=parseFloat($('fxXmax').value);
+    // 已经覆盖住了就不折腾
+    if(!force&&isFinite(curMin)&&isFinite(curMax)&&curMin<=r.min+1e-9&&curMax>=r.max-1e-9)return false;
+    $('fxXmin').value=String(r.min);
+    $('fxXmax').value=String(r.max);
+    // 有 cols 信息就勾等比，避免拉伸
+    if(imgCols>0&&imgRows>0)$('fxAspect').checked=true;
+    return r;
+  }
+
   var palette=[];
   function draw(){
     var err=$('fxErr');err.textContent='';
+    // 粘贴进来的带根号锁区间的函数：先按里面的 xmin/xmax 把坐标系摆正
+    var auto=applyAutoRange(false);
     var xmin=parseFloat($('fxXmin').value),xmax=parseFloat($('fxXmax').value);
     var samples=parseInt($('fxSamples').value,10);
     if(!isFinite(xmin)||!isFinite(xmax)||xmax<=xmin){err.textContent='x 范围无效';return;}
@@ -338,17 +408,93 @@ x^2/20</textarea>
 
   $('fxDraw').addEventListener('click',draw);
   $('fxClear').addEventListener('click',function(){$('fxExpr').value='';draw();});
+
+  /* ---------- 全屏编辑 ----------
+     移动端 150px 的表达式框要滚 433 行基本没法用，给一个贴满视口的编辑层。
+     内容实时双向同步，退出时自动重画。 */
+  function countLines(){
+    var n=$('fxExpr').value.split('\n').filter(function(s){return s.trim();}).length;
+    $('fxCount').textContent=n+' 行';
+    var fc=$('fxFullCount');if(fc)fc.textContent=n+' 行';
+  }
+  function openFull(){
+    var w=$('fxFull'),ta=$('fxFullArea');
+    ta.value=$('fxExpr').value;
+    w.classList.add('on');w.setAttribute('aria-hidden','false');
+    document.body.style.overflow='hidden';
+    countLines();
+    try{ta.focus();}catch(e){}
+  }
+  function closeFull(){
+    var w=$('fxFull'),ta=$('fxFullArea');
+    $('fxExpr').value=ta.value;
+    w.classList.remove('on');w.setAttribute('aria-hidden','true');
+    document.body.style.overflow='';
+    countLines();
+    draw();
+    try{$('fxExpr').focus();}catch(e){}
+  }
+  $('fxFullBtn').addEventListener('click',openFull);
+  $('fxFullDone').addEventListener('click',closeFull);
+  $('fxFullArea').addEventListener('input',function(){
+    $('fxExpr').value=this.value;
+    countLines();
+    applyAutoRange(false);
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&$('fxFull').classList.contains('on'))closeFull();
+  });
+  countLines();
   $('fxExpr').addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter')draw();});
   ['fxXmin','fxXmax','fxSamples'].forEach(function(id){$(id).addEventListener('change',draw);});
+  // 用户自己动了范围就记下来，后面不再自动改
+  ['fxXmin','fxXmax'].forEach(function(id){
+    $(id).addEventListener('input',function(){rangeTouched=true;});
+    $(id).addEventListener('change',function(){rangeTouched=true;});
+  });
+  /* 粘贴 / 输入后自动对一次坐标系：这是他最容易踩的坑，不等他点「绘制」 */
+  $('fxExpr').addEventListener('paste',function(){
+    // paste 时 value 还没更新，等一拍
+    setTimeout(function(){applyAutoRange(false);if(typeof countLines==='function')countLines();},0);
+  });
+  $('fxExpr').addEventListener('input',function(){
+    if(typeof countLines==='function')countLines();
+    // 只在明显是「转函数」格式时自动改，纯手写 sin(x) 不动
+    if(!/sqrt|√/i.test(this.value))return;
+    applyAutoRange(false);
+  });
   var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(draw,160);});
-  /* 支持从图片转函数工具通过 URL hash 传入（#b64=...&cols=..&rows=..） */
+  /* 接收上一页传来的函数数据，三种来源按优先级：
+     1) localStorage + 一次性 token（新版）：URL 里只带 #src=1&t=<随机>，
+        几千条数据不占地址栏，微信/QQ 里也能正常发；数据读走即删。
+        （不能用 sessionStorage：它是按标签页隔离的，window.open 出来的
+        新标签页读不到原页面的 sessionStorage，数据会静默丢失。）
+     2) #b64=（旧链接兼容）：老版本生成的链接照样能打开
+     3) 什么都没有：默认示例 */
   try{
-    var h=location.hash.match(/b64=([^&]+)/);
-    if(h){
-      /* 发送端是 encodeURIComponent(base64(url))，必须先解 URI 再 atob，
-         直接 atob 会因 % 等字符抛错被吞，落到默认示例（老 bug） */
-      var txt=decodeURIComponent(escape(atob(decodeURIComponent(h[1]))));
-      $('fxExpr').value=txt;
+    var used=0;
+    var tm=location.hash.match(/[#&]t=([A-Za-z0-9]{6,32})/);
+    var store=null;
+    try{store=localStorage.getItem('fe:func:payload');}catch(e){}
+    if(tm&&store){
+      var obj=null;
+      try{obj=JSON.parse(store);}catch(e){}
+      if(obj&&typeof obj.text==='string'&&(!obj.t||obj.t===tm[1])){
+        $('fxExpr').value=obj.text;
+        if(obj.cols>0&&obj.rows>0){imgCols=obj.cols;imgRows=obj.rows;}
+        used=1;
+      }
+      // 取走就删，避免下次误用脏数据（也可能占用配额）
+      try{localStorage.removeItem('fe:func:payload');}catch(e){}
+    }
+    if(!used){
+      var h=location.hash.match(/b64=([^&]+)/);
+      if(h){
+        /* 发送端是 encodeURIComponent(base64(url))，必须先解 URI 再 atob，
+           直接 atob 会因 % 等字符抛错被吞，落到默认示例（老 bug） */
+        var txt=decodeURIComponent(escape(atob(decodeURIComponent(h[1]))));
+        $('fxExpr').value=txt;
+      }
     }
     var hc=location.hash.match(/cols=(\d+)/),hr=location.hash.match(/rows=(\d+)/);
     if(hc&&hr){
@@ -359,6 +505,10 @@ x^2/20</textarea>
         $('fxAspect').checked=true;
       }
     }
+    /* 不管从哪条路进来（含手动粘贴后的首帧），都按内容里的根号反推一次范围 */
+    applyAutoRange(false);
+    // 地址栏里的长 base64 用完就清掉，避免复制链接时又带着几万字符
+    if(used&&location.hash){try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
   }catch(e){}
   draw();
 })();
