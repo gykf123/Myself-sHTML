@@ -731,3 +731,21 @@
 - **实测**：test-big.jpg 4 级 124 条 / 14 色 → 不量化 1529 条 / 1192 色；150 列触发确认，取消后退回 8 级（3851 条）；视频 80 列 4 级 730 条 → 不量化 1925 条；120 列 2 帧触发确认，接受后 2068 条、0 报错。
 - **提交**：`f4126a0` 已推送。线上核验不量化生效（124 → 1529，1192 色）。
 - **回执**：公告 **id=27**（`mailed=4 / failed=0`），留言板 **id=17**，role 已还原 `user`。
+
+## ㊾ 2026-11-22：个人中心签到 + 工具使用积分（每日 3 次）
+- **需求**：补充需求——「积分系统早就有了，个人中心能签到；工具箱和账户系统关联紧一点（使用一次工具 5 积分，上限 3 次），尽可能吸引长期用户，但不失免费、不要求登录的本质」。另一智能体给出的库内事实：积分就是 `public.users.active_value`，签到走 `do_sign_in()` / `my_sign_status()`（基础 5、连登 +1、每满 7 天 +10、单日封顶 20），**这些既有函数一行没改**。
+- **反向探测（先证后做）**：`users` 表无 points/score/credits 列；`fs_points`/`fs_checkin`/`user_points` 等猜名全部 PGRST205；`ai_game_awards` 是别的玩具表；anon 对 `users` 无 SELECT。最终以 `information_schema` + `pg_get_functiondef` 读线上定义为准，确认 `active_value` + `sign_ins` + 四个既有 RPC 都在，且 `do_sign_in` 只授 `authenticated`（依赖 `auth.uid()`，不能匿名代签）。
+- **新增 `supabase/fs-tool-credits.sql`**（已用 Management API 在线执行，幂等）：
+  - 表 `fs_tool_credits(id,user_id,tool,amount,day,slot,created_at)`，`unique(user_id,day,slot)`；RLS 开启、无 policy、`revoke all from public/anon/authenticated`，只 `grant all to service_role`——前端一条都读不到。
+  - `fs_tool_reward(p_tool)`：`auth.uid()` 取人，工具名 `regexp_replace` 只留 `[a-zA-Z0-9_-]{1,32}`；`pg_advisory_xact_lock(hashtext(uid||day))` 串行防并发多领；日限 3 次、每次 +5；返回 `{ok,awarded,delta,used,limit,balance,reason}`。
+  - `fs_member_overview()`：一次返回 `balance` / `sign{signed_today,streak,last_date,next_delta,week[7天]}` / `tool{used,limit,amount,earned,recent}` / `level{name,score,next,need}`；等级纯荣誉（新面孔 0 / 常来 5 / 熟客 15 / 老朋友 40 / 元老 100，按「签到总天数 + 工具奖励次数」算），不锁任何功能、不参与积分收支。
+  - 两个函数都 `security definer` + `set search_path`，`revoke ... from public` 后再 `grant execute to authenticated`；**实测 `anon` 仍带 EXECUTE**（Supabase 默认给 anon 显式授权，`revoke from public` 撤不掉），补一条 `revoke ... from anon` 后才返回 `42501`。
+  - `notify pgrst, 'reload schema'` 必须发，否则新 RPC 报 PGRST202。
+- **前端（3 处）**：
+  1. `user/`：资料卡后新增「每日签到与积分」卡——连登天数大数字、签到按钮（未签显示「签到 +N」、已签变灰「今日已签」）、最近 7 天格子（今天描边）、余额 + 等级进度条 + 今日工具 x/3、可折叠规则说明（写明「工具永远免登录可用，登录只是把使用变成积分」）。接口挂掉只降级这一张卡，不影响账号其他功能。
+  2. `tool/index.html`：`.工具条` 上方插入积分条（登录显示「今日 x/3 · 余额 N + 去签到」；未登录只写「登录后每次 +5，工具免登录照常可用」+ 登录链接，不弹窗不拦路）。
+  3. 新 `tool-credit.js`：只对 `/tool/*.html` 且已登录时初始化；真实产出才算——监听 `.tk-result`（17 个工具页统一结果区）+ `#out/#result/#output/#res/#stat/#preview` 文本变化，兜底监听复制成功 toast（「已复制」）与 `a[download]` 的 `blob:/data:` 链接。必须发生过 `pointerdown/keydown/input` 才允许计分（打开页面白送分被堵住），结果 ≥4 字且不含「✗/失败/错误/请输入…」，同 tool 同一天 `sessionStorage` 只报一次。20 个工具页统一 `defer` 引入，零改动各页内联脚本。
+- **免登录边界**：未登录时 `tool-credit.js` 直接 `return`，不发请求、不加 DOM、不弹提示；工具功能一行未动。
+- **踩坑**：①`with ... delete ... returning` 与同语句后续 `select` 看同一快照，清理后计数仍显示旧值，必须另起一条查询复核；②`parseInt` 无关，但 `v_signed := (v_last = current_date)` 在无记录时得 `null` 而非 `false`，前端要按 falsy 处理，SQL 已改 `coalesce(..., false)`；③沙箱 Chromium 缺 emoji 字体，大厅条的 🪙 显示成豆腐块，直接去掉该 emoji（个人中心保留与既有卡片一致的 🎁）；④手机 390px 下签到按钮原本 `width:100%` 变成一条大灰带，改为 `order:3` 左对齐、积分进度条整行下移、等级文案两行。
+- **验收**：RPC 端到端——overview 结构完整；匿名 `fs_tool_reward` 401；连打 4 次前 3 次 `awarded:true` 各 +5、第 4 次 `daily_limit`；`do_sign_in` +5 / 重复签到 `signed:false`；余额 10→30 再还原 10。前端——签到按钮点击后 `+5 积分 · 连登 1 天`、卡片同步；只打开 hash 页不操作 **0 分**，真实计算一次 `+5 · 1/3`，json 页只填不点按钮 **0 分**，第 4 次弹「已领满 3/3」；未登录工具页零 toast 零报错、大厅条只显示说明；全站 **30 页 × 3 场景**（桌面匿名 / 桌面登录 / 手机登录）0 JS 错误 0 横向溢出；签到卡文本对比度深色 7.25、浅色 5.67（≥4.5）。探针 `fe_probe_dev` 的签到/积分记录已删、余额还原 10。
+- **提交**：`122c7ff` 已推送；线上核验 `user.js?v=20261122a` / `tool-credit.js?v=20261122a` 200，签到卡与大厅条真实渲染、零报错。
