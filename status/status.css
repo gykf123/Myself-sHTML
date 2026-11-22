@@ -30,6 +30,22 @@ a.sts-official-link, a.sts-official-link:hover { text-decoration: none; }
 
 /* ---------- 服务明细 ---------- */
 .sts-services { display: grid; gap: 14px; }
+/* 监控项多于 3 个时，宽屏两列，避免一长条滚动 */
+@media (min-width: 1000px) {
+  .sts-services { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* 监控项为奇数时，最后一张占满整行，避免右半边留空；
+     卡内把响应曲线与事件并排，宽度用起来而不显空旷 */
+  .sts-svc:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; align-items: start;
+  }
+  .sts-svc:last-child:nth-child(odd) > .sts-svc-head,
+  .sts-svc:last-child:nth-child(odd) > .sts-assess,
+  .sts-svc:last-child:nth-child(odd) > .sts-metrics { grid-column: 1 / -1; }
+  .sts-svc:last-child:nth-child(odd) > .sts-spark { margin-top: 0; }
+  /* 指标固定三列：第 5 项（检测方式）不会把前一行拉成两宽格 */
+  .sts-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 .sts-svc {
   min-width: 0; padding: 16px;
   background: var(--surface-2); border: 1px solid var(--border);

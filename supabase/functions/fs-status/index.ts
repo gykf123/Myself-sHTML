@@ -3,27 +3,39 @@
 // 项目：yowwyasttkywyqseuqz（Deno Edge Functions）
 //
 // 为什么需要代理：
-//   1) UptimeRobot 的 read-only API key 虽然不能写，但 getMonitors 原始响应
-//      里带 http_username / http_password / keyword_value / port / userId 等
-//      监控配置字段，放前端等于把配置公开；三把 key 也不能进公开仓库。
+//   1) UptimeRobot 的 API 响应里带 http_username / http_password / keyword_value /
+//      port / userId 等监控配置字段，放前端等于把配置公开；密钥也不能进公开仓库。
 //   2) 免费版有速率限制，不能让每个访客各打一次上游接口 —— 这里做 60 秒
 //      进程内缓存 + HTTP 缓存头。
 //
+// 取数方式：账号级 Main API Key 单次 getMonitors，返回账号下**全部监控项**，
+// 新增监控不需要改代码、不需要加 Secret。顺序按角色规则排（主站 → API → FKD → bot），
+// 认不出的监控项按创建时间排在后面，label 用 UptimeRobot 里的友好名称。
+//
 // 安全边界：本函数只做「白名单字段映射」，绝不把 monitor 原始对象透传；
 // 不读数据库、不接受任何用户输入、不写任何数据、不需要鉴权。
-// 三把只读 key 存于 Supabase Secrets（仓库之外），轮换见 REMIND.md ⑳。
+// 主密钥存于 Supabase Secrets（仓库之外），轮换见 REMIND.md。
 // ============================================================
 
 const UP_API = 'https://api.uptimerobot.com/v2/getMonitors'
 const CACHE_TTL = 60_000
-const UP_TIMEOUT = 8_000
+const UP_TIMEOUT = 10_000
 const RATIO_KEYS = ['d1', 'd7', 'd30', 'd90'] as const
 
-const SERVICES = [
-  { key: 'main', label: '主站', env: 'UR_MAIN_KEY' },
-  { key: 'fkd', label: 'FKD', env: 'UR_FKD_KEY' },
-  { key: 'qqbot', label: 'QQ bot', env: 'UR_QQBOT_KEY' },
-] as const
+// 账号级 Main API Key（可读全部监控）。仅存在 Supabase Secrets。
+const ACCOUNT_KEY_ENV = 'UR_ACCOUNT_KEY'
+
+type Role = { key: string; label: string; order: number }
+
+// 只按「主机名」归类，不依赖监控 id 或显示名 —— 监控重建后依然认得出。
+// 顺序即状态页排序：核心链路在前，附属服务在后。
+const ROLES: Array<{ test: (host: string) => boolean; role: Role }> = [
+  { test: (h) => h === 'fesui.xn--0iv.gay' || h === 'fesui.是.gay', role: { key: 'main', label: '主站', order: 10 } },
+  { test: (h) => h.startsWith('api.') && h.includes('fesui'), role: { key: 'api', label: 'API 反代', order: 20 } },
+  { test: (h) => h.startsWith('fkd.'), role: { key: 'fkd', label: 'FKD', order: 30 } },
+  { test: (h) => h.includes('qqbot'), role: { key: 'qqbot', label: 'QQ bot', order: 40 } },
+]
+const FALLBACK_ORDER = 90
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -50,6 +62,14 @@ const LOG_TYPE: Record<number, string> = {
   2: '恢复',
   98: '恢复监控',
   99: '暂停监控',
+}
+
+// 监控类型：同一主机可能有 HTTP 与关键字两种探针，展示时要分得清。
+const CHECK_TYPE: Record<number, string> = {
+  1: 'HTTP',
+  2: '关键字',
+  3: 'Ping',
+  4: '端口',
 }
 
 // 「405 · Method Not Allowed」的常见成因：目标在线但健康检查端点不接受探针
@@ -87,6 +107,14 @@ function reasonText(r: unknown): string {
     .slice(0, 120)
 }
 
+function hostOf(u: string): string {
+  try {
+    return new URL(u).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 /** 从上游 monitor 里挑出「可公开展示」的字段，其余一律丢弃。 */
 function pick(m: Record<string, unknown>) {
   const rawStatus = num(m.status)
@@ -121,9 +149,12 @@ function pick(m: Record<string, unknown>) {
   const likelyOk = (rawStatus === 9 || rawStatus === 8) &&
     !!latest && latest.type === 1 && METHOD_405.test(latest.reason)
 
+  const url = String(m.url || '')
+  const name = String(m.friendly_name || '')
+
   return {
-    name: String(m.friendly_name || ''),
-    url: String(m.url || ''),
+    name,
+    url,
     status: rawStatus,
     state: likelyOk ? 'likely_ok' : st.state,
     status_text: likelyOk ? ASSESS_TEXT : st.text,
@@ -131,6 +162,8 @@ function pick(m: Record<string, unknown>) {
     probe_status_text: st.text,
     assessment: likelyOk ? { reason: latest ? latest.reason : '', note: ASSESS_NOTE } : null,
     interval: num(m.interval),
+    check: num(m.type),
+    check_text: CHECK_TYPE[num(m.type)] || '监控',
     uptime_all: num(m.all_time_uptime_ratio),
     uptime,
     avg_ms: num(m.average_response_time),
@@ -139,10 +172,65 @@ function pick(m: Record<string, unknown>) {
       return { t: num(o.datetime), ms: num(o.value) }
     }).filter((x) => x.t > 0),
     events,
+    // 排序用，不进响应
+    _order: 0,
+    _created: num(m.create_datetime),
   }
 }
 
-async function fetchMonitor(key: string): Promise<Record<string, unknown>> {
+type Service = ReturnType<typeof pick> & { key: string; label: string }
+
+function classify(m: Record<string, unknown>): Service {
+  const base = pick(m)
+  const host = hostOf(base.url)
+  const hit = ROLES.find((r) => r.test(host))
+  const id = num(m.id)
+  if (hit) {
+    return { ...base, _order: hit.role.order, key: hit.role.key, label: hit.role.label }
+  }
+  // 认不出的监控项也照样展示：用友好名称或主机名当标签，排在有序项之后。
+  return {
+    ...base,
+    _order: FALLBACK_ORDER,
+    key: id ? `m${id}` : host || 'monitor',
+    label: base.name || host || '监控项',
+  }
+}
+
+function pathLabel(u: string): string {
+  try {
+    const p = new URL(u).pathname
+    return !p || p === '/' ? '根路径' : p
+  } catch {
+    return '未知路径'
+  }
+}
+
+/**
+ * 同一角色可能挂多个监控（例如同一台机器既有 HTTP 探针又有关键字探针）。
+ * 这类同名项会让访客分不清，给标签补上路径；路径也撞了就再补序号。
+ */
+function dedupe(list: Service[]): Service[] {
+  const total = new Map<string, number>()
+  for (const s of list) total.set(s.key, (total.get(s.key) || 0) + 1)
+  const used = new Map<string, number>()
+  return list.map((s) => {
+    if ((total.get(s.key) || 0) <= 1) return s
+    const suffix = pathLabel(s.url)
+    const slug = suffix.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '') || 'root'
+    let key = `${s.key}-${slug}`
+    let label = `${s.label} · ${suffix}`
+    const n = used.get(key) || 0
+    used.set(key, n + 1)
+    if (n > 0) {
+      label = `${label} #${n + 1}`
+      key = `${key}-${n + 1}`
+    }
+    return { ...s, key, label }
+  })
+}
+
+async function fetchAll(key: string): Promise<Record<string, unknown>[]> {
   const body = new URLSearchParams({
     api_key: key,
     format: 'json',
@@ -166,8 +254,8 @@ async function fetchMonitor(key: string): Promise<Record<string, unknown>> {
     throw new Error(String(e?.message || '上游返回失败'))
   }
   const monitors = Array.isArray(d.monitors) ? d.monitors : []
-  if (!monitors.length) throw new Error('该 key 下没有监控项')
-  return (monitors[0] || {}) as Record<string, unknown>
+  if (!monitors.length) throw new Error('账号下没有监控项')
+  return monitors as Record<string, unknown>[]
 }
 
 Deno.serve(async (req: Request) => {
@@ -179,35 +267,45 @@ Deno.serve(async (req: Request) => {
     return json(cache.body, 200, { 'X-Cache': 'HIT' })
   }
 
-  const services = await Promise.all(SERVICES.map(async (s) => {
-    const key = Deno.env.get(s.env) || ''
-    const base = { key: s.key, label: s.label }
-    if (!key) {
-      return { ...base, error: '未配置只读 API key（Supabase Secret）' }
-    }
-    try {
-      return { ...base, ...pick(await fetchMonitor(key)), error: null }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      return { ...base, error: msg.slice(0, 150) }
-    }
-  }))
+  const key = Deno.env.get(ACCOUNT_KEY_ENV) || ''
+  if (!key) {
+    return json({
+      ok: false,
+      error: `未配置账号级 API key（Secret ${ACCOUNT_KEY_ENV}）`,
+      generated_at: new Date().toISOString(),
+    }, 503)
+  }
 
-  const up = services.filter((s) => 'state' in s && s.state === 'up').length
-  const likely = services.filter((s) => 'state' in s && s.state === 'likely_ok').length
+  let services: Service[]
+  try {
+    const monitors = await fetchAll(key)
+    services = dedupe(monitors.map(classify))
+      .sort((a, b) => (a._order - b._order) || (a._created - b._created))
+      .map(({ _order, _created, ...rest }) => rest as Service)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return json({
+      ok: false,
+      error: `监控接口不可用：${msg.slice(0, 150)}`,
+      generated_at: new Date().toISOString(),
+    }, 502)
+  }
+
+  const up = services.filter((s) => s.state === 'up').length
+  const likely = services.filter((s) => s.state === 'likely_ok').length
+  const paused = services.filter((s) => s.state === 'paused').length
   const issues = services.filter((s) =>
-    ('error' in s && s.error) ||
-    ('state' in s && s.state !== 'up' && s.state !== 'paused' && s.state !== 'likely_ok'),
+    s.state !== 'up' && s.state !== 'paused' && s.state !== 'likely_ok',
   ).length
 
   const payload = {
     ok: true,
     generated_at: new Date().toISOString(),
-    partial: services.some((s) => 'error' in s && !!s.error),
+    partial: false,
     // likely 单列：它不算 issues（不是故障），但也不能混进 up（未确证在线）。
-    summary: { total: services.length, up, likely, issues, all_ok: issues === 0 },
+    summary: { total: services.length, up, likely, paused, issues, all_ok: issues === 0 },
     services,
-    note: '数据来自 UptimeRobot 只读 GetMonitors，监控每 5 分钟探测一次；本响应缓存 60 秒。探针判离线但故障原因为「405 · Method Not Allowed」的，会在服务端重新解读为「大概率正常」并保留原始状态。',
+    note: '数据来自 UptimeRobot 账号级 GetMonitors，覆盖本站全部监控项，每 5 分钟探测一次；本响应缓存 60 秒。探针判离线但故障原因为「405 · Method Not Allowed」的，会在服务端重新解读为「大概率正常」并保留原始状态。',
   }
 
   cache = { at: now, body: payload }

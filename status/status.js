@@ -72,6 +72,7 @@
     var up = Number(sum.up || 0);
     var issues = Number(sum.issues || 0);
     var likely = Number(sum.likely || 0);
+    var paused = Number(sum.paused || 0);
     var allOk = !!sum.all_ok && !d.partial;
     var box = $('stsOverview');
     if (!box) return;
@@ -91,6 +92,7 @@
         '<div class="sts-ov-label">在线服务</div>' +
         '<div class="sts-ov-value">' + up + ' / ' + total + '</div>' +
         (likely ? '<div class="sts-ov-hint">另有 ' + likely + ' 项「大概率正常」</div>' : '') +
+        (paused ? '<div class="sts-ov-hint">' + paused + ' 项已暂停，不计入在线</div>' : '') +
       '</div>' +
       '<div class="sts-ov-card' + (issues ? ' is-bad' : '') + '">' +
         '<div class="sts-ov-label">异常 / 需关注</div>' +
@@ -174,6 +176,7 @@
           '<div class="sts-metric"><span class="sts-metric-label">近 7 天</span><span class="sts-metric-value">' + esc(pct(up.d7)) + '</span></div>' +
           '<div class="sts-metric"><span class="sts-metric-label">平均响应</span><span class="sts-metric-value">' + esc(ms(s.avg_ms)) + '</span></div>' +
           '<div class="sts-metric"><span class="sts-metric-label">探测间隔</span><span class="sts-metric-value">' + esc(intervalText(s.interval)) + '</span></div>' +
+          (s.check_text ? '<div class="sts-metric"><span class="sts-metric-label">检测方式</span><span class="sts-metric-value">' + esc(s.check_text) + '</span></div>' : '') +
         '</div>'
       : '';
 
