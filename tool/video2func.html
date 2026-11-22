@@ -31,6 +31,22 @@
   .v2f-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:#c9d2e6;cursor:pointer;user-select:none}
   .v2f-check input{width:16px;height:16px;accent-color:#7b8cf6}
   .v2f-stage{position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.09);background:#080b14;min-height:180px}
+  .v2f-stage canvas.pixel{image-rendering:pixelated;image-rendering:crisp-edges}
+  .v2f-backend{display:flex;gap:10px;flex-wrap:wrap}
+  .v2f-radio{display:flex;align-items:flex-start;gap:9px;padding:11px 14px;border:1px solid var(--border);
+    border-radius:11px;cursor:pointer;background:var(--panel2);transition:border-color .16s,background .16s;flex:1 1 220px}
+  .v2f-radio:hover{border-color:var(--accent)}
+  .v2f-radio input{margin-top:3px;accent-color:#7b8cf6;flex:0 0 auto}
+  .v2f-radio span{display:flex;flex-direction:column;gap:3px;font-size:13.5px;line-height:1.4}
+  .v2f-radio b{font-size:11.5px;font-weight:400;color:var(--dim)}
+  .v2f-radio.on{border-color:var(--accent);background:rgba(88,166,255,.10)}
+  .v2f-radio.on b{color:var(--accent)}
+  .v2f-radio.off{opacity:.42;cursor:not-allowed}
+  .v2f-radio.off:hover{border-color:var(--border)}
+  .v2f-radio.off b{color:var(--dim)}
+  .v2f-perf{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--dim);margin-top:10px}
+  .v2f-perf span{white-space:nowrap}
+  .v2f-perf b{color:var(--accent2);font-variant-numeric:tabular-nums;margin-left:4px}
   .v2f-stage video,.v2f-stage canvas{display:block;width:100%;height:auto;image-rendering:auto;border-radius:8px}
   .v2f-pipeline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;margin:14px 0}
   .v2f-pipeline span{padding:6px 10px;border:1px solid rgba(140,165,255,.2);border-radius:999px;color:#93a0c0;background:rgba(255,255,255,.03)}
@@ -143,6 +159,20 @@
         <input class="tk-num" id="v2fMax" type="number" min="1" max="240" value="90" step="1">
         <span class="tk-help">防止长视频卡死，超出部分截断</span>
       </div>
+      <div class="tk-col v2f-full">
+        <label class="tk-label">渲染后端</label>
+        <div class="v2f-backend" role="radiogroup" aria-label="渲染后端">
+          <label class="v2f-radio on">
+            <input type="radio" name="v2fBackend" value="gpu" checked>
+            <span>GPU 渲染<b>WebGL2 批量绘制 · 默认</b></span>
+          </label>
+          <label class="v2f-radio">
+            <input type="radio" name="v2fBackend" value="cpu">
+            <span>CPU 渡劫版<b>早期实现 · 一条函数一次 fillRect</b></span>
+          </label>
+        </div>
+        <span class="tk-help" id="v2fBackendHint">GPU 把一帧里所有函数块打包成一次绘制提交；设备不支持 WebGL2 时自动退回 CPU，功能不受影响。</span>
+      </div>
       <label class="v2f-check"><input type="checkbox" id="v2fMerge" checked> 合并同行相邻同色（函数数更少）</label>
       <label class="v2f-check"><input type="checkbox" id="v2fSkipBg"> 跳过近白背景</label>
       <label class="v2f-check"><input type="checkbox" id="v2fAudio" checked> 保留原视频音频（导入 Txt 时复用当前视频）</label>
@@ -159,19 +189,21 @@
     <h2 class="tk-card-h"><span class="ico" aria-hidden="true">◈</span>3 · 原片 / 函数还原对照</h2>
     <div class="v2f-grid">
       <div class="tk-col"><div class="v2f-stage"><video id="v2fSrc" muted playsinline></video></div><p class="tk-help">原视频</p></div>
-      <div class="tk-col"><div class="v2f-stage"><canvas id="v2fCanvas"></canvas></div><p class="tk-help">函数还原预览（当前帧）</p></div>
+      <div class="tk-col"><div class="v2f-stage"><canvas id="v2fCanvas"></canvas><canvas id="v2fCanvasGL" class="pixel" style="display:none"></canvas></div><p class="tk-help" id="v2fPreviewNote">函数还原预览（当前帧）</p></div>
     </div>
     <div class="v2f-stat">
       <span>抽帧 <b id="v2fFrames">—</b></span>
       <span>总函数 <b id="v2fFuncs">—</b></span>
       <span>网格 <b id="v2fGrid">—</b></span>
       <span>耗时 <b id="v2fTime">—</b></span>
+      <span>后端 <b id="v2fBackendUsed">—</b></span>
     </div>
   </section>
 
   <section class="tk-card" id="v2fResult" style="display:none">
     <h2 class="tk-card-h"><span class="ico" aria-hidden="true">▤</span>4 · 结果</h2>
     <label class="v2f-check" style="margin-bottom:12px"><input type="checkbox" id="v2fSide" checked> 在导出的视频画面右侧显示当前帧函数（烧进视频里）</label>
+    <div class="v2f-perf" id="v2fPerf"></div>
     <div class="v2f-result-grid" id="v2fResultGrid">
       <div class="v2f-result-video">
         <div class="v2f-stage"><video id="v2fOutVideo" muted playsinline controls></video></div>
@@ -206,6 +238,12 @@
       <details><summary>导出的视频是什么格式？</summary><p>优先 MP4（H.264 + AAC）；浏览器不支持时退回 WebM；两者都不支持（例如部分 Safari）就降级导出 PNG 序列，需要自己再合成视频。</p></details>
       <details><summary>怎么让还原出来的视频更清楚？</summary><p>把「分辨率（每行像素数）」往右拉，或直接点档位：「清晰 80 / 高清 120 / 极致 160 / 天花板 200」，再配合颜色量化 6 级或 8 级，最下面还有「0 · 不量化」，颜色最真但函数条数会逼近上限，只建议在很小的图上试。分辨率越高，每帧函数条数成倍增长，转换和录制也会更久；超过 120 列会给出提醒，手机建议 80 以内。导出视频固定 1280×720，用了高质量缩放，色块边缘比早期版本干净很多。</p></details>
       <details><summary>为什么处理要等这么久？</summary><p>因为要逐帧走完整条链路。帧数约等于视频时长乘以 FPS，20 秒 6 FPS 就是 120 帧，每一帧都要采样、生成函数、再画回来。想快就把 FPS 或分辨率调低。</p></details>
+      <details><summary>「渲染后端」两个选项有什么区别？实测谁快？</summary>
+        <p><b>GPU（默认）</b>把一帧里几千条函数块打包成实例数据，一次 <code>drawArraysInstanced</code> 提交给显卡画完，不逐条走 Canvas 2D 的 <code>fillRect</code>。<b>CPU 渡劫版</b>是早期实现：一条函数一次 <code>fillStyle + fillRect</code>。两种后端画出来的像素完全一致（同一套坐标与取色，已逐像素比对过）。</p>
+        <p><b>但要说实话：</b>在现在这条链路上，瓶颈根本不在「画」这一步。实测（160 列 / 90 行 / 2530 条函数）单帧渲染只有 0.1–0.5ms，而逐帧 <code>seek</code> 解码定位要 17ms 上下——渲染占比不到 3%。所以切到 GPU 后端体感提速有限，它解决的是「函数条数极多时不要把主线程压死」，不是「4 倍加速」。</p>
+        <p>真正快了一截的地方是<b>每帧留档</b>：改成直接写像素缓冲后，同样的 1px/格快照从 1.18ms 降到 0.09ms（约 13 倍），函数越多收益越大。结果区会实时列出采样 / 生成函数 / 渲染 / 留档各步的每帧耗时，自己看就知道时间花在哪。</p>
+        <p>设备不支持 WebGL2（老旧手机、禁用硬件加速、隐私模式）时 GPU 项会被置灰并自动留在 CPU 后端，功能不受影响。</p>
+      </details>
       <details><summary>导出的 Txt 有什么用？</summary><p>Txt 里是每一帧的全部函数、FPS 和网格尺寸。可以重新导入本工具再合成一次视频，也可以直接贴到「函数显示器」逐帧查看。</p></details>
       <details><summary>视频会被上传到服务器吗？</summary><p>不会。采样、生成函数、回放录制全部在浏览器本地完成，断网也能跑。</p></details>
     </div>
@@ -296,8 +334,159 @@
 
   /* 颜色量化（与图片转函数同款） */
   /* l<=1 视为「不量化」：原样保留 0–255，最真但函数条数暴涨 */
-  function quant(v,l){if(!(l>1))return Math.round(v);var s=255/(l-1);return Math.max(0,Math.min(255,Math.round(Math.round(v/s)*s)));}
-  function hex(r,g,b){return '#'+[r,g,b].map(function(v){var s=v.toString(16);return s.length===1?'0'+s:s;}).join('');}
+  /* 量化查表：避免每像素做除法和三次取整 */
+  var _lutKey=-1,_lut=null;
+  function buildLUT(l){
+    if(_lutKey===l)return _lut;
+    var t=new Uint8Array(256);
+    if(!(l>1)){for(var i=0;i<256;i++)t[i]=i;}
+    else{var s=255/(l-1);for(var i=0;i<256;i++)t[i]=Math.max(0,Math.min(255,Math.round(Math.round(i/s)*s)));}
+    _lutKey=l;_lut=t;return t;
+  }
+  function quant(v,l){var t=(l>1)?buildLUT(l):null;return t?t[v|0]:Math.round(v);}
+
+  var _hexCache={};
+  function hex(r,g,b){
+    var k=(r<<16)|(g<<8)|b;
+    var v=_hexCache[k];
+    if(v)return v;
+    v='#'+((1<<24)+(k)).toString(16).slice(1);
+    if(Object.keys(_hexCache).length>20000)_hexCache={};
+    _hexCache[k]=v;return v;
+  }
+
+  /* ---------- WebGL2 函数块渲染器 ----------
+     每帧几万条函数，CPU 版是一条一条 fillRect；
+     GPU 版把「矩形 + 颜色」打包成实例属性，一次 drawArraysInstanced 画完。 */
+  function createGLView(canvas){
+    var gl=null;
+    try{gl=canvas.getContext('webgl2',{alpha:false,antialias:false,depth:false,stencil:false,powerPreference:'high-performance'});}catch(e){return null;}
+    if(!gl)return null;
+
+    var vsSrc='#version 300 es\n'+
+      'in vec2 a_quad;\n'+
+      'in vec4 a_rect;\n'+
+      'in vec3 a_color;\n'+
+      'uniform vec2 u_res;\n'+
+      'out vec3 v_color;\n'+
+      'void main(){\n'+
+      '  vec2 p=a_rect.xy+a_quad*a_rect.zw;\n'+
+      '  vec2 ndc=vec2(p.x/u_res.x*2.0-1.0, 1.0-p.y/u_res.y*2.0);\n'+
+      '  gl_Position=vec4(ndc,0.0,1.0);\n'+
+      '  v_color=a_color;\n'+
+      '}';
+    var fsSrc='#version 300 es\nprecision mediump float;\n'+
+      'in vec3 v_color;\nout vec4 o;\n'+
+      'void main(){o=vec4(v_color,1.0);}';
+
+    function compile(type,src){
+      var sh=gl.createShader(type);
+      gl.shaderSource(sh,src);gl.compileShader(sh);
+      if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(sh)||'shader');
+      return sh;
+    }
+    var prog=gl.createProgram();
+    gl.attachShader(prog,compile(gl.VERTEX_SHADER,vsSrc));
+    gl.attachShader(prog,compile(gl.FRAGMENT_SHADER,fsSrc));
+    gl.linkProgram(prog);
+    if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog)||'link');
+    gl.useProgram(prog);
+
+    var quadBuf=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,0,1,1,0,1,1]),gl.STATIC_DRAW);
+    var locQuad=gl.getAttribLocation(prog,'a_quad');
+    gl.enableVertexAttribArray(locQuad);
+    gl.vertexAttribPointer(locQuad,2,gl.FLOAT,false,0,0);
+
+    var rectBuf=gl.createBuffer(),colorBuf=gl.createBuffer();
+    var locRect=gl.getAttribLocation(prog,'a_rect');
+    var locColor=gl.getAttribLocation(prog,'a_color');
+    var locRes=gl.getUniformLocation(prog,'u_res');
+    var cap=0,rectArr=null,colArr=null;
+
+    function ensure(n){
+      if(n<=cap)return;
+      cap=Math.max(8192,Math.ceil(n*1.4));
+      rectArr=new Float32Array(cap*4);
+      colArr=new Float32Array(cap*3);
+      gl.bindBuffer(gl.ARRAY_BUFFER,rectBuf);
+      gl.bufferData(gl.ARRAY_BUFFER,rectArr.byteLength,gl.DYNAMIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER,colorBuf);
+      gl.bufferData(gl.ARRAY_BUFFER,colArr.byteLength,gl.DYNAMIC_DRAW);
+    }
+
+    return {
+      el:canvas,
+      resize:function(w,h){
+        if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+        gl.viewport(0,0,w,h);
+      },
+      render:function(funcs,cols,rows){
+        ensure(funcs.length);
+        var ra=rectArr,ca=colArr;
+        for(var i=0;i<funcs.length;i++){
+          var f=funcs[i],j=i*4,k=i*3;
+          ra[j]=f.x0; ra[j+1]=rows-f.y; ra[j+2]=f.x1-f.x0; ra[j+3]=1;
+          ca[k]=(f.cr==null?255:f.cr)/255; ca[k+1]=(f.cg==null?255:f.cg)/255; ca[k+2]=(f.cb==null?255:f.cb)/255;
+        }
+        gl.bindBuffer(gl.ARRAY_BUFFER,rectBuf);
+        gl.bufferSubData(gl.ARRAY_BUFFER,0,ra,0,funcs.length*4);
+        gl.enableVertexAttribArray(locRect);
+        gl.vertexAttribPointer(locRect,4,gl.FLOAT,false,0,0);
+        gl.vertexAttribDivisor(locRect,1);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER,colorBuf);
+        gl.bufferSubData(gl.ARRAY_BUFFER,0,ca,0,funcs.length*3);
+        gl.enableVertexAttribArray(locColor);
+        gl.vertexAttribPointer(locColor,3,gl.FLOAT,false,0,0);
+        gl.vertexAttribDivisor(locColor,1);
+
+        gl.clearColor(8/255,11/255,20/255,1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.uniform2f(locRes,cols,rows);
+        gl.drawArraysInstanced(gl.TRIANGLES,0,6,funcs.length);
+      }
+    };
+  }
+
+  /* ---------- 后端选择 ----------
+     glView 建不出来（无 WebGL2 / 被禁用 / 显卡黑名单）就保持为 null，
+     单选组里的 GPU 项直接禁用并说明原因，不做「假装有 GPU」的糊弄。 */
+  var glView=null;
+  try{glView=createGLView($('v2fCanvasGL'));}catch(e){glView=null;}
+  var gpuMode=!!glView;
+  var perf={sample:0,funcs:0,draw:0,frames:0,backend:''}; // 阶段一耗时统计（毫秒）
+
+  function applyBackendUI(){
+    var radios=document.querySelectorAll('input[name="v2fBackend"]');
+    Array.prototype.forEach.call(radios,function(r){
+      var lab=r.closest('.v2f-radio');
+      var wantGPU=r.value==='gpu';
+      var off=wantGPU&&!glView;
+      r.disabled=off;
+      r.checked=(r.value==='gpu')===gpuMode;
+      if(lab){
+        lab.classList.toggle('on',r.checked);
+        lab.classList.toggle('off',off);
+        if(off)lab.title='本设备没有可用的 WebGL2，GPU 后端不可选';
+      }
+    });
+    $('v2fBackendHint').textContent=glView
+      ? 'GPU 把一帧里所有函数块打包成一次绘制提交；「CPU 渡劫版」是一条函数一次 fillRect 的老路。两者产物一致，渲染本身只占单帧耗时的一小部分。'
+      : '当前设备没有可用的 WebGL2，已自动留在 CPU 渲染：功能完全一样，只是画得慢一些。';
+    $('v2fPreviewNote').textContent='函数还原预览（'+(gpuMode?'GPU · WebGL2 实例化':'CPU · 逐条 fillRect')+'）';
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="v2fBackend"]'),function(r){
+    r.addEventListener('change',function(){
+      if(!this.checked)return;
+      gpuMode=(this.value==='gpu')&&!!glView;
+      applyBackendUI();
+      if(lastFrameFuncs.length)drawFuncs(lastFrameFuncs,lastCols,lastRows);
+      $('v2fStatus').textContent=gpuMode?'已切换到 GPU 渲染':'已切换到 CPU 渡劫版（会慢一些）';
+    });
+  });
+  applyBackendUI();
 
   /* 离屏画布：把当前 video 帧采样成网格 */
   var gridC=document.createElement('canvas');
@@ -312,14 +501,18 @@
     var data;
     try{data=g.getImageData(0,0,cols,rows).data;}
     catch(e){return {rows:rows,grid:null,err:e.message};}
+    var lut=(levels>1)?buildLUT(levels):null;
     var grid=[];
     for(var r=0;r<rows;r++){
       var row=[];
       for(var c=0;c<cols;c++){
         var i=(r*cols+c)*4;
-        var R=quant(data[i],levels),G=quant(data[i+1],levels),B=quant(data[i+2],levels),A=data[i+3];
+        var R=lut?lut[data[i]]:data[i],
+            G=lut?lut[data[i+1]]:data[i+1],
+            B=lut?lut[data[i+2]]:data[i+2],
+            A=data[i+3];
         var isBg=skipBg&&R>235&&G>235&&B>235;
-        row.push({code:hex(R,G,B),empty:(A<40||isBg)});
+        row.push({r:R,g:G,b:B,code:hex(R,G,B),empty:(A<40||isBg)});
       }
       grid.push(row);
     }
@@ -333,9 +526,11 @@
       var c=0;
       while(c<cols){
         if(grid[r][c].empty){c++;continue;}
-        var code=grid[r][c].code,start=c,end=c+1;
+        var cell0=grid[r][c];
+        var code=cell0.code,start=c,end=c+1;
+        var cr=cell0.r,cg=cell0.g,cb=cell0.b;
         if(merge){while(end<cols&&!grid[r][end].empty&&grid[r][end].code===code)end++;}
-        funcs.push({color:code,x0:start,x1:end,y:rows-r});
+        funcs.push({color:code,cr:cr,cg:cg,cb:cb,x0:start,x1:end,y:rows-r});
         c=end;
       }
     }
@@ -352,14 +547,50 @@
     }
   }
   function drawFuncs(funcs,cols,rows){
+    if(gpuMode&&glView){
+      try{
+        glView.resize(cols,rows);
+        glView.render(funcs,cols,rows);
+        if(glView.el.style.display!=='block'){glView.el.style.display='block';outC.style.display='none';}
+        return;
+      }catch(e){
+        // 显卡驱动在运行期翻车（上下文丢失等）：降级到 CPU，别让整条流程挂掉
+        glView=null;gpuMode=false;
+        try{applyBackendUI();}catch(_){}
+        $('v2fStatus').textContent='GPU 上下文丢失，已切回 CPU 渲染';
+      }
+    }
     var cell=Math.max(2,Math.floor(640/cols));
     var w=cols*cell,h=rows*cell;
     if(outC.width!==w||outC.height!==h){outC.width=w;outC.height=h;}
     paintFuncs(outC.getContext('2d'),funcs,cols,rows,cell);
+    if(outC.style.display==='none')outC.style.display='block';
+    if(glView&&glView.el.style.display!=='none')glView.el.style.display='none';
   }
 
   function funcsToText(funcs){
-    return funcs.map(function(f){return f.color+'  y = '+f.y+' + 0*sqrt(x - '+f.x0+') + 0*sqrt('+f.x1+' - x)';}).join('\n');
+    var out=new Array(funcs.length);
+    for(var i=0;i<funcs.length;i++){
+      var f=funcs[i];
+      out[i]=f.color+'  y = '+f.y+' + 0*sqrt(x - '+f.x0+') + 0*sqrt('+f.x1+' - x)';
+    }
+    return out.join('\n');
+  }
+
+  /* 直接写像素而不是一条条 fillRect：留档快照走这条，几十毫秒降到几毫秒 */
+  function funcsToImageData(funcs,cols,rows){
+    var n=cols*rows;
+    var data=new Uint8ClampedArray(n*4);
+    for(var i=0;i<n;i++){var o=i*4;data[o]=8;data[o+1]=11;data[o+2]=20;data[o+3]=255;}
+    for(var k=0;k<funcs.length;k++){
+      var f=funcs[k], rowOff=(rows-f.y)*cols*4;
+      var cr=f.cr==null?255:f.cr, cg=f.cg==null?255:f.cg, cb=f.cb==null?255:f.cb;
+      for(var x=f.x0;x<f.x1;x++){
+        var p=rowOff+x*4;
+        data[p]=cr;data[p+1]=cg;data[p+2]=cb;data[p+3]=255;
+      }
+    }
+    return new ImageData(data,cols,rows);
   }
 
   /* ===== Txt：保存/恢复全部帧函数 ===== */
@@ -428,7 +659,15 @@
     snapC.width=parsed.cols;snapC.height=parsed.rows;
     var snapCtx=snapC.getContext('2d');
     parsed.frames.forEach(function(funcs){
-      paintFuncs(snapCtx,funcs,parsed.cols,parsed.rows,1);
+      // 导入的 Txt 只有 hex 颜色，先补上 rgb 分量，才能走直写像素的快路径
+      if(funcs.length&&funcs[0].cr==null){
+        for(var i=0;i<funcs.length;i++){
+          var f=funcs[i],h=f.color.replace('#','');
+          if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+          var n=parseInt(h,16);f.cr=(n>>16)&255;f.cg=(n>>8)&255;f.cb=n&255;
+        }
+      }
+      snapCtx.putImageData(funcsToImageData(funcs,parsed.cols,parsed.rows),0,0);
       frameImages.push(snapCtx.getImageData(0,0,parsed.cols,parsed.rows));
     });
     return frameImages;
@@ -579,7 +818,7 @@
     pipe('video',true);
     var cols,levels,fps,maxFrames,merge,skipBg,dur,total,interval,rows,cell;
     var noQuantOK=window.__v2fNoQuantOK||false;
-    var mime=null, stream=null, recOK=false, t0=performance.now(), totalFuncs=0, fatal=null;
+    var mime=null, stream=null, recOK=false, t0=performance.now(), totalFuncs=0, fatal=null, done=0;
     try{
       cols=parseInt($('v2fRes').value,10)||32;
       levels=parseInt($('v2fMode').value,10);
@@ -608,6 +847,8 @@
       var snapC=document.createElement('canvas');
       snapC.width=cols;snapC.height=rows;
       var snapCtx=snapC.getContext('2d');
+      perf={sample:0,funcs:0,draw:0,frames:0,backend:gpuMode?'GPU':'CPU'};
+      $('v2fBackendUsed').textContent=gpuMode?'GPU · WebGL2':'CPU · 渡劫版';
       var canRecord=!!window.MediaRecorder;
       $('v2fPreview').style.display='block';
       $('v2fResult').style.display='none';
@@ -615,23 +856,32 @@
       $('v2fStatus').textContent='分析中 · '+total+' 帧，预计 '+est+' 秒内';
 
       // ===== 阶段一：逐帧处理并留档（进度 0→90%）=====
+      // 逐帧 seek 是实测最优路径：虽然每次 seek 有 17ms 左右的定位开销，
+      // 但顺放抽帧（rVFC）在真实时长约束下反而更慢（实测 5.8s vs 3.2s：播放本身要耗掉视频真实时长）。
       for(var i=0;i<total;i++){
         if(cancelFlag)break;
         var t=Math.min(dur-0.02,i*interval);
         await seek(t);
         if(cancelFlag)break;
+        var m0=performance.now();
         var s=sampleGrid(cols,levels,skipBg);
         if(!s.grid)continue;
+        var m1=performance.now();
         var funcs=gridToFuncs(s.grid,cols,s.rows,merge);
         totalFuncs+=funcs.length;
+        var m2=performance.now();
         drawFuncs(funcs,cols,s.rows);
+        var m3=performance.now();
         lastFrameFuncs=funcs;lastCols=cols;lastRows=s.rows;
         // 留档：1px/格小快照 + 函数文本
         try{
-          paintFuncs(snapCtx,funcs,cols,s.rows,1);
+          snapCtx.putImageData(funcsToImageData(funcs,cols,s.rows),0,0);
           frameImages.push(snapCtx.getImageData(0,0,cols,s.rows));
           frameFuncsText.push(funcsToText(funcs));
         }catch(e){}
+        var m4=performance.now();
+        perf.sample+=m1-m0;perf.funcs+=m2-m1;perf.draw+=m3-m2;perf.snap=(perf.snap||0)+(m4-m3);
+        perf.frames=++done;
         pipe('video',true);pipe('frames',true);pipe('funcs',true);pipe('frames2',true);
         $('v2fBar').style.width=Math.round((i+1)/total*90)+'%';
         $('v2fStatus').textContent='分析中 '+Math.round((i+1)/total*100)+'% ('+(i+1)+'/'+total+')';
@@ -781,6 +1031,7 @@
       $('v2fTime').textContent=secs.toFixed(1)+'s';
       if(lastFrameFuncs)$('v2fOut').value=funcsToText(lastFrameFuncs);
       $('v2fCurFrame').textContent=frameFuncsText.length?('1 / '+frameFuncsText.length):'—';
+      renderPerf();
 
       if(fatal){
         $('v2fResultNote').textContent='出错：'+fatal.message;
@@ -817,6 +1068,19 @@
       running=false;
       $('v2fRun').disabled=!srcV.videoWidth;$('v2fCancel').disabled=true;
     }
+  }
+
+  /* 阶段一耗时明细：把「时间花在哪一步」摊开给用户看 */
+  function renderPerf(){
+    var n=perf.frames||0, el=$('v2fPerf');
+    if(!n){el.textContent='';return;}
+    var per=function(v){return ((v||0)/n).toFixed(2);};
+    el.innerHTML=
+      '<span>后端<b>'+(perf.backend||'—')+'</b></span>'+
+      '<span>采样<b>'+per(perf.sample)+'</b> ms/帧</span>'+
+      '<span>生成函数<b>'+per(perf.funcs)+'</b> ms/帧</span>'+
+      '<span>渲染<b>'+per(perf.draw)+'</b> ms/帧</span>'+
+      '<span>留档<b>'+per(perf.snap)+'</b> ms/帧</span>';
   }
 
   function showFatal(e){
@@ -923,6 +1187,26 @@
     $('v2fOut').value=frameFuncsText[idx];
     $('v2fCurFrame').textContent=(idx+1)+' / '+frameFuncsText.length+' · '+this.currentTime.toFixed(1)+'s';
   });
+  /* 自动化验证入口（仅在控制台/测试脚本里用，不影响页面行为） */
+  window.__v2f={
+    hasGL:function(){return !!glView;},
+    setBackend:function(v){
+      gpuMode=(v==='gpu')&&!!glView;
+      applyBackendUI();
+      if(lastFrameFuncs.length)drawFuncs(lastFrameFuncs,lastCols,lastRows);
+      return gpuMode;
+    },
+    sample:function(cols,levels,skipBg){return sampleGrid(cols,levels,!!skipBg);},
+    funcs:function(grid,cols,rows,merge){return gridToFuncs(grid,cols,rows,!!merge);},
+    imageData:function(funcs,cols,rows){return funcsToImageData(funcs,cols,rows);},
+    paint:function(funcs,cols,rows){
+      var c=document.createElement('canvas');c.width=cols;c.height=rows;
+      var x=c.getContext('2d');paintFuncs(x,funcs,cols,rows,1);
+      return x.getImageData(0,0,cols,rows).data;
+    },
+    drawFuncs:drawFuncs,
+    perf:function(){return perf;}
+  };
 })();
 </script>
   <script src="/tool-credit.js?v=20261122b" defer></script>

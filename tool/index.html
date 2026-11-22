@@ -92,7 +92,7 @@
 <header>
   <a class="返回主页" href="../index.html">← FeSui 主页</a>
   <h1>🧰 工具箱</h1>
-  <span class="徽章" id="工具数">24 个工具</span>
+  <span class="徽章" id="工具数">25 个工具</span>
 </header>
 <main>
   <p class="简介">这里放着一些自包含的小工具——绝大多数无需联网、无需服务端，打开就能用；标了「需联网」的只在你主动查询时请求公开接口。Minecraft 分类里有 MC 搜索子站的工具直达入口。</p>
@@ -113,10 +113,16 @@
       <span class="描述">批量压缩图片、转 WebP / JPEG / PNG，限制最大边长、调质量，实时对比压缩前后体积，可打包 ZIP；压完能直接送去转函数。纯前端，图片不上传。</span>
       <span class="前往">打开 →</span>
     </a>
-    <a class="工具卡" href="./video2func.html?v=20261121l">
+    <a class="工具卡" href="./nametone.html">
+      <span class="图标" aria-hidden="true">🎵</span>
+      <span class="名称">名曲机</span>
+      <span class="描述">输入任意一句话，把它变成一首有调性、有和声、有前奏尾奏的曲子。每个字都会被拆成音高，重复的段落自动升八度当副歌，能播放、导出 WAV、生成字谱海报。纯前端实时合成，不上传。</span>
+      <span class="前往">打开 →</span>
+    </a>
+    <a class="工具卡" href="./video2func.html?v=20261122a">
       <span class="图标" aria-hidden="true">▶</span>
       <span class="名称">视频转函数</span>
-      <span class="描述">视频→图片组→函数组→图片组→视频：逐帧采样成一堆带颜色的函数，再画回来合成视频；可选保留原声，支持下载/导入全部帧 Txt。纯前端，视频不上传。</span>
+      <span class="描述">视频→图片组→函数组→图片组→视频：逐帧采样成一堆带颜色的函数，再画回来合成视频；可选保留原声，支持下载/导入全部帧 Txt。新增 GPU / CPU 后端切换，结果区实时给出每步耗时。纯前端，视频不上传。</span>
       <span class="前往">打开 →</span>
     </a>
     <a class="工具卡" href="./function.html?v=20261121l">
@@ -258,6 +264,7 @@
   // 工具 → 分类映射（href → 分类键）
   var CAT = {
     './img2func.html':'dev', './imgcompress.html':'dev', './function.html':'dev', './video2func.html':'dev',
+    './nametone.html':'fun',
     './ore-finder.html':'mc', './minecraft-search/index.html':'mc',
     './minecraft-search/tools/crafting-calculator.html':'mc',
     './minecraft-search/tools/enchantment-planner.html':'mc',
@@ -270,7 +277,7 @@
     './markdown.html':'text', './datediff.html':'daily', './hash.html':'dev',
     './deceive-predictor.html':'daily'
   };
-  var CATS = [['all','全部'],['mc','🎮 Minecraft'],['dev','🛠️ 开发'],['text','📝 文本'],['daily','📐 日常']];
+  var CATS = [['all','全部'],['fun','🎲 好玩'],['mc','🎮 Minecraft'],['dev','🛠️ 开发'],['text','📝 文本'],['daily','📐 日常']];
 
   var grid = document.querySelector('.工具网格');
   var cards = Array.prototype.slice.call(grid.querySelectorAll('.工具卡'));
