@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MP3 转钢琴 · 项目档案 · FeSui</title>
+  <meta name="referrer" content="no-referrer" />
+  <meta name="description" content="上传 MP3，让浏览器听出旋律并用钢琴弹出来：在线试听、导出图片乐谱与 PDF、导出钢琴版 MP3。纯前端，文件不上传，不设时长与次数限制。" />
+  <link rel="icon" href="../favicon.png" />
+  <link rel="stylesheet" href="../style.css?v=20261121d" />
+  <link rel="stylesheet" href="../user/user.css?v=20261122a" />
+  <link rel="stylesheet" href="./projects.css?v=20261127a" />
+  <script>try{document.documentElement.classList.toggle('theme-glass',(localStorage.getItem('theme')||'glass')==='glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+  <script src="/net-guard.js?v=20261127a"></script>
+  <script src="/site-nav.js?v=20261127a"></script>
+  <link rel="stylesheet" href="../fs-skin.css?v=20261127a" />
+  <script src="../fs-icons.js?v=20261127a" defer></script>
+  <link rel="canonical" href="https://fesui.xn--0iv.gay/projects/mp3-piano.html" />
+  <meta property="og:title" content="MP3 转钢琴 · 项目档案 · FeSui" />
+  <meta property="og:description" content="上传 MP3，让浏览器听出旋律并用钢琴弹出来：在线试听、导出图片乐谱与 PDF、导出钢琴版 MP3。纯前端，文件不上传。" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://fesui.xn--0iv.gay/projects/mp3-piano.html" />
+  <meta property="og:image" content="https://fesui.xn--0iv.gay/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MP3 转钢琴 · 项目档案 · FeSui" />
+  <meta name="twitter:description" content="上传 MP3，让浏览器听出旋律并用钢琴弹出来：在线试听、导出图片乐谱与 PDF、导出钢琴版 MP3。纯前端，文件不上传。" />
+  <meta name="twitter:image" content="https://fesui.xn--0iv.gay/og-image.png" />
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"CreativeWork","name":"MP3 转钢琴 · 项目档案 · FeSui","description":"上传 MP3，让浏览器听出旋律并用钢琴弹出来：在线试听、导出图片乐谱与 PDF、导出钢琴版 MP3。纯前端，文件不上传。","url":"https://fesui.xn--0iv.gay/projects/mp3-piano.html","inLanguage":"zh-CN"},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://fesui.xn--0iv.gay/"},{"@type":"ListItem","position":2,"name":"项目档案","item":"https://fesui.xn--0iv.gay/projects/"},{"@type":"ListItem","position":3,"name":"MP3 转钢琴","item":"https://fesui.xn--0iv.gay/projects/mp3-piano.html"}]}]}</script>
+</head>
+<body>
+  <div class="user-page">
+    <header class="user-topbar">
+      <a class="user-brand" href="../">
+        <span class="user-logo" aria-hidden="true">F</span>
+        <span class="user-brand-name">FeSui</span><span class="hm-brand-tag" style="color:var(--text-dim);font-size:12px;margin-left:6px">/ 项目档案</span>
+      </a>
+      <nav class="user-topnav" aria-label="页面导航">
+        <a href="../">主页</a>
+        <a href="../tool/">工具箱</a>
+        <a href="./" class="active" aria-current="page">项目</a>
+        <a href="../blog/">博客</a>
+      </nav>
+    </header>
+
+    <main class="user-main prj-main">
+      <section class="prj-hero">
+        <span class="prj-kicker"><i></i> PROJECT · 04 / MP3 PIANO</span>
+        <h1 class="prj-title">让钢琴替你<br /><em>把那首歌弹一遍</em></h1>
+        <p class="prj-lede">丢一段 MP3 进去，浏览器在本地听出主旋律，再用合成钢琴弹回来。人声也能弹——乐器演奏人声，听起来往往比原样播放更有意思。乐谱、PDF、钢琴版音频，全都能带走。</p>
+        <div class="prj-badges">
+          <span class="prj-badge on"><span class="dot"></span>已上线</span>
+          <span class="prj-badge">纯前端</span>
+          <span class="prj-badge">Web Audio</span>
+          <span class="prj-badge">乐谱导出</span>
+        </div>
+      </section>
+
+      <section class="prj-block">
+        <h2><span class="num">01</span>它做了什么</h2>
+        <p>从音频里找出每条旋律线的音高和时间，交给钢琴声部重演一遍。这不是简单的变速或变调，而是真的把声音「翻译」成一串音符，再重新演奏。</p>
+        <ul>
+          <li><b>本地听写</b>：MP3 / WAV / M4A / OGG / FLAC 解码后逐帧做频谱与基频检测，转成 MIDI 音符序列。</li>
+          <li><b>钢琴演奏</b>：Web Audio 多泛音合成钢琴音色，按检测到的时值和力度弹奏，琴键跟着亮。</li>
+          <li><b>乐谱导出</b>：五线谱与钢琴卷帘两种视图，一键导出 PNG 图片；PDF 自动分页，长曲子也不会被截断。</li>
+          <li><b>音频导出</b>：离线渲染整段演奏，可导出 WAV；MP3 用开源编码器在浏览器里现编码，无需上传。</li>
+          <li><b>尽量不设限</b>：没有账号、没有时长与次数限制，可调灵敏度、量化音阶、最短音符和 BPM。</li>
+        </ul>
+      </section>
+
+      <section class="prj-block">
+        <h2><span class="num">02</span>怎么做到的</h2>
+        <p>先把音频降到 16 kHz 单声道，再用 1024 点 Hann 窗做 FFT，在 65–1300 Hz 里找谱峰并做抛物线插值，必要时按半频修正八度，得到每一帧的基频；最后合并连续同音高的帧成音符。</p>
+        <pre class="prj-code">audio → 单声道降采样 → FFT 逐帧听音高 → 合并成音符 → 钢琴合成 + 乐谱绘制</pre>
+        <p>量化音阶可以选「不量化 / 大调 / 小调 / 五声音阶」，跑调的哼唱也能被拉回调内。所有计算都在标签页里完成，文件不会离开设备。</p>
+      </section>
+
+      <section class="prj-block">
+        <h2><span class="num">03</span>边界与实话</h2>
+        <p>这是单旋律听写，不是 AI 音源分离：人声歌曲会取最明显的那条旋律线，和弦会取其中最突出的音。伴奏复杂、混响重、多人合唱的片段，出来的谱可能需要手动挑一挑。音越干净、越接近单音，结果越准。</p>
+        <p>MP3 编码需要首次导出时临时加载一个开源编码器；网络不通时会明确提示，改用 WAV 不影响其他功能。超长音频的处理时间取决于设备性能，听起来是「慢」，不是「被限制」。</p>
+      </section>
+
+      <section class="prj-block">
+        <h2><span class="num">04</span>直接去用</h2>
+        <div class="prj-links">
+          <a class="prj-link" href="../tool/mp3-piano.html?v=20261127a">
+            <span class="li"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-tool"/></svg></span>
+            <span class="lt"><strong>打开 MP3 转钢琴</strong><small>上传、试听、导出乐谱与音频</small></span>
+            <span class="arrow"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-arrow"/></svg></span>
+          </a>
+          <a class="prj-link" href="../tool/index.html">
+            <span class="li"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-tool"/></svg></span>
+            <span class="lt"><strong>工具箱</strong><small>其他纯前端小工具都在这里</small></span>
+            <span class="arrow"><svg viewBox="0 0 24 24"><use href="../icons.svg#i-arrow"/></svg></span>
+          </a>
+        </div>
+      </section>
+
+      <a class="prj-back" href="./index.html">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> 返回项目总览
+      </a>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<script>try{var t=localStorage.getItem('theme')||'glass';if(t==='glass')document.documentElement.classList.add('theme-glass');}catch(e){document.documentElement.classList.add('theme-glass');}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MP3 转钢琴 · 上传音频自动生成钢琴演奏与乐谱 · FeSui</title>
+<meta name="description" content="FeSui MP3 转钢琴：在浏览器里上传 MP3 / WAV / M4A，自动听写主旋律并用钢琴弹奏，支持在线试听、导出图片乐谱、PDF 与钢琴版 MP3。纯前端，音频不上传，不设时长与次数限制。">
+<meta name="referrer" content="no-referrer">
+<link rel="canonical" href="https://fesui.xn--0iv.gay/tool/mp3-piano.html">
+<meta property="og:title" content="MP3 转钢琴 · 上传音频自动生成钢琴演奏与乐谱 · FeSui">
+<meta property="og:description" content="上传 MP3，浏览器自动听写旋律并用钢琴弹出来；可试听、导出 PNG 乐谱、PDF 与钢琴版 MP3。纯前端，文件不上传。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fesui.xn--0iv.gay/tool/mp3-piano.html">
+<meta property="og:image" content="https://fesui.xn--0iv.gay/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MP3 转钢琴 · FeSui">
+<meta name="twitter:description" content="上传 MP3，浏览器自动听写旋律并用钢琴弹出来；可试听、导出 PNG 乐谱、PDF 与钢琴版 MP3。">
+<meta name="twitter:image" content="https://fesui.xn--0iv.gay/og-image.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","name":"MP3 转钢琴 · FeSui","description":"在浏览器里上传 MP3 或任意可解码音频，自动听写主旋律并用钢琴弹奏，支持试听、导出 PNG 乐谱、PDF 与钢琴版 MP3。","url":"https://fesui.xn--0iv.gay/tool/mp3-piano.html","applicationCategory":"MultimediaApplication","operatingSystem":"Web browser","inLanguage":"zh-CN","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://fesui.xn--0iv.gay/"},{"@type":"ListItem","position":2,"name":"工具箱","item":"https://fesui.xn--0iv.gay/tool/"},{"@type":"ListItem","position":3,"name":"MP3 转钢琴","item":"https://fesui.xn--0iv.gay/tool/mp3-piano.html"}]}]}</script>
+<link rel="icon" href="../favicon.png">
+<script src="/net-guard.js?v=20261127a"></script>
+<script src="/site-nav.js?v=20261127a"></script>
+<link rel="stylesheet" href="../fs-skin.css?v=20261127a">
+<script src="../fs-icons.js?v=20261127a" defer></script>
+<style>
+  :root{
+    --底:#0d1117; --面板:#161b22; --面板2:#1c2330; --边线:#2a3441;
+    --文字:#e6edf3; --暗淡:#8b949e; --高亮:#58a6ff; --悬停:#2d333b; --暖:#f0b775;
+  }
+  html:not(.theme-glass){
+    --底:#f4f6fb; --面板:#ffffff; --面板2:#eef1f7; --边线:#d5dbe8;
+    --文字:#1a2340; --暗淡:#4b5568; --高亮:#2a4fd0; --悬停:#e4e9f4; --暖:#b26a1d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--底);color:var(--文字);min-height:100vh;display:flex;flex-direction:column;
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{border-bottom:1px solid var(--边线);padding:12px 18px;display:flex;align-items:center;gap:12px;
+    flex-wrap:wrap;background:var(--面板)}
+  h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.3px}
+  .返回主页{margin-right:auto;text-decoration:none;color:var(--高亮);font-size:13px;font-weight:600;
+    padding:4px 10px;border-radius:8px;border:1px solid var(--边线);background:var(--面板2)}
+  .返回主页:hover{background:var(--悬停)}
+  .徽章{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--面板2);color:var(--暗淡);border:1px solid var(--边线)}
+  main{flex:1;width:100%;max-width:1120px;margin:0 auto;padding:32px 18px 56px}
+  .hero{margin:0 0 22px}
+  .hero h2{font-size:26px;line-height:1.3;margin:0 0 8px}
+  .hero p{color:var(--暗淡);margin:0;max-width:800px}
+  .面板{background:var(--面板);border:1px solid var(--边线);border-radius:14px;padding:20px;margin-bottom:16px}
+  .面板 h3{font-size:15px;margin:0 0 14px}
+  .放下{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
+    border:1.5px dashed var(--边线);border-radius:12px;padding:30px 18px;background:var(--面板2);
+    cursor:pointer;transition:border-color .15s,background .15s;text-align:center}
+  .放下:hover,.放下.拖入{border-color:var(--高亮);background:var(--悬停)}
+  .放下 .琴{font-size:38px;line-height:1}
+  .放下 b{display:block;font-size:15px;margin-bottom:2px}
+  .放下 small{color:var(--暗淡)}
+  input[type=file]{display:none}
+  .参数{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-top:16px}
+  .参数 label{display:block;font-size:12px;color:var(--暗淡);margin-bottom:5px}
+  .参数 select,.参数 input[type=range]{width:100%;font:inherit;font-size:13px}
+  .参数 select{padding:8px;border-radius:8px;background:var(--面板2);border:1px solid var(--边线);color:var(--文字)}
+  .参数 .值{color:var(--高亮);font-variant-numeric:tabular-nums}
+  .行{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  button{font:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--边线);background:var(--面板2);color:var(--文字);transition:filter .15s,border-color .15s}
+  button:hover:not(:disabled){border-color:var(--高亮);filter:brightness(1.08)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.主{background:var(--高亮);border-color:var(--高亮);color:#06121f}
+  .状态{margin-top:12px;color:var(--暗淡);font-size:12.5px;min-height:20px}
+  .状态.错{color:#ff7b72}
+  .指标{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:14px}
+  .指标 div{background:var(--面板2);border:1px solid var(--边线);border-radius:10px;padding:10px 12px}
+  .指标 b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
+  .指标 span{font-size:11px;color:var(--暗淡)}
+  .键盘壳{position:relative;height:112px;overflow-x:auto;border-radius:10px;background:var(--面板2);
+    border:1px solid var(--边线);padding:6px 6px 0}
+  .键盘{position:relative;height:100px;min-width:640px;display:flex}
+  .键{position:relative;flex:1;border:1px solid var(--边线);border-radius:0 0 5px 5px;background:#f3f4f7;
+    color:#46506a;font-size:9px;text-align:center;padding-top:76px;transition:background .08s}
+  .键.黑{position:absolute;top:0;width:26px;height:62px;background:#202632;color:#aab3c5;z-index:2;
+    border-radius:0 0 4px 4px;padding-top:48px}
+  .键.亮{background:var(--暖);color:#10131a}
+  .图壳{overflow-x:auto;border:1px solid var(--边线);border-radius:10px;background:#fff;padding:8px}
+  canvas{display:block;max-width:none}
+  .标签{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+  .标签 button{font-size:12px;padding:5px 11px}
+  .标签 button.激活{background:var(--高亮);border-color:var(--高亮);color:#06121f}
+  .提示{font-size:12px;color:var(--暗淡);margin:10px 0 0}
+  .提示 code{background:var(--面板2);padding:1px 5px;border-radius:4px}
+  footer{border-top:1px solid var(--边线);padding:14px 18px;text-align:center;color:var(--暗淡);font-size:12px}
+  @media (max-width:520px){main{padding:24px 12px 40px}.hero h2{font-size:22px}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <a class="返回主页" href="./index.html">← 工具箱</a>
+  <h1>🎹 MP3 转钢琴</h1>
+  <span class="徽章">纯前端 · 文件不上传</span>
+</header>
+<main>
+  <section class="hero">
+    <h2>把音频交给钢琴弹一遍</h2>
+    <p>上传 MP3（或浏览器能解码的 WAV / M4A / OGG / FLAC），在本地听出主旋律，再用合成钢琴弹回来。能试听、导出图片乐谱和 PDF，也能导出钢琴版 MP3。没有账号、没有次数和时长限制，音频不会离开这台设备。</p>
+  </section>
+
+  <section class="面板">
+    <h3>① 选一段音频</h3>
+    <div class="放下" id="放下" role="button" tabindex="0" aria-label="选择或拖入音频文件">
+      <span class="琴">🎵</span>
+      <span><b>点击选择，或把音频拖到这里</b><small>MP3 / WAV / M4A / OGG / FLAC · 解码在你的浏览器里完成</small></span>
+    </div>
+    <input type="file" id="文件" accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac">
+    <div class="参数">
+      <div><label>旋律灵敏度（越高越容易检出轻声音）</label><select id="灵敏度">
+        <option value="0.012">高 · 连弱音也要</option>
+        <option value="0.025" selected>中等 · 推荐</option>
+        <option value="0.045">低 · 只抓主旋律</option>
+        <option value="0.08">很低 · 只留响亮部分</option>
+      </select></div>
+      <div><label>音高量化</label><select id="音阶">
+        <option value="chrom" selected>不量化 · 保留半音</option>
+        <option value="major">大调（Major）</option>
+        <option value="minor">小调（Minor）</option>
+        <option value="penta">五声音阶（Pentatonic）</option>
+      </select></div>
+      <div><label>最短音符 <span class="值" id="最短值">120 ms</span></label><input id="最短" type="range" min="60" max="400" step="20" value="120"></div>
+      <div><label>乐谱速度 BPM <span class="值" id="速度值">100</span></label><input id="速度" type="range" min="60" max="180" step="5" value="100"></div>
+    </div>
+    <div class="行">
+      <button class="主" id="开始" disabled>开始听写</button>
+      <span class="状态" id="状态" aria-live="polite">还没选文件。选好后点「开始听写」，参数改了也可以重新听写。</span>
+    </div>
+  </section>
+
+  <section class="面板" id="结果" hidden>
+    <h3>② 听写结果</h3>
+    <div class="指标">
+      <div><b id="音符数">0</b><span>识别出的音符</span></div>
+      <div><b id="音频时长">0s</b><span>原音频时长</span></div>
+      <div><b id="音域">—</b><span>识别音域</span></div>
+      <div><b id="钢琴版时长">0s</b><span>钢琴版时长</span></div>
+    </div>
+    <div class="键盘壳"><div class="键盘" id="键盘"></div></div>
+    <p class="提示">琴键会跟着试听亮起来；点琴键也能单独听这一个音。</p>
+    <div class="行">
+      <button class="主" id="播放">▶ 播放钢琴版</button>
+      <button id="停止" disabled>■ 停止</button>
+      <span class="状态" id="播放状态" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <section class="面板" id="谱面板" hidden>
+    <h3>③ 乐谱与导出</h3>
+    <div class="标签">
+      <button id="谱五线" class="激活">五线谱</button>
+      <button id="谱卷帘">钢琴卷帘</button>
+    </div>
+    <div class="图壳"><canvas id="乐谱" width="1600" height="600"></canvas></div>
+    <div class="行">
+      <button id="导出图片" disabled>导出乐谱 PNG</button>
+      <button id="导出PDF" disabled>导出乐谱 PDF</button>
+      <button id="导出MP3" disabled>导出钢琴版 MP3</button>
+      <button id="导出WAV" disabled>导出钢琴版 WAV</button>
+    </div>
+    <p class="提示">MP3 编码需要在首次导出时从 CDN 临时加载一个开源编码器（<code>lamejs</code>）；网络不通时会自动提示，改用 WAV 即可，功能不受影响。</p>
+  </section>
+
+  <p class="提示">说明：这是单旋律听写，不是分离人声与伴奏的 AI。人声歌曲会按最明显的音高线转成钢琴音，和弦会取其中最突出的音；音越干净、越接近单音，出来的谱越准。</p>
+</main>
+<footer>© 2026 FeSui · 不执拗的同学 · <a href="./index.html" style="color:var(--高亮)">返回工具箱</a></footer>
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var 状态 = $('状态'), 播放状态 = $('播放状态');
+  var 文件 = null, 音符 = [], 音频时长 = 0, 音频上下文 = null, 谱模式 = '五线';
+  var 播放中 = false, 节点们 = [], 定时器们 = [];
+
+  function midi频率(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+  function 音名(m){ return ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][((m%12)+12)%12] + (Math.floor(m/12)-1); }
+  function 说(s, 错){ 状态.textContent = s; 状态.className = '状态' + (错 ? ' 错' : ''); }
+  function 下载(blob, 名){
+    var u = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = u; a.download = 名; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 1500);
+  }
+  function 基名(){ return (文件 ? 文件.name.replace(/\.[^.]+$/, '') : 'audio').replace(/[\\/:*?"<>|]/g, '_'); }
+
+  /* ---------- FFT（迭代 radix-2） ---------- */
+  function fft(re, im){
+    var n = re.length, i, j, bit, t;
+    for (i = 1, j = 0; i < n; i++){
+      bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j){ t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (var len = 2; len <= n; len <<= 1){
+      var ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang);
+      for (i = 0; i < n; i += len){
+        var cr = 1, ci = 0;
+        for (j = 0; j < len / 2; j++){
+          var a = i + j, b = a + len / 2;
+          var ur = re[a], ui = im[a];
+          var vr = re[b] * cr - im[b] * ci, vi = re[b] * ci + im[b] * cr;
+          re[a] = ur + vr; im[a] = ui + vi;
+          re[b] = ur - vr; im[b] = ui - vi;
+          var ncr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = ncr;
+        }
+      }
+    }
+  }
+
+  var 音阶表 = {
+    chrom: null, major: [0,2,4,5,7,9,11], minor: [0,2,3,5,7,8,10], penta: [0,2,4,7,9]
+  };
+  function 量化(m, 名){
+    var 表 = 音阶表[名];
+    if (!表) return m;
+    var pc = ((m % 12) + 12) % 12, 最好 = 表[0], 距 = 99;
+    for (var i = 0; i < 表.length; i++){
+      var d = Math.abs(pc - 表[i]); d = Math.min(d, 12 - d);
+      if (d < 距){ 距 = d; 最好 = 表[i]; }
+    }
+    return Math.max(48, Math.min(84, m - pc + 最好));
+  }
+
+  function 听写(buf, 选项){
+    var sr = buf.sampleRate, 目标 = 16000, 步长 = sr / 目标;
+    var 声道 = [], c, i;
+    for (c = 0; c < buf.numberOfChannels; c++) 声道.push(buf.getChannelData(c));
+    var 长 = Math.floor(buf.length / 步长), mono = new Float32Array(长);
+    for (i = 0; i < 长; i++){
+      var v = 0;
+      for (c = 0; c < 声道.length; c++) v += 声道[c][Math.floor(i * 步长)];
+      mono[i] = v / 声道.length;
+    }
+    var 帧 = 1024, 跳 = 256, re = new Float32Array(帧), im = new Float32Array(帧);
+    var 窗 = new Float32Array(帧);
+    for (i = 0; i < 帧; i++) 窗[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (帧 - 1));
+    var 小 = Math.ceil(65 * 帧 / 目标), 大 = Math.floor(1300 * 帧 / 目标), 帧列表 = [];
+    for (var p = 0; p + 帧 <= mono.length; p += 跳){
+      var 能 = 0;
+      for (i = 0; i < 帧; i++) 能 += mono[p + i] * mono[p + i];
+      var rms = Math.sqrt(能 / 帧);
+      if (rms < 选项.灵敏度){
+        帧列表.push({ m: 0, t: p / 目标, d: 跳 / 目标, v: 0 });
+        continue;
+      }
+      for (i = 0; i < 帧; i++){ re[i] = mono[p + i] * 窗[i]; im[i] = 0; }
+      fft(re, im);
+      var 最好 = 小, k;
+      for (k = 小 + 1; k < 大; k++){
+        if (re[k] * re[k] + im[k] * im[k] > re[最好] * re[最好] + im[最好] * im[最好]) 最好 = k;
+      }
+      var m1 = Math.sqrt(re[最好] * re[最好] + im[最好] * im[最好]);
+      var 偏 = 0;
+      if (最好 > 小 && 最好 < 大 - 1){
+        var a = Math.sqrt(re[最好-1]*re[最好-1] + im[最好-1]*im[最好-1]);
+        var b = m1;
+        var cc = Math.sqrt(re[最好+1]*re[最好+1] + im[最好+1]*im[最好+1]);
+        var 分母 = a - 2*b + cc;
+        if (Math.abs(分母) > 1e-9) 偏 = Math.max(-0.5, Math.min(0.5, 0.5 * (a - cc) / 分母));
+      }
+      var f = (最好 + 偏) * 目标 / 帧;
+      var 半 = Math.floor(最好 / 2);
+      if (半 >= 小 && 半 < 大){
+        var mh = Math.sqrt(re[半]*re[半] + im[半]*im[半]);
+        if (mh > m1 * 0.62) f /= 2;
+      }
+      if (f < 65) f = 65;
+      var m = Math.round(69 + 12 * Math.log(f / 440) / Math.LN2);
+      m = Math.max(48, Math.min(84, m));
+      帧列表.push({ m: m, t: p / 目标, d: 跳 / 目标, v: Math.min(1, rms * 6) });
+    }
+
+    var 结果 = [], 当前 = null;
+    function 收尾(){
+      if (当前 && 当前.d * 1000 >= 选项.最短){
+        当前.m = 量化(当前.m, 选项.音阶);
+        结果.push(当前);
+      }
+    }
+    for (i = 0; i < 帧列表.length; i++){
+      var 帧项 = 帧列表[i];
+      if (!帧项.m){ 收尾(); 当前 = null; continue; }
+      if (当前 && 当前.m === 帧项.m && 帧项.t - (当前.t + 当前.d) < 0.09){
+        当前.d += 帧项.d; 当前.v = Math.max(当前.v, 帧项.v);
+      } else {
+        收尾();
+        当前 = { m: 帧项.m, t: 帧项.t, d: 帧项.d, v: 帧项.v };
+      }
+    }
+    收尾();
+    return 结果;
+  }
+
+  /* ---------- 钢琴音色 ---------- */
+  function 钢琴音(ctx, dest, 频率, 起点, 时长, 力度){
+    var 泛音 = [1, 2, 3, 4, 5], 结束 = 起点 + Math.max(0.12, 时长) + 1.1;
+    力度 = Math.max(0.25, Math.min(1, 力度 || 0.7));
+    for (var i = 0; i < 泛音.length; i++){
+      var osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = i === 0 ? 'triangle' : 'sine';
+      osc.frequency.value = 频率 * 泛音[i] * (1 + i * 0.0004);
+      var 峰 = 0.26 * 力度 / Math.pow(i + 1, 1.25);
+      g.gain.setValueAtTime(0.0001, 起点);
+      g.gain.exponentialRampToValueAtTime(峰, 起点 + 0.006 + i * 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, 起点 + Math.max(0.13, 时长) + 1.0 / (1 + i * 0.6));
+      osc.connect(g); g.connect(dest);
+      osc.start(起点); osc.stop(Math.min(结束 + i * 0.05, 起点 + Math.max(0.13, 时长) + 1.3));
+    }
+  }
+  function 停播放(){
+    播放中 = false;
+    定时器们.forEach(clearTimeout); 定时器们 = [];
+    节点们.forEach(function(o){ try{ o.stop(); }catch(e){} });
+    节点们 = [];
+    Array.prototype.forEach.call(document.querySelectorAll('.键.亮'), function(k){ k.classList.remove('亮'); });
+    $('播放').disabled = false; $('停止').disabled = true;
+    播放状态.textContent = '已停止';
+  }
+  function 播放(){
+    if (!音符.length) return;
+    if (播放中) 停播放();
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx){ 播放状态.textContent = '这个浏览器不支持 Web Audio，无法试听。'; return; }
+    音频上下文 = 音频上下文 || new Ctx();
+    音频上下文.resume();
+    var ctx = 音频上下文, 起 = ctx.currentTime + 0.08;
+    播放中 = true; $('播放').disabled = true; $('停止').disabled = false;
+    播放状态.textContent = '正在弹奏…';
+    音符.forEach(function(n){
+      钢琴音(ctx, ctx.destination, midi频率(n.m), 起 + n.t, n.dur, n.v);
+      定时器们.push(setTimeout(function(){
+        var k = document.querySelector('.键[data-m="' + n.m + '"]');
+        if (k){ k.classList.add('亮'); setTimeout(function(){ k.classList.remove('亮'); }, Math.max(90, n.dur * 1000)); }
+      }, (起 + n.t - ctx.currentTime) * 1000));
+    });
+    定时器们.push(setTimeout(function(){
+      播放中 = false; $('播放').disabled = false; $('停止').disabled = true;
+      播放状态.textContent = '弹完了';
+    }, (起 + 音符[音符.length-1].t + 音符[音符.length-1].dur + 1.3 - ctx.currentTime) * 1000));
+  }
+
+  /* ---------- 琴键 ---------- */
+  function 建琴键(){
+    var 白 = [0,2,4,5,7,9,11], 黑 = {1:0,3:1,6:3,8:4,10:5}, 壳 = $('键盘');
+    壳.innerHTML = '';
+    var 白序号 = 0, 黑件 = [];
+    for (var m = 48; m <= 84; m++){
+      var pc = m % 12;
+      if (白.indexOf(pc) > -1){
+        var k = document.createElement('div');
+        k.className = '键'; k.dataset.m = m; k.textContent = pc === 0 ? 音名(m) : '';
+        k.title = 音名(m);
+        k.onclick = function(){
+          var Ctx = window.AudioContext || window.webkitAudioContext;
+          if (!Ctx) return;
+          音频上下文 = 音频上下文 || new Ctx();
+          音频上下文.resume();
+          钢琴音(音频上下文, 音频上下文.destination, midi频率(+this.dataset.m), 音频上下文.currentTime, 0.35, 0.8);
+        };
+        壳.appendChild(k);
+        if (黑[pc + 1] !== undefined && m + 1 <= 84) 黑件.push({ m: m + 1, 序号: 白序号 });
+        白序号++;
+      }
+    }
+    var 白总数 = 白序号;
+    黑件.forEach(function(b){
+      var k = document.createElement('div');
+      k.className = '键 黑'; k.dataset.m = b.m; k.title = 音名(b.m);
+      k.style.left = 'calc(' + ((b.序号 + 1) * 100 / 白总数) + '% - 13px)';
+      k.onclick = function(){
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        音频上下文 = 音频上下文 || new Ctx();
+        音频上下文.resume();
+        钢琴音(音频上下文, 音频上下文.destination, midi频率(+this.dataset.m), 音频上下文.currentTime, 0.35, 0.8);
+      };
+      壳.appendChild(k);
+    });
+  }
+
+  /* ---------- 乐谱绘制 ---------- */
+  function 准备画布(){
+    var c = $('乐谱'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+    return ctx;
+  }
+  function 画五线谱(){
+    var c = $('乐谱'), ctx = 准备画布(), 每行 = 16, 行高 = 132, 行 = Math.max(1, Math.ceil(音符.length / 每行));
+    c.height = Math.max(300, 行 * 行高 + 60);
+    ctx = 准备画布();
+    ctx.fillStyle = '#1a2340'; ctx.font = 'bold 17px sans-serif';
+    ctx.fillText('MP3 转钢琴 · 听写乐谱 · ' + 基名() + ' · ' + $('速度').value + ' BPM', 26, 32);
+    for (var r = 0; r < 行; r++){
+      var 顶 = 62 + r * 行高;
+      ctx.strokeStyle = '#39405c'; ctx.lineWidth = 1;
+      for (var l = 0; l < 5; l++){
+        ctx.beginPath(); ctx.moveTo(26, 顶 + l * 11); ctx.lineTo(c.width - 26, 顶 + l * 11); ctx.stroke();
+      }
+      ctx.strokeStyle = '#b8c0d4';
+      ctx.beginPath(); ctx.moveTo(26, 顶 - 22); ctx.lineTo(26, 顶 + 66); ctx.stroke();
+      ctx.fillStyle = '#2a4fd0'; ctx.font = '30px serif'; ctx.fillText('𝄞', 34, 顶 + 44);
+      for (var i = 0; i < 每行; i++){
+        var idx = r * 每行 + i;
+        if (idx >= 音符.length) break;
+        var n = 音符[idx], x = 92 + i * 88, y = 顶 + 44 - (n.m - 60) * 5.5;
+        if ((i + 1) % 4 === 0 && i < 每行 - 1){
+          ctx.strokeStyle = '#cbd2e2'; ctx.beginPath(); ctx.moveTo(x + 44, 顶 - 22); ctx.lineTo(x + 44, 顶 + 66); ctx.stroke();
+        }
+        if (n.m % 12 === 1 || n.m % 12 === 3 || n.m % 12 === 6 || n.m % 12 === 8 || n.m % 12 === 10){
+          ctx.fillStyle = '#2a4fd0'; ctx.font = '17px serif'; ctx.fillText('♯', x - 19, y + 5);
+        }
+        ctx.fillStyle = '#1a2340';
+        ctx.beginPath(); ctx.ellipse(x, y, 7, 5, -0.35, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#1a2340'; ctx.lineWidth = 1.6;
+        var 短 = n.dur < 60 / (+$('速度').value) * 0.55;
+        ctx.beginPath(); ctx.moveTo(x + 6, y); ctx.lineTo(x + 6, y - 30); ctx.stroke();
+        if (短){
+          ctx.lineWidth = 2.4;
+          ctx.beginPath(); ctx.moveTo(x + 6, y - 30); ctx.quadraticCurveTo(x + 22, y - 24, x + 19, y - 12); ctx.stroke();
+        }
+        ctx.fillStyle = '#6b7285'; ctx.font = '10px sans-serif';
+        ctx.fillText((n.t).toFixed(1) + 's', x - 12, 顶 + 84);
+      }
+    }
+  }
+  function 画卷帘(){
+    var c = $('乐谱'), ctx = 准备画布(), 每行 = 24, 行高 = 230, 行 = Math.max(1, Math.ceil(音符.length / 每行));
+    c.height = Math.max(300, 行 * 行高 + 60);
+    ctx = 准备画布();
+    ctx.fillStyle = '#1a2340'; ctx.font = 'bold 17px sans-serif';
+    ctx.fillText('MP3 转钢琴 · 钢琴卷帘 · ' + 基名(), 26, 32);
+    for (var r = 0; r < 行; r++){
+      var 顶 = 54 + r * 行高;
+      for (var m = 48; m <= 84; m++){
+        var y = 顶 + (84 - m) * 4.5;
+        if (m % 12 === 1 || m % 12 === 3 || m % 12 === 6 || m % 12 === 8 || m % 12 === 10){
+          ctx.fillStyle = '#eef1f7'; ctx.fillRect(26, y, c.width - 52, 4.4);
+        }
+        if (m % 12 === 0){
+          ctx.strokeStyle = '#ccd3e2'; ctx.beginPath(); ctx.moveTo(26, y + 4.5); ctx.lineTo(c.width - 26, y + 4.5); ctx.stroke();
+          ctx.fillStyle = '#7b8498'; ctx.font = '10px sans-serif'; ctx.fillText(音名(m), 2, y + 9);
+        }
+      }
+      for (var i = 0; i < 每行; i++){
+        var idx = r * 每行 + i;
+        if (idx >= 音符.length) break;
+        var n = 音符[idx], x = 66 + i * 62;
+        ctx.fillStyle = 'rgba(42,79,208,.82)';
+        ctx.fillRect(x, 顶 + (84 - n.m) * 4.5, Math.max(12, Math.min(52, n.dur * 90)), 4.2);
+        ctx.fillStyle = '#6b7285'; ctx.font = '9px sans-serif';
+        ctx.fillText(n.t.toFixed(1) + 's', x, 顶 + 170);
+      }
+    }
+  }
+  function 画谱(){
+    if (!音符.length) return;
+    if (谱模式 === '五线') 画五线谱(); else 画卷帘();
+    $('导出图片').disabled = $('导出PDF').disabled = false;
+  }
+
+  /* ---------- 导出 ---------- */
+  function pcm转wav(pcm, sr){
+    var n = pcm.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    function 字(s, i){ for (var k = 0; k < s.length; k++) v.setUint8(i + k, s.charCodeAt(k)); }
+    字('RIFF', 0); v.setUint32(4, 36 + n * 2, true); 字('WAVE', 8); 字('fmt ', 12);
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true); 字('data', 36); v.setUint32(40, n * 2, true);
+    for (var i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, pcm[i] * 32767)), true);
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+  function 渲染(){
+    var 尾 = 音符.reduce(function(a, n){ return Math.max(a, n.t + n.dur); }, 0) + 1.4;
+    var sr = 44100;
+    var OCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!OCtx) return Promise.reject(new Error('浏览器不支持离线音频渲染'));
+    var ctx = new OCtx(1, Math.ceil(尾 * sr), sr);
+    音符.forEach(function(n){ 钢琴音(ctx, ctx.destination, midi频率(n.m), n.t, n.dur, n.v); });
+    return ctx.startRendering();
+  }
+  function 加载脚本(url){
+    return new Promise(function(好, 坏){
+      var s = document.createElement('script');
+      s.src = url; s.onload = 好; s.onerror = function(){ 坏(new Error('加载失败')); };
+      document.head.appendChild(s);
+    });
+  }
+  function 取lame(){
+    if (window.lamejs) return Promise.resolve(window.lamejs);
+    return 加载脚本('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js')
+      .then(function(){ return window.lamejs; })
+      .catch(function(){ return 加载脚本('https://unpkg.com/lamejs@1.2.1/lame.min.js').then(function(){ return window.lamejs; }); });
+  }
+  function png转字节(data){
+    var b = atob(data.split(',')[1]), u = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+    return u;
+  }
+  function 拼pdf(图们){
+    var enc = new TextEncoder(), 段 = [], 总 = 0, 偏移 = [0];
+    function 加(x){ var b = typeof x === 'string' ? enc.encode(x) : x; 段.push(b); 总 += b.length; }
+    function 填(n, len){ var s = String(n); while (s.length < len) s = '0' + s; return s; }
+    var n = 图们.length, 页起 = 3, 内容起 = 3 + 3*n, 图起 = 3 + 4*n, 总对象 = 2 + 5*n;
+    加('%PDF-1.4\n');
+    偏移[1] = 总; 加('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+    偏移[2] = 总; 加('2 0 obj\n<< /Type /Pages /Kids [');
+    for (var i = 0; i < n; i++) 加((页起 + 3*i) + ' 0 R ');
+    加('] /Count ' + n + ' >>\nendobj\n');
+    for (i = 0; i < n; i++){
+      var p = 页起 + 3*i, c = 内容起 + i, m = 图起 + i, 图 = 图们[i];
+      var 比 = Math.min(842 / 图.宽, 595 / 图.高), w = 图.宽 * 比, h = 图.高 * 比;
+      var x = (842 - w) / 2, y = (595 - h) / 2;
+      偏移[p] = 总;
+      加(p + ' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /XObject << /Im0 ' + m + ' 0 R >> >> /Contents ' + c + ' 0 R >>\nendobj\n');
+      var 流 = 'q\n' + w.toFixed(2) + ' 0 0 ' + h.toFixed(2) + ' ' + x.toFixed(2) + ' ' + y.toFixed(2) + ' cm\n/Im0 Do\nQ\n';
+      偏移[c] = 总;
+      加(c + ' 0 obj\n<< /Length ' + enc.encode(流).length + ' >>\nstream\n' + 流 + 'endstream\nendobj\n');
+      偏移[m] = 总;
+      加(m + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + 图.宽 + ' /Height ' + 图.高 + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + 图.字节.length + ' >>\nstream\n');
+      加(图.字节); 加('\nendstream\nendobj\n');
+    }
+    var xref = 总;
+    var s = 'xref\n0 ' + (总对象 + 1) + '\n0000000000 65535 f \n';
+    for (i = 1; i <= 总对象; i++) s += 填(偏移[i], 10) + ' 00000 n \n';
+    加(s);
+    加('trailer\n<< /Size ' + (总对象 + 1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+    var out = new Uint8Array(总), at = 0;
+    段.forEach(function(b){ out.set(b, at); at += b.length; });
+    return new Blob([out], { type: 'application/pdf' });
+  }
+  function 导出pdf(){
+    var 源 = $('乐谱'), 高 = 1500, 数 = Math.ceil(源.height / 高), 图们 = [];
+    for (var i = 0; i < 数; i++){
+      var c = document.createElement('canvas'), h = Math.min(高, 源.height - i * 高);
+      c.width = 源.width; c.height = h;
+      c.getContext('2d').drawImage(源, 0, i * 高, 源.width, h, 0, 0, 源.width, h);
+      var d = c.toDataURL('image/jpeg', 0.9);
+      图们.push({ 宽: c.width, 高: c.height, 字节: png转字节(d) });
+    }
+    下载(拼pdf(图们), 基名() + '-乐谱.pdf');
+  }
+
+  /* ---------- 主流程 ---------- */
+  function 选文件(f){
+    if (!f) return;
+    if (f.type && f.type.indexOf('audio') !== 0 && !/\.(mp3|wav|m4a|ogg|flac|aac)$/i.test(f.name)){
+      说('这个文件看起来不是音频，换一个试试。', true); return;
+    }
+    文件 = f;
+    说('已选 ' + f.name + '（' + (f.size / 1048576).toFixed(1) + ' MB），点「开始听写」。');
+    $('开始').disabled = false;
+  }
+  $('放下').onclick = function(){ 文件.click(); };
+  $('放下').onkeydown = function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); 文件.click(); } };
+  $('文件').onchange = function(){ 选文件(this.files[0]); };
+  ['dragenter','dragover'].forEach(function(ev){
+    $('放下').addEventListener(ev, function(e){ e.preventDefault(); this.classList.add('拖入'); });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    $('放下').addEventListener(ev, function(e){ e.preventDefault(); this.classList.remove('拖入'); });
+  });
+  $('放下').addEventListener('drop', function(e){ 选文件(e.dataTransfer.files[0]); });
+  $('最短').oninput = function(){ $('最短值').textContent = this.value + ' ms'; };
+  $('速度').oninput = function(){ $('速度值').textContent = this.value; if (音符.length && 谱模式 === '五线') 画谱(); };
+
+  $('开始').onclick = function(){
+    if (!文件) return;
+    var btn = this;
+    btn.disabled = true;
+    说('正在解码音频并听写旋律，长音频可能要等十几秒…');
+    setTimeout(function(){
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx){ 说('浏览器不支持 Web Audio，换新版 Chrome / Edge / Firefox 试试。', true); btn.disabled = false; return; }
+      文件.arrayBuffer().then(function(arr){
+        音频上下文 = 音频上下文 || new Ctx();
+        return 音频上下文.decodeAudioData(arr);
+      }).then(function(buf){
+        音频时长 = buf.duration;
+        音符 = 听写(buf, {
+          灵敏度: parseFloat($('灵敏度').value),
+          音阶: $('音阶').value,
+          最短: parseInt($('最短').value, 10)
+        });
+        if (!音符.length){ 说('没听出明显的旋律。试试把灵敏度调高，或换一段人声 / 主旋律更干净的音乐。', true); btn.disabled = false; return; }
+        $('音符数').textContent = 音符.length;
+        $('音频时长').textContent = 音频时长.toFixed(1) + 's';
+        var lo = Math.min.apply(null, 音符.map(function(n){ return n.m; }));
+        var hi = Math.max.apply(null, 音符.map(function(n){ return n.m; }));
+        $('音域').textContent = 音名(lo) + '–' + 音名(hi);
+        $('钢琴版时长').textContent = (音符[音符.length-1].t + 音符[音符.length-1].dur).toFixed(1) + 's';
+        $('结果').hidden = false; $('谱面板').hidden = false;
+        建琴键(); 画谱();
+        $('导出MP3').disabled = $('导出WAV').disabled = false;
+        说('听写完成：' + 音符.length + ' 个音符，试听或导出吧。');
+        btn.disabled = false;
+      }).catch(function(e){
+        说('解码失败：' + (e && e.message ? e.message : '浏览器不支持这个音频格式，换 MP3 / WAV 试试。'), true);
+        btn.disabled = false;
+      });
+    }, 30);
+  };
+  $('播放').onclick = 播放;
+  $('停止').onclick = 停播放;
+  $('谱五线').onclick = function(){ 谱模式 = '五线'; this.classList.add('激活'); $('谱卷帘').classList.remove('激活'); 画谱(); };
+  $('谱卷帘').onclick = function(){ 谱模式 = '卷帘'; this.classList.add('激活'); $('谱五线').classList.remove('激活'); 画谱(); };
+  $('导出图片').onclick = function(){
+    $('乐谱').toBlob(function(b){ if (b) 下载(b, 基名() + '-乐谱.png'); });
+  };
+  $('导出PDF').onclick = function(){
+    try{ 导出pdf(); 播放状态.textContent = 'PDF 已生成'; }catch(e){ 播放状态.textContent = 'PDF 生成失败：' + e.message; }
+  };
+  $('导出WAV').onclick = function(){
+    播放状态.textContent = '正在渲染钢琴音频…';
+    渲染().then(function(b){ 下载(pcm转wav(b.getChannelData(0), b.sampleRate), 基名() + '-钢琴版.wav'); 播放状态.textContent = 'WAV 已导出'; })
+      .catch(function(e){ 播放状态.textContent = '导出失败：' + e.message; });
+  };
+  $('导出MP3').onclick = function(){
+    播放状态.textContent = '正在渲染并编码 MP3…';
+    Promise.all([渲染(), 取lame()]).then(function(a){
+      var b = a[0], lame = a[1], 浮 = b.getChannelData(0), pcm = new Int16Array(浮.length);
+      for (var k = 0; k < 浮.length; k++) pcm[k] = Math.max(-32768, Math.min(32767, 浮[k] * 32767));
+      var 编码器 = new lame.Mp3Encoder(1, b.sampleRate, 192), 块 = [];
+      for (var i = 0; i < pcm.length; i += 1152){
+        var d = 编码器.encodeBuffer(pcm.subarray(i, i + 1152));
+        if (d.length) 块.push(new Uint8Array(d));
+      }
+      var 尾 = 编码器.flush();
+      if (尾.length) 块.push(new Uint8Array(尾));
+      下载(new Blob(块, { type: 'audio/mpeg' }), 基名() + '-钢琴版.mp3');
+      播放状态.textContent = 'MP3 已导出';
+    }).catch(function(e){
+      播放状态.textContent = 'MP3 编码不可用（' + (e && e.message || '网络失败') + '），请用 WAV 导出。';
+    });
+  };
+})();
+</script>
+</body>
+</html>
