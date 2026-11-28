@@ -13,7 +13,3 @@ class_name = "Room"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Room"]
-
-[[routes]]
-pattern = "game.fesui.xn--0iv.gay"
-custom_domain = true

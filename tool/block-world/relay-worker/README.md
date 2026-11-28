@@ -8,7 +8,7 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 自定义域名 | `wss://game.fesui.xn--0iv.gay` |
+| 线上中继 | `wss://game.fesui.xn--0iv.gay`（Pages 项目 `relay-pages/` 提供） |
 | 连接路径 | `/room/<房间码>` |
 | 健康检查 | `https://game.fesui.xn--0iv.gay/healthz` |
 | Worker 名 | `fesui-block-world-relay` |

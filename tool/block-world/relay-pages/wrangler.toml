@@ -1,0 +1,8 @@
+pages_build_output_dir = "./public"
+name = "block-world-relay-pages"
+compatibility_date = "2026-11-28"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+script_name = "fesui-block-world-relay"
