@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>小小沙盒在线版 · 浏览器方块沙盒 · FeSui</title>
-<meta name="description" content="浏览器里的小小方块沙盒：挖方块、打怪、造房子，进度自动存在本机。单人免登录直接玩；联机需登录并用 1 积分解锁，解锁后生成房间码即可跨网一起玩。">
+<meta name="description" content="浏览器里的小小方块沙盒：种子世界、洞穴挖矿、生存饥饿、合成工具、皮肤与联机聊天，进度自动存在本机。单人免登录直接玩；联机需登录并用 1 积分解锁。">
 <meta property="og:title" content="小小沙盒在线版 · 浏览器方块沙盒" />
 <meta property="og:description" content="挖方块、打怪、造房子。单人免登录直接玩，联机需登录并用 1 积分解锁。" />
 <meta property="og:type" content="website" />
@@ -14,6 +14,9 @@
   :root{
     --ui:rgba(16,20,26,.55);
     --ui-b:rgba(255,255,255,.28);
+    /* 先给纯 px 兜底：老内核不认 clamp() 会整条丢弃，尺寸一塌 UI 就全乱 */
+    --slot:40px;
+    --gb:64px;
     --slot:clamp(32px,5.1vw,46px);
     /* 右侧功能键：手机版那种灰色实心方块键 */
     --gb:clamp(50px,7.2vw,84px);
@@ -25,10 +28,11 @@
   html,body{width:100%;height:100%;overflow:hidden;background:#8fc6e8;
     font-family:-apple-system,"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
     touch-action:none;overscroll-behavior:none;position:fixed}
-  #game{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none}
+  /* inset 在老内核里不认，写成四个方向，保证铺满 */
+  #game{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;display:block;width:100%;height:100%;touch-action:none}
 
   /* ---------- HUD ---------- */
-  #hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+  #hud{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;pointer-events:none;z-index:10}
   #crosshair{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:.85}
   #crosshair:before,#crosshair:after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px rgba(0,0,0,.9)}
   #crosshair:before{left:50%;top:0;width:2px;height:100%;margin-left:-1px}
@@ -45,13 +49,15 @@
     background:rgba(0,0,0,.5);color:#fff;font-size:13px;opacity:0;transition:opacity .3s;white-space:nowrap}
 
   /* ---------- 摇杆（方形，和手机版一致） ---------- */
-  #stick{position:absolute;left:calc(14px + env(safe-area-inset-left));bottom:calc(14px + env(safe-area-inset-bottom));
+  #stick{position:absolute;left:14px;bottom:14px;
+    left:calc(14px + env(safe-area-inset-left));bottom:calc(14px + env(safe-area-inset-bottom));
+    width:120px;height:120px;
     width:clamp(104px,19vw,170px);height:clamp(104px,19vw,170px);border-radius:10px;
     background:rgba(126,136,146,.34);border:2px solid rgba(255,255,255,.52);
     pointer-events:auto;z-index:12;touch-action:none}
   #stick .knob{position:absolute;left:50%;top:50%;width:40%;height:40%;margin:-20% 0 0 -20%;border-radius:7px;
     background:rgba(255,255,255,.62);box-shadow:0 2px 8px rgba(0,0,0,.3);transition:transform .04s linear}
-  #stick .mark{position:absolute;inset:0;border-radius:10px;border:1px dashed rgba(255,255,255,.14);margin:16%}
+  #stick .mark{position:absolute;top:0;right:0;bottom:0;left:0;inset:0;border-radius:10px;border:1px dashed rgba(255,255,255,.14);margin:16%}
 
   /* ---------- 右侧功能键（灰色实心，无描边） ---------- */
   .gbtn{position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;
@@ -62,32 +68,33 @@
   .gbtn svg{width:62%;height:62%;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
   .gbtn:active,.gbtn.on{background:var(--gb-bg-on);transform:scale(.94)}
   .gbtn.on{color:#fff}
-  #btnPlace{bottom:calc(12px + env(safe-area-inset-bottom))}
-  #btnHit{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * .8)}
-  #btnSneak{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 1.6)}
-  #btnRun{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 2.4)}
-  #btnJump{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 3.2)}
-  #btnJump,#btnSneak,#btnPlace{right:calc(10px + env(safe-area-inset-right))}
-  #btnHit,#btnRun{right:calc(10px + var(--gb) * 1.02 + env(safe-area-inset-right))}
+  #btnPlace{bottom:12px;bottom:calc(12px + env(safe-area-inset-bottom))}
+  #btnHit{bottom:calc(12px + var(--gb) * .8);bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * .8)}
+  #btnSneak{bottom:calc(12px + var(--gb) * 1.6);bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 1.6)}
+  #btnRun{bottom:calc(12px + var(--gb) * 2.4);bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 2.4)}
+  #btnJump{bottom:calc(12px + var(--gb) * 3.2);bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 3.2)}
+  #btnJump,#btnSneak,#btnPlace{right:10px;right:calc(10px + env(safe-area-inset-right))}
+  #btnHit,#btnRun{right:calc(10px + var(--gb) * 1.02);right:calc(10px + var(--gb) * 1.02 + env(safe-area-inset-right))}
   #btnRun.on{background:rgba(120,196,132,.8)}
 
   /* ---------- 生命 / 饥饿 ---------- */
-  #vitals{position:absolute;left:50%;bottom:calc(12px + var(--slot) + 18px + env(safe-area-inset-bottom));
+  #vitals{position:absolute;left:50%;bottom:calc(30px + var(--slot));
+    bottom:calc(12px + var(--slot) + 18px + env(safe-area-inset-bottom));
     transform:translateX(-50%);width:calc(var(--slot) * 9 + 44px);
     display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;z-index:11}
   #vitals .row{display:flex;gap:2px}
-  .pix{position:relative;width:clamp(10px,1.6vw,16px);height:clamp(10px,1.6vw,16px)}
-  .pix svg{position:absolute;inset:0;width:100%;height:100%;display:block;shape-rendering:crispEdges}
+  .pix{position:relative;width:13px;height:13px;width:clamp(10px,1.6vw,16px);height:clamp(10px,1.6vw,16px)}
+  .pix svg{position:absolute;top:0;right:0;bottom:0;left:0;inset:0;width:100%;height:100%;display:block;shape-rendering:crispEdges}
   .pix .bg{color:rgba(0,0,0,.55)}
   .pix.hp .fg{color:#e2413f}
   .pix.fd .fg{color:#c2802f}
   .pix.half .fg{clip-path:inset(0 50% 0 0)}
   .pix.empty .fg{display:none}
-  #dmgflash{position:absolute;inset:0;background:#c02020;opacity:0;pointer-events:none;
+  #dmgflash{position:absolute;top:0;right:0;bottom:0;left:0;inset:0;background:#c02020;opacity:0;pointer-events:none;
     transition:opacity .25s;z-index:9}
 
   /* ---------- 物品栏 ---------- */
-  #hotbar{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  #hotbar{position:absolute;left:50%;bottom:10px;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);
     display:flex;gap:4px;padding:5px;border-radius:8px;background:rgba(40,46,52,.42);
     box-shadow:0 2px 10px rgba(0,0,0,.2);pointer-events:auto;z-index:11}
   .slot{position:relative;width:var(--slot);height:var(--slot);border-radius:7px;background:rgba(255,255,255,.08);
@@ -96,11 +103,12 @@
   .slot canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
   .slot b{position:absolute;right:2px;bottom:0;font-size:10px;color:#fff;text-shadow:0 1px 2px #000;opacity:.95}
   .slot img,.bslot img{width:100%;height:100%;display:block;image-rendering:pixelated}
-  #hotname{position:absolute;left:50%;bottom:calc(10px + var(--slot) + 18px + env(safe-area-inset-bottom));
+  #hotname{position:absolute;left:50%;bottom:calc(28px + var(--slot));
+    bottom:calc(10px + var(--slot) + 18px + env(safe-area-inset-bottom));
     transform:translateX(-50%);color:#fff;font-size:12px;text-shadow:0 1px 3px #000;opacity:0;transition:opacity .3s}
 
   /* ---------- 顶部图标栏（居中，手机版布局） ---------- */
-  #topbar{position:absolute;left:50%;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);
+  #topbar{position:absolute;left:50%;top:6px;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);
     display:flex;gap:6px;align-items:center;pointer-events:auto;z-index:13}
   .tb{width:calc(var(--gb) * .48);height:calc(var(--gb) * .44);border-radius:6px;
     background:rgba(126,136,146,.62);color:#f4f8fa;display:flex;align-items:center;justify-content:center;
@@ -117,7 +125,7 @@
   .bag-title span{font-size:11px;font-weight:400;color:#8fa4b8}
   .bag-sub{font-size:11px;color:#8fa4b8;margin-top:2px;text-align:left}
   .bag-grid,.bag-hot{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;justify-content:center}
-  .bslot{position:relative;width:clamp(26px,4.1vw,40px);height:clamp(26px,4.1vw,40px);border-radius:6px;
+  .bslot{position:relative;width:34px;height:34px;width:clamp(26px,4.1vw,40px);height:clamp(26px,4.1vw,40px);border-radius:6px;
     background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.14);overflow:hidden}
   .bslot.sel{border-color:#9ee87a;background:rgba(140,220,110,.2);box-shadow:0 0 0 2px rgba(0,0,0,.25) inset}
   .bslot b{position:absolute;right:2px;bottom:0;font-size:10px;color:#fff;text-shadow:0 1px 2px #000}
@@ -126,10 +134,10 @@
   .bag-close:active{background:rgba(255,255,255,.2)}
 
   /* ---------- 覆盖层 ---------- */
-  .overlay{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  .overlay{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:linear-gradient(160deg,#16202b,#0a0e13 70%);color:#eaf2ff;padding:22px;text-align:center}
   .overlay.hide{display:none}
-  .title{font-size:clamp(26px,6vw,44px);font-weight:800;letter-spacing:4px;
+  .title{font-size:34px;font-size:clamp(26px,6vw,44px);font-weight:800;letter-spacing:4px;
     background:linear-gradient(180deg,#b8f08a,#4f9c2f);-webkit-background-clip:text;background-clip:text;color:transparent;
     text-shadow:0 4px 18px rgba(90,180,80,.25)}
   .sub{margin-top:8px;font-size:13px;color:#9fb3c8;letter-spacing:1px}
@@ -140,11 +148,11 @@
     background:linear-gradient(180deg,#9ee87a,#5cb43c);box-shadow:0 8px 24px rgba(80,180,60,.3);letter-spacing:3px}
   .start:active{transform:translateY(1px)}
   .panel{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;
-    padding:18px;min-width:min(300px,84vw);display:flex;flex-direction:column;gap:10px}
+    padding:18px;min-width:84vw;min-width:min(300px,84vw);display:flex;flex-direction:column;gap:10px}
   .panel button{padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.1);
     color:#eaf2ff;font-size:14px}
   .panel button:active{background:rgba(255,255,255,.2)}
-  #loading{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  #loading{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
     background:#0b1016;color:#9fb3c8;font-size:13px;letter-spacing:2px}
 
   /* ---------- 联机 ---------- */
@@ -153,7 +161,8 @@
     color:#dff0e6;font-size:11px;letter-spacing:.3px;z-index:13;pointer-events:none;white-space:nowrap}
   #netpill i{width:6px;height:6px;border-radius:50%;background:#8ee06a;box-shadow:0 0 6px #8ee06a;flex:none}
   #netpill.hide{display:none}
-  .netpanel{min-width:min(430px,90vw);max-width:min(520px,94vw);gap:9px;
+  
+  .netpanel{min-width:90vw;min-width:min(430px,90vw);max-width:94vw;max-width:min(520px,94vw);gap:9px;
     max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
   .netpanel::-webkit-scrollbar{display:none}
   .netrow{display:flex;gap:8px;align-items:center}
@@ -191,7 +200,7 @@
   /* 矮屏：开始页收紧，保证按钮在屏内 */
   @media (max-height:430px){
     #start{padding:8px}
-    #start .title{font-size:clamp(20px,6.4vh,32px)}
+    #start .title{font-size:25px;font-size:clamp(20px,6.4vh,32px)}
     #start .sub{margin-top:3px;font-size:10.5px}
     #start .keys{margin:8px 0 0;font-size:10.5px;gap:4px 14px;line-height:1.35}
     #start .start{margin-top:10px;padding:9px 32px;font-size:14.5px}
@@ -201,7 +210,7 @@
   /* 小屏（横屏手机）压缩联机面板 */
   @media (max-height:520px){
     .overlay{padding:8px}
-    .netpanel{padding:12px 14px;gap:6px;min-width:min(390px,94vw)}
+    .netpanel{padding:12px 14px;gap:6px;min-width:94vw;min-width:min(390px,94vw)}
     .netpanel input{padding:8px 10px;font-size:13px}
     .netpanel .netgo{padding:9px;font-size:13px}
     .netrooms{max-height:92px}
@@ -244,7 +253,144 @@
   .netroominfo .rlink button{flex:none;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
     background:rgba(255,255,255,.1);color:#cfe0ee;font-size:11.5px;font-family:inherit;white-space:nowrap}
   .netroominfo .role{font-size:11px;color:#9fb3c8;line-height:1.5;margin-top:6px}
+
+  /* ---------- 迭代功能：合成 / 皮肤 / 世界设置 / 聊天 ---------- */
+  #seedBadge{position:absolute;left:10px;top:30px;color:#dff0e6;font-size:10.5px;
+    text-shadow:0 1px 2px #000;opacity:.75;z-index:13;pointer-events:none;
+    transition:top .16s ease}
+  /* 联机时房间条占据 30px，种子下移避让，避免文字被压住 */
+  #netpill:not(.hide)~#seedBadge{top:58px}
+  .craft-panel{width:94vw;width:min(620px,94vw);gap:8px}
+  .recipe{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;
+    background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.12);text-align:left}
+  .recipe.dim{opacity:.62}
+  .recipe .ricon{position:relative;width:38px;height:38px;flex:none;border-radius:7px;background:rgba(0,0,0,.25)}
+  .recipe .ricon img{width:100%;height:100%;image-rendering:pixelated;display:block}
+  .recipe .ricon b{position:absolute;right:2px;bottom:0;font-size:10px;color:#fff;text-shadow:0 1px 2px #000}
+  .recipe .rinfo{flex:1;min-width:0}
+  .recipe .rinfo>b{display:block;font-size:13px;color:#eaf2ff}
+  .recipe .rinfo>small{display:block;font-size:10.5px;color:#8fa4b8;margin:1px 0 4px}
+  .rmats{display:flex;gap:5px;flex-wrap:wrap}
+  .mat{font-size:10px;color:#b6f08e;background:rgba(142,224,106,.1);padding:2px 6px;border-radius:5px}
+  .mat.lack{color:#f0a8a0;background:rgba(240,120,100,.1)}
+  .recipe button{flex:none;padding:8px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;
+    color:#08210c;background:linear-gradient(180deg,#9ee87a,#5cb43c);font-family:inherit}
+  .recipe button:disabled{background:rgba(255,255,255,.1);color:#7f93a6;cursor:default}
+  .skin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:92vw;width:min(430px,92vw)}
+  .skin-card{padding:12px 8px;border-radius:10px;border:2px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.05);font-size:12px;color:#dbe8f5}
+  .skin-card.sel{border-color:#9ee87a;background:rgba(142,224,106,.16);color:#c8f0a8;font-weight:700}
+  .skin-dot{display:block;width:28px;height:28px;margin:0 auto 7px;border-radius:7px;box-shadow:inset 0 -5px 0 rgba(0,0,0,.18)}
+  .world-panel{width:94vw;width:min(470px,94vw);gap:8px}
+  .world-panel input,.world-panel textarea{width:100%;padding:10px 11px;border-radius:9px;
+    border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#eaf2ff;
+    font-size:13px;font-family:inherit;outline:none;-webkit-user-select:text;user-select:text}
+  .world-panel textarea{height:76px;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:11px}
+  .world-btns{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .world-btns button{padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.08);color:#dbe8f5;font-size:12px;font-family:inherit}
+  .world-btns button.go{border:none;background:linear-gradient(180deg,#9ee87a,#5cb43c);color:#08210c;font-weight:700}
+  #chatBox{position:fixed;left:50%;bottom:8px;bottom:calc(8px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    width:94vw;width:min(480px,94vw);z-index:45;display:none;flex-direction:column;gap:6px;padding:10px;
+    border-radius:12px;background:rgba(12,18,24,.94);border:1px solid rgba(142,224,106,.32);
+    box-shadow:0 18px 50px rgba(0,0,0,.55)}
+  #chatBox.on{display:flex}
+  #chatLog{max-height:120px;overflow:auto;display:flex;flex-direction:column;gap:4px;text-align:left}
+  #chatLog div{font-size:12px;line-height:1.45;color:#dbe8f5;word-break:break-all}
+  #chatLog b{color:#b6f08e;margin-right:6px}
+  .chatrow{display:flex;gap:6px}
+  .chatrow input{flex:1;min-width:0;padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.08);color:#eaf2ff;font-size:13px;font-family:inherit;outline:none;
+    -webkit-user-select:text;user-select:text}
+  .chatrow button{padding:0 14px;border:none;border-radius:9px;background:linear-gradient(180deg,#9ee87a,#5cb43c);
+    color:#08210c;font-size:13px;font-weight:700;font-family:inherit}
+  @media (max-height:520px){
+    .recipe{padding:5px 8px}.recipe .ricon{width:32px;height:32px}.recipe .rinfo>small{display:none}
+    .skin-card{padding:7px 5px}.skin-dot{width:22px;height:22px;margin-bottom:4px}
+  }
+
+  /* ========== 竖屏手机：手柄与快捷栏分开摆，谁也不挡谁 ========== */
+  html.ui-portrait #topbar{left:auto;right:8px;transform:none}
+  html.ui-portrait #stats{font-size:9.5px;line-height:1.35;top:5px}
+  html.ui-portrait #seedBadge{top:20px;font-size:9px}
+  html.ui-portrait #netpill{top:34px;padding:3px 8px;font-size:10px}
+  html.ui-portrait #netpill:not(.hide)~#seedBadge{top:60px}
+  html.ui-portrait #stick{width:88px;height:88px;left:10px;bottom:10px}
+  /* 快捷栏整体抬到摇杆上方，避免互相压住 */
+  html.ui-portrait #hotbar{bottom:106px;bottom:calc(10px + 88px + 8px + env(safe-area-inset-bottom))}
+  /* 快捷栏高 = --slot + 10，再留 6px 间隙给生命/饥饿 */
+  html.ui-portrait #vitals{bottom:calc(122px + var(--slot))}
+  html.ui-portrait #hotname{bottom:calc(140px + var(--slot))}
+  html.ui-portrait #tip{top:12%;max-width:92vw;white-space:normal;text-align:center}
+  /* 聊天框避开左手摇杆，别把移动区盖住 */
+  html.ui-portrait #chatBox{left:100px;right:8px;width:auto;transform:none}
+  html.ui-portrait #chatLog{max-height:70px}
+  @media (orientation:landscape) and (max-height:520px){
+    #chatBox{left:auto;right:8px;transform:none;width:62vw;width:min(420px,62vw)}
+    #chatLog{max-height:64px}
+  }
+
+  /* ========== 老内核兜底：没有 flex gap 就用 margin 撑开 ========== */
+  @supports not (gap:1px){
+    .tb{margin:0 3px}
+    #btnBag{margin:0 3px}
+    .slot{margin:0 2px}
+    .pix{margin:0 1px}
+    .bslot{margin:2px}
+    .skin-card{margin:4px}
+    .mat{margin:0 5px 0 0}
+    .recipe .ricon{margin-right:10px}
+    .recipe button{margin-left:8px}
+    #chatLog div{margin-bottom:4px}
+    .chatrow input{margin-right:6px}
+    .chatrow button{margin-right:4px}
+    .netrow>*{margin-right:8px}
+    .nettabs button{margin-right:6px}
+    .netplayers .np{margin-bottom:4px}
+    .world-btns button{margin:3px}
+    .netgate button{margin-left:8px}
+    .netgate .gt{margin-right:6px}
+    .netroominfo .rlink button{margin-left:6px}
+  }
+
+  /* 老内核不认 grid 时退回 flex 换行，背包和皮肤格子不会堆成一条竖线 */
+  @supports not (display:grid){
+    .bag-grid,.bag-hot{display:flex;flex-wrap:wrap;justify-content:center;max-width:96vw;max-width:min(96vw,380px)}
+    .skin-grid{display:flex;flex-wrap:wrap;justify-content:center}
+    .skin-card{width:30%}
+    .keys{display:block}
+    .keys div{margin:3px 0}
+    .world-btns{display:block}
+    .world-btns button{width:48%;margin:2px 1%;display:inline-block}
+  }
 </style>
+<script>
+/* 界面自适应：不依赖 clamp()/min()，老内核也能量出正确尺寸 */
+(function () {
+  var R = document.documentElement;
+  function fit() {
+    var w = window.innerWidth || R.clientWidth || 320;
+    var h = window.innerHeight || R.clientHeight || 480;
+    var portrait = h > w, gb, slot;
+    if (portrait && w < 520) { gb = 46; slot = 24; }
+    else if (h < 430) { gb = Math.max(42, Math.min(54, Math.round(h * 0.12))); slot = Math.max(26, Math.min(32, Math.round(w * 0.045))); }
+    else {
+      gb = Math.max(50, Math.min(84, Math.round(w * 0.072)));
+      slot = Math.max(32, Math.min(46, Math.round(w * 0.051)));
+    }
+    R.style.setProperty('--gb', gb + 'px');
+    R.style.setProperty('--slot', slot + 'px');
+    var cls = R.className.replace(/\bui-(portrait|short)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    if (portrait && w < 520) cls += ' ui-portrait';
+    else if (h < 430) cls += ' ui-short';
+    R.className = cls;
+  }
+  fit();
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', function () { setTimeout(fit, 150); });
+  window.__fitUI = fit;
+})();
+</script>
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -255,6 +401,7 @@
   <div id="dmgflash"></div>
   <div id="stats">--</div>
   <div id="netpill" class="hide"></div>
+  <div id="seedBadge">种子：FESUI</div>
   <div id="tip"></div>
 
   <div id="stick"><div class="mark"></div><div class="knob"></div></div>
@@ -292,6 +439,21 @@
   <!-- 顶部图标栏 -->
   <div id="topbar">
     <div class="tb" id="btnBag"><img id="bagIcon" alt=""></div>
+    <div class="tb" id="btnCraft" title="合成">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 20l6-6"/><path d="M14 4l6 6-4 4-6-6z"/><path d="M10 14l-4 4-2-2 4-4"/>
+      </svg>
+    </div>
+    <div class="tb" id="btnSkin" title="皮肤">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.8-4 3.2-6 6.5-6s5.7 2 6.5 6"/>
+      </svg>
+    </div>
+    <div class="tb" id="btnChat" title="聊天">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>
+      </svg>
+    </div>
     <div class="tb" id="btnMenu">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
         <path d="M4 7h16M4 12h16M4 17h16"/>
@@ -319,6 +481,7 @@
     <div class="np" id="mNetInfo" style="display:none"></div>
     <button id="mFly">切换 飞行模式：关</button>
     <button id="mSave">保存世界</button>
+    <button id="mWorld">世界种子 / 导入导出</button>
     <button id="mReset">重新生成世界</button>
     <button id="mNetLeave" style="display:none;color:#ffc0ae;border-color:rgba(255,140,110,.35)">退出联机</button>
     <button id="mClose">继续游戏</button>
@@ -336,9 +499,52 @@
   </div>
 </div>
 
+<div class="overlay hide" id="craft">
+  <div class="panel craft-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b style="font-size:15px">合成台</b><span style="font-size:11px;color:#8fa4b8">点一下就合成 · 材料从背包扣</span>
+    </div>
+    <div id="recipeList"></div>
+    <button class="bag-close" id="craftClose">关 闭</button>
+  </div>
+</div>
+
+<div class="overlay hide" id="skin">
+  <div class="panel" style="align-items:center">
+    <b style="font-size:15px">选择皮肤</b>
+    <span style="font-size:11px;color:#8fa4b8">联机时别人也能看到颜色</span>
+    <div class="skin-grid" id="skinGrid"></div>
+    <button class="bag-close" id="skinClose">关 闭</button>
+  </div>
+</div>
+
+<div class="overlay hide" id="worldPanel">
+  <div class="panel world-panel">
+    <b style="font-size:15px">世界种子 / 存档</b>
+    <span style="font-size:11px;color:#8fa4b8;text-align:left">同一个种子会生成同样的地形、洞穴和矿脉；换种子会重建世界。</span>
+    <input id="seedInput" maxlength="32" placeholder="世界种子，例如 FESUI" spellcheck="false">
+    <div class="world-btns">
+      <button class="go" id="seedApply">应用种子并重建</button>
+      <button id="saveExport">导出存档</button>
+      <button id="saveImport">导入存档</button>
+      <button id="worldClose">关闭</button>
+    </div>
+    <textarea id="saveText" placeholder="存档文本会显示在这里；导入时把文本粘进来" spellcheck="false"></textarea>
+  </div>
+</div>
+
+<div id="chatBox">
+  <div id="chatLog"></div>
+  <div class="chatrow">
+    <input id="chatInput" maxlength="80" placeholder="联机时说点什么…">
+    <button id="chatSend">发送</button>
+    <button id="chatClose" style="background:rgba(255,255,255,.12);color:#cfe0ee">×</button>
+  </div>
+</div>
+
 <div class="overlay" id="start">
   <div class="title">方块世界</div>
-  <div class="sub">MINI VOXEL SANDBOX · 单人可玩 · 支持联机</div>
+  <div class="sub">MINI VOXEL SANDBOX · 生存 / 洞穴 / 合成 / 联机</div>
   <div class="keys">
     <div>左下摇杆 <span>移动，推到底＝疾跑</span></div>
     <div>拖动画面 <span>转视角</span></div>
@@ -348,8 +554,10 @@
     <div>⚔ 攻击 <span>短按打怪，长按挖方块</span></div>
     <div>✚ 放置 <span>放下所选方块</span></div>
     <div>顶部方块 <span>打开背包</span></div>
+    <div>✚ 放置 <span>选中食物时＝吃掉</span></div>
+    <div>顶部三枚小图标 <span>合成 / 皮肤 / 聊天</span></div>
     <div>底部快捷栏 <span>切换物品</span></div>
-    <div>顶部 ☰ <span>飞行 / 保存 / 重置</span></div>
+    <div>顶部 ☰ <span>飞行 / 种子 / 存档</span></div>
   </div>
   <button class="start" id="btnStart">开 始 游 戏</button>
   <button id="btnNet">联机玩</button>
@@ -427,7 +635,7 @@
 <script src="/visit.js?v=20261107"></script>
 <script src="/auth-ticket.js?v=20261107"></script>
 <script src="three.min.js"></script>
-<script src="game.js"></script>
+<script src="game.js?v=20261128c"></script>
 <script src="sandbox-gate.js?v=20261128"></script>
 <script>
 /* 联机面板：独立绑定，不依赖游戏初始化。
