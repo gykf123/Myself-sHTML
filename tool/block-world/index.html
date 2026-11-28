@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>方块世界 · 浏览器沙盒 · 支持多人联机 · FeSui</title>
+<meta name="description" content="浏览器里的小小方块沙盒：挖方块、打怪、造房子，进度自动存在本机。支持公网中继联机——生成 6 位房间码就能和朋友跨网一起玩，也可以同一 Wi-Fi 局域网联机。无需登录，不接数据库。">
+<meta property="og:title" content="方块世界 · 浏览器沙盒 · 支持多人联机" />
+<meta property="og:description" content="挖方块、打怪、造房子，生成 6 位房间码就能和朋友跨网一起玩。纯前端渲染，中继零依赖，不接数据库。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="../../favicon.png">
+<link rel="canonical" href="https://fesui.xn--0iv.gay/tool/block-world/">
+<style>
+  :root{
+    --ui:rgba(16,20,26,.55);
+    --ui-b:rgba(255,255,255,.28);
+    --slot:clamp(32px,5.1vw,46px);
+    /* 右侧功能键：手机版那种灰色实心方块键 */
+    --gb:clamp(50px,7.2vw,84px);
+    --gb-bg:rgba(104,112,120,.66);
+    --gb-bg-on:rgba(146,158,168,.88);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  html,body{width:100%;height:100%;overflow:hidden;background:#8fc6e8;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+    touch-action:none;overscroll-behavior:none;position:fixed}
+  #game{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10}
+  #crosshair{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:.85}
+  #crosshair:before,#crosshair:after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px rgba(0,0,0,.9)}
+  #crosshair:before{left:50%;top:0;width:2px;height:100%;margin-left:-1px}
+  #crosshair:after{top:50%;left:0;height:2px;width:100%;margin-top:-1px}
+
+  #minebar{position:absolute;left:50%;top:calc(50% + 22px);width:52px;height:6px;margin-left:-26px;
+    background:rgba(0,0,0,.45);border-radius:3px;overflow:hidden;opacity:0;transition:opacity .12s}
+  #minebar i{display:block;height:100%;width:0;background:#8ee06a}
+
+  #stats{position:absolute;left:10px;top:8px;font-size:11px;line-height:1.5;color:#fff;
+    text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums;opacity:.8}
+
+  #tip{position:absolute;left:50%;top:16%;transform:translateX(-50%);padding:6px 14px;border-radius:20px;
+    background:rgba(0,0,0,.5);color:#fff;font-size:13px;opacity:0;transition:opacity .3s;white-space:nowrap}
+
+  /* ---------- 摇杆（方形，和手机版一致） ---------- */
+  #stick{position:absolute;left:calc(14px + env(safe-area-inset-left));bottom:calc(14px + env(safe-area-inset-bottom));
+    width:clamp(104px,19vw,170px);height:clamp(104px,19vw,170px);border-radius:10px;
+    background:rgba(126,136,146,.34);border:2px solid rgba(255,255,255,.52);
+    pointer-events:auto;z-index:12;touch-action:none}
+  #stick .knob{position:absolute;left:50%;top:50%;width:40%;height:40%;margin:-20% 0 0 -20%;border-radius:7px;
+    background:rgba(255,255,255,.62);box-shadow:0 2px 8px rgba(0,0,0,.3);transition:transform .04s linear}
+  #stick .mark{position:absolute;inset:0;border-radius:10px;border:1px dashed rgba(255,255,255,.14);margin:16%}
+
+  /* ---------- 右侧功能键（灰色实心，无描边） ---------- */
+  .gbtn{position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;
+    width:var(--gb);height:var(--gb);border-radius:calc(var(--gb) * .17);
+    background:var(--gb-bg);color:#f4f8fa;z-index:12;touch-action:none;
+    box-shadow:0 2px 10px rgba(0,0,0,.22);
+    transition:transform .07s,background .07s}
+  .gbtn svg{width:62%;height:62%;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
+  .gbtn:active,.gbtn.on{background:var(--gb-bg-on);transform:scale(.94)}
+  .gbtn.on{color:#fff}
+  #btnPlace{bottom:calc(12px + env(safe-area-inset-bottom))}
+  #btnHit{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * .8)}
+  #btnSneak{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 1.6)}
+  #btnRun{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 2.4)}
+  #btnJump{bottom:calc(12px + env(safe-area-inset-bottom) + var(--gb) * 3.2)}
+  #btnJump,#btnSneak,#btnPlace{right:calc(10px + env(safe-area-inset-right))}
+  #btnHit,#btnRun{right:calc(10px + var(--gb) * 1.02 + env(safe-area-inset-right))}
+  #btnRun.on{background:rgba(120,196,132,.8)}
+
+  /* ---------- 生命 / 饥饿 ---------- */
+  #vitals{position:absolute;left:50%;bottom:calc(12px + var(--slot) + 18px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);width:calc(var(--slot) * 9 + 44px);
+    display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;z-index:11}
+  #vitals .row{display:flex;gap:2px}
+  .pix{position:relative;width:clamp(10px,1.6vw,16px);height:clamp(10px,1.6vw,16px)}
+  .pix svg{position:absolute;inset:0;width:100%;height:100%;display:block;shape-rendering:crispEdges}
+  .pix .bg{color:rgba(0,0,0,.55)}
+  .pix.hp .fg{color:#e2413f}
+  .pix.fd .fg{color:#c2802f}
+  .pix.half .fg{clip-path:inset(0 50% 0 0)}
+  .pix.empty .fg{display:none}
+  #dmgflash{position:absolute;inset:0;background:#c02020;opacity:0;pointer-events:none;
+    transition:opacity .25s;z-index:9}
+
+  /* ---------- 物品栏 ---------- */
+  #hotbar{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    display:flex;gap:4px;padding:5px;border-radius:8px;background:rgba(40,46,52,.42);
+    box-shadow:0 2px 10px rgba(0,0,0,.2);pointer-events:auto;z-index:11}
+  .slot{position:relative;width:var(--slot);height:var(--slot);border-radius:7px;background:rgba(255,255,255,.08);
+    border:2px solid rgba(255,255,255,.18);overflow:hidden}
+  .slot.sel{border-color:#fff;background:rgba(255,255,255,.26);box-shadow:0 0 0 2px rgba(0,0,0,.25) inset}
+  .slot canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+  .slot b{position:absolute;right:2px;bottom:0;font-size:10px;color:#fff;text-shadow:0 1px 2px #000;opacity:.95}
+  .slot img,.bslot img{width:100%;height:100%;display:block;image-rendering:pixelated}
+  #hotname{position:absolute;left:50%;bottom:calc(10px + var(--slot) + 18px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);color:#fff;font-size:12px;text-shadow:0 1px 3px #000;opacity:0;transition:opacity .3s}
+
+  /* ---------- 顶部图标栏（居中，手机版布局） ---------- */
+  #topbar{position:absolute;left:50%;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);
+    display:flex;gap:6px;align-items:center;pointer-events:auto;z-index:13}
+  .tb{width:calc(var(--gb) * .48);height:calc(var(--gb) * .44);border-radius:6px;
+    background:rgba(126,136,146,.62);color:#f4f8fa;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.2);transition:background .07s,transform .07s}
+  .tb:active{background:rgba(168,180,190,.85);transform:scale(.95)}
+  .tb svg{width:64%;height:64%;display:block}
+  #btnBag{width:calc(var(--gb) * .62);height:calc(var(--gb) * .56);border-radius:7px;overflow:hidden;padding:0}
+  #btnBag img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated;display:block}
+  .bag-panel{background:rgba(20,26,32,.97);border:1px solid rgba(255,255,255,.16);border-radius:14px;
+    padding:10px 14px 9px;display:flex;flex-direction:column;gap:5px;box-shadow:0 24px 70px rgba(0,0,0,.55);
+    max-width:96vw;max-height:96vh;overflow:auto;scrollbar-width:none}
+  .bag-panel::-webkit-scrollbar{display:none}
+  .bag-title{font-size:15px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+  .bag-title span{font-size:11px;font-weight:400;color:#8fa4b8}
+  .bag-sub{font-size:11px;color:#8fa4b8;margin-top:2px;text-align:left}
+  .bag-grid,.bag-hot{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;justify-content:center}
+  .bslot{position:relative;width:clamp(26px,4.1vw,40px);height:clamp(26px,4.1vw,40px);border-radius:6px;
+    background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.14);overflow:hidden}
+  .bslot.sel{border-color:#9ee87a;background:rgba(140,220,110,.2);box-shadow:0 0 0 2px rgba(0,0,0,.25) inset}
+  .bslot b{position:absolute;right:2px;bottom:0;font-size:10px;color:#fff;text-shadow:0 1px 2px #000}
+  .bag-close{padding:9px;border-radius:9px;border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.1);color:#eaf2ff;font-size:13px;margin-top:1px}
+  .bag-close:active{background:rgba(255,255,255,.2)}
+
+  /* ---------- 覆盖层 ---------- */
+  .overlay{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,#16202b,#0a0e13 70%);color:#eaf2ff;padding:22px;text-align:center}
+  .overlay.hide{display:none}
+  .title{font-size:clamp(26px,6vw,44px);font-weight:800;letter-spacing:4px;
+    background:linear-gradient(180deg,#b8f08a,#4f9c2f);-webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 4px 18px rgba(90,180,80,.25)}
+  .sub{margin-top:8px;font-size:13px;color:#9fb3c8;letter-spacing:1px}
+  .keys{margin:22px 0 4px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:12.5px;color:#c8d8e8;
+    max-width:440px;text-align:left}
+  .keys span{opacity:.65}
+  .start{margin-top:26px;padding:14px 46px;border-radius:14px;border:none;font-size:17px;font-weight:700;color:#08210c;
+    background:linear-gradient(180deg,#9ee87a,#5cb43c);box-shadow:0 8px 24px rgba(80,180,60,.3);letter-spacing:3px}
+  .start:active{transform:translateY(1px)}
+  .panel{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;
+    padding:18px;min-width:min(300px,84vw);display:flex;flex-direction:column;gap:10px}
+  .panel button{padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.1);
+    color:#eaf2ff;font-size:14px}
+  .panel button:active{background:rgba(255,255,255,.2)}
+  #loading{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+    background:#0b1016;color:#9fb3c8;font-size:13px;letter-spacing:2px}
+
+  /* ---------- 联机 ---------- */
+  #netpill{position:absolute;left:10px;top:30px;display:flex;align-items:center;gap:6px;
+    padding:4px 10px;border-radius:20px;background:rgba(10,16,22,.55);border:1px solid rgba(255,255,255,.2);
+    color:#dff0e6;font-size:11px;letter-spacing:.3px;z-index:13;pointer-events:none;white-space:nowrap}
+  #netpill i{width:6px;height:6px;border-radius:50%;background:#8ee06a;box-shadow:0 0 6px #8ee06a;flex:none}
+  #netpill.hide{display:none}
+  .netpanel{min-width:min(430px,90vw);max-width:min(520px,94vw);gap:9px;
+    max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+  .netpanel::-webkit-scrollbar{display:none}
+  .netrow{display:flex;gap:8px;align-items:center}
+  .netrow>span{font-size:12px;color:#9fb3c8;width:46px;flex:none;text-align:left}
+  .netpanel input{flex:1;min-width:0;padding:11px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.08);color:#eaf2ff;font-size:14px;outline:none;font-family:inherit}
+  .netpanel input::placeholder{color:#6f8496}
+  .netpanel .netgo{padding:12px;border-radius:10px;border:none;font-size:14px;font-weight:700;color:#08210c;
+    background:linear-gradient(180deg,#9ee87a,#5cb43c);letter-spacing:1px;width:100%}
+  .netpanel .netgo:active{background:linear-gradient(180deg,#8dd96c,#4fa32f)}
+  .netrooms{display:flex;flex-direction:column;gap:6px;max-height:168px;overflow:auto;scrollbar-width:none}
+  .netrooms::-webkit-scrollbar{display:none}
+  .netroom{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 13px;border-radius:10px;
+    border:1px solid rgba(142,224,106,.28);background:rgba(142,224,106,.1);color:#eaf2ff;font-size:13px;text-align:left;
+    font-family:inherit}
+  .netroom b{font-weight:700}
+  .netroom span{font-size:11px;color:#9fb3c8}
+  .nethr{display:flex;justify-content:space-between;align-items:center;margin-top:3px;
+    font-size:11px;color:#8fa4b8;letter-spacing:.6px}
+  .nethr button{padding:4px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.08);color:#cfe0ee;font-size:11px;font-family:inherit}
+  .np{font-size:12px;color:#cfe0ee;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,.06);text-align:left}
+  .np.me{color:#b6f08e}
+  .np.dim{color:#7f93a6;background:none;padding:2px 0;line-height:1.5}
+  .netplayers{display:flex;flex-direction:column;gap:4px;text-align:left}
+  .netaddr{font-family:ui-monospace,Menlo,monospace;font-size:15px;color:#b6f08e;letter-spacing:.5px;
+    padding:10px;border-radius:10px;background:rgba(142,224,106,.1);
+    border:1px dashed rgba(142,224,106,.35);word-break:break-all}
+  .nettip{font-size:11.5px;color:#8fa4b8;line-height:1.6;text-align:left}
+  #btnNet{margin-top:12px;padding:11px 32px;border-radius:12px;border:1px solid rgba(142,224,106,.42);
+    background:rgba(142,224,106,.12);color:#c8f0a8;font-size:14px;letter-spacing:2px;font-weight:600;font-family:inherit}
+  #btnNet:active{background:rgba(142,224,106,.26)}
+
+  /* 矮屏：开始页收紧，保证按钮在屏内 */
+  @media (max-height:430px){
+    #start{padding:8px}
+    #start .title{font-size:clamp(20px,6.4vh,32px)}
+    #start .sub{margin-top:3px;font-size:10.5px}
+    #start .keys{margin:8px 0 0;font-size:10.5px;gap:4px 14px;line-height:1.35}
+    #start .start{margin-top:10px;padding:9px 32px;font-size:14.5px}
+    #btnNet{margin-top:6px;padding:8px 22px;font-size:12.5px;letter-spacing:1.6px}
+  }
+
+  /* 小屏（横屏手机）压缩联机面板 */
+  @media (max-height:520px){
+    .overlay{padding:8px}
+    .netpanel{padding:12px 14px;gap:6px;min-width:min(390px,94vw)}
+    .netpanel input{padding:8px 10px;font-size:13px}
+    .netpanel .netgo{padding:9px;font-size:13px}
+    .netrooms{max-height:92px}
+    .nettip{display:none}
+    .nethr{margin-top:1px}
+    .np{font-size:11.5px;padding:4px 9px}
+  }
+  .site-note{margin-top:16px;font-size:12px;line-height:1.9;color:rgba(210,226,240,.7);text-align:center}
+  .site-note a{color:#9ee06d;text-decoration:none;border-bottom:1px solid rgba(158,224,109,.4)}
+  #netNote{z-index:60}
+
+  /* ---------- 公网联机面板 ---------- */
+  .nettabs{display:flex;gap:6px;margin:2px 0 4px}
+  .nettabs button{flex:1;padding:9px 8px;border-radius:9px;border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.05);color:#9fb3c8;font-size:12.5px;font-family:inherit;letter-spacing:.5px}
+  .nettabs button.on{background:rgba(142,224,106,.16);border-color:rgba(142,224,106,.45);color:#c8f0a8;font-weight:700}
+  .nettabs button:active{background:rgba(255,255,255,.14)}
+  .netsec{font-size:11px;color:#7f93a6;letter-spacing:.8px;margin:6px 0 -2px;text-align:left}
+  .netroominfo{display:none;text-align:left;padding:10px 12px;border-radius:11px;
+    background:rgba(142,224,106,.08);border:1px solid rgba(142,224,106,.28)}
+  .netroominfo .rl{font-size:11px;color:#8fa4b8;letter-spacing:.6px}
+  .netroominfo .rc{font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:700;color:#b6f08e;
+    letter-spacing:5px;margin:2px 0 6px}
+  .netroominfo .rlink{display:flex;gap:6px;margin-top:4px;align-items:center}
+  .netroominfo .rlink input{font-size:11.5px;padding:7px 9px;flex:1;min-width:0;
+    text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+  .netroominfo .rlink button{flex:none;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.1);color:#cfe0ee;font-size:11.5px;font-family:inherit;white-space:nowrap}
+  .netroominfo .role{font-size:11px;color:#9fb3c8;line-height:1.5;margin-top:6px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="minebar"><i></i></div>
+  <div id="dmgflash"></div>
+  <div id="stats">--</div>
+  <div id="netpill" class="hide"></div>
+  <div id="tip"></div>
+
+  <div id="stick"><div class="mark"></div><div class="knob"></div></div>
+
+  <!-- 右侧功能键：手机版布局，灰色实心块 -->
+  <div class="gbtn" id="btnJump">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20.5V5"/><path d="M5.8 11.2L12 5l6.2 6.2"/>
+    </svg>
+  </div>
+  <div class="gbtn" id="btnRun">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.5 5.5L10 12l-6.5 6.5"/><path d="M13 5.5L19.5 12 13 18.5"/>
+    </svg>
+  </div>
+  <div class="gbtn" id="btnSneak">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.5V19"/><path d="M5.8 12.8L12 19l6.2-6.2"/>
+    </svg>
+  </div>
+  <div class="gbtn" id="btnHit">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 20.2l3.4-3.4"/>
+      <path d="M6 13.4l4.6 4.6"/>
+      <path d="M8.6 14.8L18.8 4.6V2.9h-1.7L6.9 13.1z"/>
+    </svg>
+  </div>
+  <div class="gbtn" id="btnPlace">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3.2" y="9.2" width="10.6" height="10.6" rx="1.6"/>
+      <path d="M18.5 3.5v7M15 7h7"/>
+    </svg>
+  </div>
+
+  <!-- 顶部图标栏 -->
+  <div id="topbar">
+    <div class="tb" id="btnBag"><img id="bagIcon" alt=""></div>
+    <div class="tb" id="btnMenu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </div>
+    <div class="tb" id="btnSaveTop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.5v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19.5h14"/>
+      </svg>
+    </div>
+  </div>
+
+  <div id="vitals">
+    <div class="row" id="healthRow"></div>
+    <div class="row" id="hungerRow"></div>
+  </div>
+
+  <div id="hotname"></div>
+  <div id="hotbar"></div>
+</div>
+
+<div class="overlay hide" id="menu">
+  <div class="panel">
+    <div style="font-size:16px;font-weight:700;margin-bottom:4px">游戏菜单</div>
+    <div class="np" id="mNetInfo" style="display:none"></div>
+    <button id="mFly">切换 飞行模式：关</button>
+    <button id="mSave">保存世界</button>
+    <button id="mReset">重新生成世界</button>
+    <button id="mNetLeave" style="display:none;color:#ffc0ae;border-color:rgba(255,140,110,.35)">退出联机</button>
+    <button id="mClose">继续游戏</button>
+  </div>
+</div>
+
+<div class="overlay hide" id="bag">
+  <div class="bag-panel">
+    <div class="bag-title">背包<span>点击物品 ↔ 与选中快捷栏交换</span></div>
+    <div class="bag-sub">存储格（27 格）</div>
+    <div class="bag-grid" id="bagGrid"></div>
+    <div class="bag-sub">快捷栏（点击选择）</div>
+    <div class="bag-hot" id="bagHot"></div>
+    <button class="bag-close" id="bagClose">关 闭</button>
+  </div>
+</div>
+
+<div class="overlay" id="start">
+  <div class="title">方块世界</div>
+  <div class="sub">MINI VOXEL SANDBOX · 单人可玩 · 支持联机</div>
+  <div class="keys">
+    <div>左下摇杆 <span>移动，推到底＝疾跑</span></div>
+    <div>拖动画面 <span>转视角</span></div>
+    <div>↑ 跳跃 <span>跳跃 / 飞行时上升</span></div>
+    <div>≫ 疾跑 <span>按住加速奔跑</span></div>
+    <div>↓ 潜行 <span>下蹲减速 / 飞行时下降</span></div>
+    <div>⚔ 攻击 <span>短按打怪，长按挖方块</span></div>
+    <div>✚ 放置 <span>放下所选方块</span></div>
+    <div>顶部方块 <span>打开背包</span></div>
+    <div>底部快捷栏 <span>切换物品</span></div>
+    <div>顶部 ☰ <span>飞行 / 保存 / 重置</span></div>
+  </div>
+  <button class="start" id="btnStart">开 始 游 戏</button>
+  <button id="btnNet">联机玩</button>
+  <div class="site-note">存档保存在这台设备的浏览器里 · 不上传 · 不用登录<br>
+    <a href="../index.html">← 返回工具箱</a></div>
+</div>
+
+<div class="overlay hide" id="net">
+  <div class="panel netpanel" id="netPanel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:700">联机玩</div>
+      <div id="netMode" style="font-size:11px;color:#8fa4b8">公网中继</div>
+    </div>
+    <div class="nettabs">
+      <button id="tabWan" class="on">公网中继</button>
+      <button id="tabLan">同一 Wi-Fi</button>
+    </div>
+
+    <!-- 公网中继 -->
+    <div id="netWanPane" style="display:block">
+      <div class="netrow"><span>昵称</span><input id="netName" maxlength="10" placeholder="玩家"></div>
+      <div class="netrow"><span>中继</span><input id="netRelay" placeholder="wss://你的中继域名" spellcheck="false"></div>
+      <button class="netgo" id="netWanHost">创建房间</button>
+      <div class="nethr"><span>加入别人的房间</span></div>
+      <div class="netrow">
+        <input id="netCode" placeholder="6 位房间码" maxlength="12" spellcheck="false" autocomplete="off">
+        <button class="netgo" id="netWanJoin" style="width:auto;flex:none;padding:11px 18px;font-size:13px">加入</button>
+      </div>
+
+      <div class="netroominfo" id="netRoomInfo">
+        <div class="rl">房间码</div>
+        <div class="rc" id="netRoomCode">------</div>
+        <button class="netgo" id="netCopyCode" style="padding:9px">复制房间码</button>
+        <div class="rl" style="margin-top:8px">邀请链接</div>
+        <div class="rlink">
+          <input id="netRoomLink" readonly>
+          <button id="netCopyLink">复制</button>
+        </div>
+        <div class="role" id="netRoomRole"></div>
+      </div>
+
+      <div class="nettip">公网中继是「一台服务器转发消息」，谁都不用开端口。中继只转发、不记日志，
+        方块改动只存在中继内存里，服务器重启就清空。房间码就是通行证，别随便发到公开地方。</div>
+    </div>
+
+    <!-- 同一 Wi-Fi -->
+    <div id="netLanPane" style="display:none">
+      <div class="netrow"><span>昵称</span><input id="netNameLan" maxlength="10" placeholder="玩家"></div>
+      <button class="netgo" id="netHost">创建房间（这台设备当房主）</button>
+      <div class="nethr"><span>附近的房间</span><button id="netScan">重新搜索</button></div>
+      <div class="netrooms" id="netRooms"><div class="np dim">正在搜索同一 Wi-Fi 下的房间…</div></div>
+      <div class="nethr"><span>手动连接</span></div>
+      <div class="netrow">
+        <input id="netIp" placeholder="房主 IP，例如 192.168.1.23">
+        <button class="netgo" id="netJoinBtn" style="padding:11px 18px;font-size:13px">加入</button>
+      </div>
+      <div class="nettip">这一页要房主自己开一台服务（见 <code>local-server/</code>），适合同一个 Wi-Fi 下的几台设备。
+        想跨网玩，用上面的公网中继。</div>
+    </div>
+
+    <button id="netBack" style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#cfe0ee;font-size:13px">关闭</button>
+  </div>
+</div>
+
+<div id="loading">正在生成世界…</div>
+
+<script src="three.min.js"></script>
+<script src="game.js"></script>
+<script>
+/* 联机面板：独立绑定，不依赖游戏初始化。
+   目的是两件事：① 邀请链接 ?room=XXXXXX 进来时自动填好房间码；② WebGL 坏掉时点按钮也有反馈。 */
+(function(){
+  var net = document.getElementById('net');
+  if (!net) return;
+  var btn = document.getElementById('btnNet');
+  var back = document.getElementById('netBack');
+  var codeEl = document.getElementById('netCode');
+  var relayEl = document.getElementById('netRelay');
+
+  function 取参数(k){
+    var m = new RegExp('[?&]' + k + '=([^&#]*)').exec(location.search);
+    return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+  }
+
+  var 邀请码 = 取参数('room').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+  var 邀请中继 = 取参数('relay');
+  if (邀请码 && codeEl) codeEl.value = 邀请码;
+  if (邀请中继 && relayEl) relayEl.value = 邀请中继;
+
+  function 打开(){
+    net.classList.remove('hide');
+    if (邀请码 && codeEl && !codeEl.value) codeEl.value = 邀请码;
+  }
+  function 关闭(){ net.classList.add('hide'); }
+
+  if (btn) btn.addEventListener('click', 打开);
+  if (back) back.addEventListener('click', 关闭);
+  net.addEventListener('click', function(e){ if (e.target === net) 关闭(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') 关闭(); });
+
+  // 从邀请链接进来的，直接把面板亮出来，省掉再点一次
+  if (邀请码) setTimeout(打开, 60);
+})();
+</script>
+</body>
+</html>
