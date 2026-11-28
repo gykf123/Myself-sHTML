@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>小小沙盒在线版 · 浏览器方块沙盒 · FeSui</title>
-<meta name="description" content="浏览器里的小小方块沙盒：种子世界、洞穴挖矿、生存饥饿、合成工具、皮肤与联机聊天，进度自动存在本机。单人免登录直接玩；联机需登录并用 1 积分解锁。">
+<meta name="description" content="浏览器里的小小方块沙盒：种子世界、洞穴挖矿、昼夜生存、合成工具、11 条成就、皮肤与联机聊天，进度自动存在本机。单人免登录直接玩；联机需登录并用 1 积分解锁。">
 <meta property="og:title" content="小小沙盒在线版 · 浏览器方块沙盒" />
 <meta property="og:description" content="挖方块、打怪、造房子。单人免登录直接玩，联机需登录并用 1 积分解锁。" />
 <meta property="og:type" content="website" />
@@ -148,7 +148,10 @@
     background:linear-gradient(180deg,#9ee87a,#5cb43c);box-shadow:0 8px 24px rgba(80,180,60,.3);letter-spacing:3px}
   .start:active{transform:translateY(1px)}
   .panel{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;
-    padding:18px;min-width:84vw;min-width:min(300px,84vw);display:flex;flex-direction:column;gap:10px}
+    padding:18px;min-width:84vw;min-width:min(300px,84vw);display:flex;flex-direction:column;gap:10px;
+    max-height:94vh;overflow-y:auto;overscroll-behavior:contain}
+  /* 游戏里不需要全站导航球：右下角会压住放置键，误触还会跳出游戏 */
+  .fs-nav-root{display:none!important}
   .panel button{padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.1);
     color:#eaf2ff;font-size:14px}
   .panel button:active{background:rgba(255,255,255,.2)}
@@ -286,6 +289,27 @@
     border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);color:#eaf2ff;
     font-size:13px;font-family:inherit;outline:none;-webkit-user-select:text;user-select:text}
   .world-panel textarea{height:76px;resize:none;font-family:ui-monospace,Menlo,monospace;font-size:11px}
+
+  /* ---------- 目标 / 成就 ---------- */
+  .ach-panel{width:94vw;width:min(460px,94vw);gap:6px;max-height:88vh;overflow:auto;scrollbar-width:none}
+  .ach-panel::-webkit-scrollbar{display:none}
+  .ach-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .ach-head b{font-size:15px}
+  .ach-head span{font-size:11px;color:#8fa4b8}
+  .ach-head em{color:#b6f08e;font-style:normal;font-weight:700}
+  #achList{display:flex;flex-direction:column;gap:4px}
+  .achrow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:9px;
+    background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);text-align:left}
+  .achrow .achmark{flex:none;width:18px;height:18px;border-radius:50%;font-size:11px;line-height:18px;
+    text-align:center;color:#8fa4b8;background:rgba(255,255,255,.08)}
+  .achrow .achtxt{flex:1;min-width:0}
+  .achrow .achtxt b{display:block;font-size:12.5px;color:#dbe8f5}
+  .achrow .achtxt small{display:block;font-size:10.5px;color:#8fa4b8}
+  .achrow .achnum{flex:none;font-size:11px;color:#8fa4b8;font-variant-numeric:tabular-nums}
+  .achrow.ok{background:rgba(142,224,106,.09);border-color:rgba(142,224,106,.28)}
+  .achrow.ok .achmark{background:#5cb43c;color:#08210c;font-weight:700}
+  .achrow.ok .achtxt b{color:#c8f0a8}
+  .achrow.ok .achnum{color:#9ee87a}
   .world-btns{display:grid;grid-template-columns:1fr 1fr;gap:7px}
   .world-btns button{padding:10px;border-radius:9px;border:1px solid rgba(255,255,255,.14);
     background:rgba(255,255,255,.08);color:#dbe8f5;font-size:12px;font-family:inherit}
@@ -351,6 +375,9 @@
     .netgate button{margin-left:8px}
     .netgate .gt{margin-right:6px}
     .netroominfo .rlink button{margin-left:6px}
+    .achrow{margin-bottom:4px}
+    .achrow .achmark{margin-right:9px}
+    .achrow .achnum{margin-left:8px}
   }
 
   /* 老内核不认 grid 时退回 flex 换行，背包和皮肤格子不会堆成一条竖线 */
@@ -482,8 +509,10 @@
     <button id="mFly">切换 飞行模式：关</button>
     <button id="mSave">保存世界</button>
     <button id="mWorld">世界种子 / 导入导出</button>
+    <button id="mAch">目标 / 成就</button>
     <button id="mReset">重新生成世界</button>
     <button id="mNetLeave" style="display:none;color:#ffc0ae;border-color:rgba(255,140,110,.35)">退出联机</button>
+    <button id="mHome" style="color:#9fb3c8">返回站点首页</button>
     <button id="mClose">继续游戏</button>
   </div>
 </div>
@@ -533,6 +562,17 @@
   </div>
 </div>
 
+<div class="overlay hide" id="ach">
+  <div class="panel ach-panel">
+    <div class="ach-head">
+      <b>目标 / 成就</b>
+      <span>完成 <em id="achSum">0 / 11</em></span>
+    </div>
+    <div id="achList"></div>
+    <button class="bag-close" id="achClose">关 闭</button>
+  </div>
+</div>
+
 <div id="chatBox">
   <div id="chatLog"></div>
   <div class="chatrow">
@@ -543,7 +583,7 @@
 </div>
 
 <div class="overlay" id="start">
-  <div class="title">方块世界</div>
+  <div class="title">小小沙盒</div>
   <div class="sub">MINI VOXEL SANDBOX · 生存 / 洞穴 / 合成 / 联机</div>
   <div class="keys">
     <div>左下摇杆 <span>移动，推到底＝疾跑</span></div>
@@ -557,7 +597,7 @@
     <div>✚ 放置 <span>选中食物时＝吃掉</span></div>
     <div>顶部三枚小图标 <span>合成 / 皮肤 / 聊天</span></div>
     <div>底部快捷栏 <span>切换物品</span></div>
-    <div>顶部 ☰ <span>飞行 / 种子 / 存档</span></div>
+    <div>顶部 ☰ <span>飞行 / 种子 / 目标 / 存档</span></div>
   </div>
   <button class="start" id="btnStart">开 始 游 戏</button>
   <button id="btnNet">联机玩</button>

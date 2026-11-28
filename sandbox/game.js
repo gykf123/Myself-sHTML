@@ -15,17 +15,66 @@
   var TILE = 16, ATLAS_N = 4, ATLAS = TILE * ATLAS_N;
 
   var BLOCKS = {
-    1: { name: '草方块', top: 0, side: 1, bottom: 2, color: '#5fae37' },
-    2: { name: '泥土',   top: 2, side: 2, bottom: 2, color: '#91613a' },
-    3: { name: '石头',   top: 3, side: 3, bottom: 3, color: '#8b8b8b' },
-    4: { name: '沙子',   top: 4, side: 4, bottom: 4, color: '#e3d49a' },
-    5: { name: '原木',   top: 6, side: 5, bottom: 6, color: '#7a5730' },
-    6: { name: '树叶',   top: 7, side: 7, bottom: 7, color: '#3f7f2c' },
-    7: { name: '木板',   top: 8, side: 8, bottom: 8, color: '#bd9152' },
-    8: { name: '砖块',   top: 9, side: 9, bottom: 9, color: '#a8463c' },
-    9: { name: '圆石',   top: 10, side: 10, bottom: 10, color: '#7d7d7d' }
+    1:  { name: '草方块', top: 0, side: 1, bottom: 2, color: '#5fae37', hard: 0.5 },
+    2:  { name: '泥土',   top: 2, side: 2, bottom: 2, color: '#91613a', hard: 0.5 },
+    3:  { name: '石头',   top: 3, side: 3, bottom: 3, color: '#8b8b8b', hard: 1.9, drop: 9 },
+    4:  { name: '沙子',   top: 4, side: 4, bottom: 4, color: '#e3d49a', hard: 0.5 },
+    5:  { name: '原木',   top: 6, side: 5, bottom: 6, color: '#7a5730', hard: 1.1 },
+    6:  { name: '树叶',   top: 7, side: 7, bottom: 7, color: '#3f7f2c', hard: 0.35 },
+    7:  { name: '木板',   top: 8, side: 8, bottom: 8, color: '#bd9152', hard: 0.7 },
+    8:  { name: '砖块',   top: 9, side: 9, bottom: 9, color: '#a8463c', hard: 1.6 },
+    9:  { name: '圆石',   top: 10, side: 10, bottom: 10, color: '#7d7d7d', hard: 1.9 },
+    10: { name: '煤矿石', top: 11, side: 11, bottom: 11, color: '#414141', hard: 2.3, drop: 24, deep: 0 },
+    11: { name: '铁矿石', top: 12, side: 12, bottom: 12, color: '#b98a5f', hard: 2.5, drop: 22, deep: 0 },
+    12: { name: '金矿石', top: 13, side: 13, bottom: 13, color: '#e4c14b', hard: 2.6, drop: 26, deep: 1 },
+    13: { name: '钻石矿', top: 14, side: 14, bottom: 14, color: '#63d9d0', hard: 3.0, drop: 23, deep: 2 },
+    14: { name: '基岩',   top: 15, side: 15, bottom: 15, color: '#2c2c2c', hard: Infinity, unbreakable: true },
+    15: { name: '工作台', top: 8, side: 8, bottom: 8, color: '#b78448', hard: 0.9 }
   };
+
+  // 非方块物品：和方块共用同一套背包 ID，既能堆起来，也能进合成表。
+  var ITEMS = {
+    16: { name: '木棍',   icon: 'stick',  kind: 'mat' },
+    17: { name: '石镐',   icon: 'stone',  kind: 'tool', speed: 2.1 },
+    18: { name: '铁镐',   icon: 'iron',   kind: 'tool', speed: 3.2 },
+    19: { name: '苹果',   icon: 'apple',  kind: 'food', food: 4 },
+    20: { name: '生肉',   icon: 'raw',    kind: 'food', food: 1 },
+    21: { name: '烤肉',   icon: 'cooked', kind: 'food', food: 8 },
+    22: { name: '铁锭',   icon: 'iron',   kind: 'mat' },
+    23: { name: '钻石',   icon: 'diamond',kind: 'mat' },
+    24: { name: '煤炭',   icon: 'coal',   kind: 'mat' },
+    25: { name: '钻石镐', icon: 'diamond',kind: 'tool', speed: 4.6 },
+    26: { name: '金锭',   icon: 'gold',   kind: 'mat' }
+  };
+
+  var SKINS = [
+    { name: '青竹', color: 0x2f8f86, css: '#2f8f86' },
+    { name: '橘猫', color: 0xd27936, css: '#d27936' },
+    { name: '紫电', color: 0x7651b8, css: '#7651b8' },
+    { name: '粉团', color: 0xd96a9a, css: '#d96a9a' },
+    { name: '夜行', color: 0x333b4d, css: '#333b4d' },
+    { name: '铁甲', color: 0x78909c, css: '#78909c' }
+  ];
+  var skinId = 0;
+
   var HOTBAR = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  var WORLD = { seedText: 'FESUI', seed: 0 };
+  function hashText(s) {
+    var h = 2166136261;
+    s = String(s == null ? '' : s);
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function 世界种子(s) {
+    var text = String(s == null || s === '' ? 'FESUI' : s).slice(0, 32);
+    WORLD.seedText = text;
+    WORLD.seed = hashText(text);
+    return WORLD.seed;
+  }
+  世界种子('FESUI');
 
   var atlasCanvas = document.createElement('canvas');
   atlasCanvas.width = atlasCanvas.height = ATLAS;
@@ -34,6 +83,16 @@
 
   function hashf(x, y, s) {
     var n = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(s, 1442695041);
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  }
+  // 世界生成用带种子的哈希；贴图仍用 hashf，保证换种子不会把方块纹理也换掉。
+  function worldHash(x, y, s) {
+    return hashf(x | 0, y | 0, (s ^ WORLD.seed) >>> 0);
+  }
+  function hash3(x, y, z, s) {
+    var n = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^
+            Math.imul(z | 0, 2147483647) ^ Math.imul(s ^ WORLD.seed, 1442695041);
     n = Math.imul(n ^ (n >>> 13), 1274126177);
     return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
   }
@@ -144,9 +203,26 @@
       if (hashf(x, y, 127) > 0.9) v *= 0.8;
       return mul('#8a8a8a', v);
     });
+    // 11~14 矿石：石头底 + 彩色矿点
+    function oreTile(tile, ore, chance) {
+      tilePixels(tile, function (x, y) {
+        var stone = 0.70 + hashf(x >> 1, y >> 1, 137 + tile) * 0.34;
+        if (hashf(x, y, 149 + tile * 3) < chance) return mul(ore, 0.85 + hashf(x, y, 151 + tile) * 0.3);
+        return mul('#8b8b8b', stone);
+      });
+    }
+    oreTile(11, '#313131', 0.20);  // 煤
+    oreTile(12, '#c58c5a', 0.17);  // 铁
+    oreTile(13, '#e8c84f', 0.15);  // 金
+    oreTile(14, '#66ded6', 0.13);  // 钻石
+    // 15 基岩
+    tilePixels(15, function (x, y) {
+      var n = hashf(x >> 1, y >> 1, 181);
+      return mul('#34373b', 0.62 + n * 0.55 + (hashf(x, y, 191) > 0.9 ? 0.26 : 0));
+    });
   }
   paintAtlas();
-  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach(function (t) { edgeDarken(t, 0.9); });
+  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].forEach(function (t) { edgeDarken(t, 0.9); });
 
   var atlasTex = new THREE.CanvasTexture(atlasCanvas);
   atlasTex.magFilter = THREE.NearestFilter;
@@ -171,8 +247,8 @@
     var xi = Math.floor(x), zi = Math.floor(z);
     var xf = x - xi, zf = z - zi;
     var u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
-    var a = hashf(xi, zi, s), b = hashf(xi + 1, zi, s);
-    var c = hashf(xi, zi + 1, s), d = hashf(xi + 1, zi + 1, s);
+    var a = worldHash(xi, zi, s), b = worldHash(xi + 1, zi, s);
+    var c = worldHash(xi, zi + 1, s), d = worldHash(xi + 1, zi + 1, s);
     return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
   }
 
@@ -186,7 +262,32 @@
     var hills = (t < 0 ? -1 : 1) * Math.pow(Math.abs(t), 1.7) * 17;
     var h = 13 + hills + (b - 0.5) * 2.6 + (c - 0.5) * 0.9;
     if (m > 0.60) h += (m - 0.60) * 52;
+    // 出生点附近保底台地：避免某些种子把出生点压到海平面以下，
+    // 那样既没有像样的家，也没有足够的地下空间刷洞穴和矿脉。
+    var d = Math.sqrt(wx * wx + wz * wz);
+    if (d < 26) h = Math.max(h, 13 + (vnoise(wx * 0.09, wz * 0.09, 151) - 0.5) * 2);
     return Math.max(3, Math.min(WH - 12, Math.floor(h)));
+  }
+
+  // 3D 值噪声：洞穴不用随机挖洞，而是按种子生成连贯的地下空腔。
+  function vnoise3(x, y, z, s) {
+    var xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    var xf = x - xi, yf = y - yi, zf = z - zi;
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    var c000 = hash3(xi, yi, zi, s), c100 = hash3(xi + 1, yi, zi, s);
+    var c010 = hash3(xi, yi + 1, zi, s), c110 = hash3(xi + 1, yi + 1, zi, s);
+    var c001 = hash3(xi, yi, zi + 1, s), c101 = hash3(xi + 1, yi, zi + 1, s);
+    var c011 = hash3(xi, yi + 1, zi + 1, s), c111 = hash3(xi + 1, yi + 1, zi + 1, s);
+    var x00 = lerp(c000, c100, u), x10 = lerp(c010, c110, u);
+    var x01 = lerp(c001, c101, u), x11 = lerp(c011, c111, u);
+    return lerp(lerp(x00, x10, v), lerp(x01, x11, v), w);
+  }
+  function isCave(wx, y, wz, h) {
+    if (y < 4 || y > h - 5) return false;
+    var n = vnoise3(wx * 0.085, y * 0.13, wz * 0.085, 211);
+    var n2 = vnoise3(wx * 0.041, y * 0.07, wz * 0.041, 223);
+    return n > 0.665 || n2 < 0.275;
   }
 
   function localSet(c, x, y, z, id, onlyAir) {
@@ -197,7 +298,7 @@
   }
 
   function genTrees(c) {
-    var seed = (Math.imul(c.cx, 73856093) ^ Math.imul(c.cz, 19349663)) >>> 0;
+    var seed = (Math.imul(c.cx, 73856093) ^ Math.imul(c.cz, 19349663) ^ WORLD.seed) >>> 0;
     function rand() {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 4294967296;
@@ -235,9 +336,20 @@
         var sandy = h <= SEA + 1;
         for (var y = 0; y <= h; y++) {
           var id;
-          if (y === h) id = sandy ? 4 : 1;
+          if (y === 0) id = 14;                  // 基岩地板，挖不穿
+          else if (y === h) id = sandy ? 4 : 1;
           else if (y > h - 4) id = sandy ? 4 : 2;
           else id = 3;
+          if (id === 3 && !isCave(ox + x, y, oz + z, h)) {
+            var r = worldHash(ox + x, y * 31 + oz + z, 401);
+            var depth = h - y;
+            if (r < 0.035) id = 10;
+            else if (r < 0.065) id = 11;
+            else if (r < 0.076 && depth > 8) id = 12;
+            else if (r < 0.081 && depth > 13) id = 13;
+          } else if (id === 3 && isCave(ox + x, y, oz + z, h)) {
+            id = 0;
+          }
           c.data[x + z * CH + y * CH * CH] = id;
         }
       }
@@ -521,6 +633,81 @@
   sun.position.set(-120, 200, -260);
   scene.add(sun);
 
+  // 月亮（夜晚替太阳出场）
+  var moon = new THREE.Mesh(
+    new THREE.CircleGeometry(22, 18),
+    new THREE.MeshBasicMaterial({ color: 0xdfe8ff, fog: false, transparent: true, opacity: 0.92 })
+  );
+  moon.position.set(120, 200, -260);
+  moon.visible = false;
+  scene.add(moon);
+
+  // 星空：只有夜里才浮出来
+  var stars = (function () {
+    var g = new THREE.BufferGeometry(), pts = [];
+    for (var i = 0; i < 380; i++) {
+      var a = Math.random() * Math.PI * 2;
+      var h2 = Math.random() * 0.9 + 0.05;
+      var rr = 250;
+      pts.push(Math.cos(a) * rr * Math.sqrt(1 - h2 * h2), h2 * rr + 20, Math.sin(a) * rr * Math.sqrt(1 - h2 * h2));
+    }
+    if (g.setAttribute) {
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    } else {
+      g.addAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    }
+    var m = new THREE.PointsMaterial({ color: 0xffffff, size: 1.9, sizeAttenuation: false, fog: false, transparent: true, opacity: 0 });
+    var p = new THREE.Points(g, m);
+    p.frustumCulled = false;
+    scene.add(p);
+    return p;
+  })();
+
+  /* ---------- 昼夜 ---------- */
+  var DAY_LEN = 480;        // 一整天 8 分钟
+  var tod = 0.12;           // 0=日出前，0.25=正午，0.5=日落，0.75=午夜
+  var SKY_DAY = new THREE.Color(0x9fd3ee);
+  var SKY_NIGHT = new THREE.Color(0x0a1220);
+  var SKY_DUSK = new THREE.Color(0xe8a172);
+  var skyNow = new THREE.Color(0x9fd3ee);
+  var isNight = false;
+  function smooth01(v) { return v <= 0 ? 0 : v >= 1 ? 1 : v * v * (3 - 2 * v); }
+
+  // 按当前时刻算出亮度、天空色，写到场景与方块材质上
+  function applyTime() {
+    // tod:0=日出 0.25=正午 0.5=日落 0.75=午夜，用 sin 才是这个相位
+    var y = Math.sin(tod * Math.PI * 2);
+    var day = smooth01((y + 0.18) / 0.52);        // 0=全黑，1=全亮
+    var dusk = Math.max(0, 1 - Math.abs(y) / 0.32) * 0.62;
+    skyNow.copy(SKY_NIGHT).lerp(SKY_DAY, day);
+    if (dusk > 0) skyNow.lerp(SKY_DUSK, dusk * 0.55);
+    if (scene.background && scene.background.copy) scene.background.copy(skyNow);
+    if (scene.fog) scene.fog.color.copy(skyNow);
+    // 方块是 Basic 材质，直接用材质颜色做整体明暗，夜里偏冷
+    var k = 0.3 + 0.7 * day;
+    blockMat.color.setRGB(k, k, Math.min(1, k * 1.08));
+    // 云也跟着天黑，不然夜里一片白很跳
+    for (var ci = 0; ci < clouds.children.length; ci++) {
+      var cm2 = clouds.children[ci].material;
+      if (cm2 && cm2.color && cm2.color.setRGB) cm2.color.setRGB(0.05 + 0.95 * day, 0.06 + 0.94 * day, 0.10 + 0.90 * day);
+    }
+    isNight = day < 0.34;
+    // 天体绕相机转：太阳正午最高，月亮午夜最高
+    var ang = tod * Math.PI * 2;
+    var cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+    var r = 300;
+    var hgtSun = Math.sin(ang) * 220 + 40;
+    var hgtMoon = -Math.sin(ang) * 220 + 40;
+    sun.visible = !isNight;
+    moon.visible = isNight;
+    sun.position.set(cx + Math.cos(ang) * r * 0.4 - 60, cy + hgtSun, cz - 260);
+    moon.position.set(cx - Math.cos(ang) * r * 0.4 + 60, cy + hgtMoon, cz - 260);
+    sun.lookAt(cx, cy, cz);
+    moon.lookAt(cx, cy, cz);
+    stars.position.set(cx, cy, cz);
+    stars.material.opacity = isNight ? Math.min(1, (0.34 - day) * 3.4) : 0;
+  }
+
   /* ===================== 4. 玩家 ===================== */
   var HALF = 0.3, PHEIGHT = 1.75, EYE = 1.62;
   var GRAV = 28, JUMP = 8.6;
@@ -570,19 +757,85 @@
   var hotbarIndex = 0;
 
   var iconCache = {};
+  function itemName(id) {
+    return (BLOCKS[id] && BLOCKS[id].name) || (ITEMS[id] && ITEMS[id].name) || ('物品' + id);
+  }
+  function drawItemIcon(g, kind) {
+    g.fillStyle = 'rgba(8,12,16,.22)'; g.fillRect(2, 2, 44, 44);
+    if (kind === 'stick') {
+      g.fillStyle = '#8d6235'; g.save(); g.translate(24, 24); g.rotate(-0.7);
+      g.fillRect(-3, -19, 6, 38); g.restore(); return;
+    }
+    if (kind === 'apple') {
+      g.fillStyle = '#d84343'; g.beginPath(); g.arc(24, 28, 14, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#6f9c3e'; g.fillRect(22, 6, 5, 11); g.fillRect(27, 9, 10, 5); return;
+    }
+    if (kind === 'raw' || kind === 'cooked') {
+      g.fillStyle = kind === 'raw' ? '#d98a92' : '#9a5a32';
+      g.fillRect(10, 13, 28, 22); g.fillStyle = '#f0e2c2'; g.fillRect(16, 33, 8, 8); return;
+    }
+    if (kind === 'coal') {
+      g.fillStyle = '#2d2d2d'; g.fillRect(12, 12, 24, 24); g.fillStyle = '#4a4a4a'; g.fillRect(16, 16, 8, 8); return;
+    }
+    if (kind === 'tool_stone' || kind === 'tool_iron' || kind === 'tool_diamond') {
+      g.fillStyle = '#7a5730'; g.save(); g.translate(24, 24); g.rotate(-0.65);
+      g.fillRect(-2.5, -14, 5, 30); g.restore();
+      g.fillStyle = kind === 'tool_diamond' ? '#63d9d0' : kind === 'tool_iron' ? '#d9d9d9' : '#999';
+      g.fillRect(9, 10, 30, 8);
+      g.fillRect(10, 18, 6, 8); g.fillRect(32, 18, 6, 8);
+      return;
+    }
+    if (kind === 'diamond' || kind === 'gold' || kind === 'iron') {
+      g.fillStyle = kind === 'diamond' ? '#63d9d0' : kind === 'gold' ? '#e8c84f' : '#c9c9c9';
+      g.beginPath(); g.moveTo(24, 8); g.lineTo(38, 23); g.lineTo(24, 40); g.lineTo(10, 23); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(18, 15, 6, 9); return;
+    }
+    g.fillStyle = '#bbb'; g.fillRect(12, 12, 24, 24);
+  }
   function iconURL(id) {
     if (iconCache[id]) return iconCache[id];
     var cv = document.createElement('canvas');
     cv.width = cv.height = 48;
     var g = cv.getContext('2d');
     g.imageSmoothingEnabled = false;
-    var t = BLOCKS[id].side;
-    g.drawImage(atlasCanvas, (t % ATLAS_N) * TILE, ((t / ATLAS_N) | 0) * TILE, TILE, TILE, 0, 0, 48, 48);
+    if (BLOCKS[id]) {
+      var t = BLOCKS[id].side;
+      g.drawImage(atlasCanvas, (t % ATLAS_N) * TILE, ((t / ATLAS_N) | 0) * TILE, TILE, TILE, 0, 0, 48, 48);
+    } else if (ITEMS[id]) {
+      // 镐子优先按镐子画，剩下的按材料图标画
+      var kind = ITEMS[id].kind === 'tool'
+        ? (id === 25 ? 'tool_diamond' : id === 18 ? 'tool_iron' : 'tool_stone')
+        : ITEMS[id].icon;
+      drawItemIcon(g, kind);
+    } else {
+      drawItemIcon(g, 'stone');
+    }
     iconCache[id] = cv.toDataURL();
     return iconCache[id];
   }
 
+  function selectedItem() { return inv[hotbarIndex]; }
   function selectedId() { return inv[hotbarIndex] ? inv[hotbarIndex].id : 0; }
+  function hasItem(id, n) {
+    var need = n || 1, have = 0;
+    for (var i = 0; i < INV_SIZE; i++) if (inv[i] && inv[i].id === id) have += inv[i].n;
+    return have >= need;
+  }
+  function takeItems(id, n) {
+    var left = n;
+    for (var i = 0; i < INV_SIZE && left > 0; i++) {
+      if (!inv[i] || inv[i].id !== id) continue;
+      var take = Math.min(left, inv[i].n);
+      inv[i].n -= take; left -= take;
+      if (inv[i].n <= 0) inv[i] = null;
+    }
+    return left === 0;
+  }
+  function selectedToolSpeed() {
+    var it = selectedItem();
+    if (!it || !ITEMS[it.id] || ITEMS[it.id].kind !== 'tool') return 1;
+    return ITEMS[it.id].speed || 1;
+  }
 
   // 先补已有同类堆叠，再放空格子（快捷栏优先，和原版一致）
   function addItem(id, n) {
@@ -606,7 +859,10 @@
 
   function starterKit() {
     for (var a = 0; a < INV_SIZE; a++) inv[a] = null;
-    for (var b = 0; b < HOTBAR_SIZE; b++) inv[b] = { id: HOTBAR[b], n: 64 };
+    inv[0] = { id: 5, n: 16 };   // 原木
+    inv[1] = { id: 9, n: 16 };   // 圆石
+    inv[2] = { id: 7, n: 8 };    // 木板
+    inv[3] = { id: 19, n: 3 };   // 苹果
     hotbarIndex = 0;
   }
 
@@ -752,12 +1008,26 @@
 
   var BREAK_TIME = 0.42;
   var mineTimer = 0, mineBar = document.querySelector('#minebar i'), mineBarBox = document.getElementById('minebar');
+  var 挖掘提示冷却 = 0;
 
   function currentHit() {
     return raycast(camera.position, cameraDir(), 6.5);
   }
 
+  function breakSeconds(id) {
+    var def = BLOCKS[id];
+    if (!def) return BREAK_TIME;
+    if (def.unbreakable) return Infinity;
+    var hard = def.hard || 0.6;
+    var speed = selectedToolSpeed();
+    // 镐子只对石头/矿石/砖块明显加速；挖草方块拿镐子不占便宜
+    var 石类 = (id === 3 || id === 8 || id === 9 || (id >= 10 && id <= 14) || id === 15);
+    if (石类 && speed > 1) speed = 1 + (speed - 1) * 1.6;
+    return Math.max(0.12, BREAK_TIME + hard * 0.42 / speed);
+  }
+
   function doMine(dt) {
+    if (挖掘提示冷却 > 0) 挖掘提示冷却 -= dt;
     if (!input.mine) {
       mineTimer = 0;
       if (mineBarBox) mineBarBox.style.opacity = 0;
@@ -769,28 +1039,57 @@
       if (mineBarBox) mineBarBox.style.opacity = 0;
       return;
     }
+    var def = BLOCKS[hit.id];
+    var need = breakSeconds(hit.id);
+    if (!isFinite(need)) {
+      mineTimer = 0;
+      if (mineBarBox) mineBarBox.style.opacity = 0;
+      if (挖掘提示冷却 <= 0) { showTip('基岩挖不动，换地方吧'); 挖掘提示冷却 = 2; }
+      return;
+    }
     mineTimer += dt;
     if (mineBarBox) mineBarBox.style.opacity = 1;
-    if (mineBar) mineBar.style.width = Math.min(100, mineTimer / BREAK_TIME * 100) + '%';
-    if (mineTimer >= BREAK_TIME) {
+    if (mineBar) mineBar.style.width = Math.min(100, mineTimer / need * 100) + '%';
+    if (mineTimer >= need) {
       mineTimer = 0;
-      var def = BLOCKS[hit.id];
       setBlock(hit.x, hit.y, hit.z, 0);
       spawnParticles(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5, def ? def.color : '#888888', 9);
-      addItem(hit.id, 1);
+      var drop = (def && def.drop) || hit.id;
+      addItem(drop, 1);
+      mineCount++;
+      if (hit.id === 5) woodMined++;
+      // 树叶偶尔掉苹果，挖草偶尔掉小麦种子位置留给后续版本；这里只给能吃的
+      if (hit.id === 6 && Math.random() < 0.22) addItem(19, 1);
       saveDirty = true;
       renderHotbar();
       swing();
-      sfx(hit.id === 3 || hit.id === 9 ? 180 : 320, 0.06, 'square', 0.09);
+      sfx(hit.id === 3 || hit.id === 9 || (hit.id >= 10 && hit.id <= 14) ? 180 : 320, 0.06, 'square', 0.09);
       vibrate(12);
     }
+  }
+
+  function eatSelected() {
+    var slot = inv[hotbarIndex];
+    if (!slot || !ITEMS[slot.id] || ITEMS[slot.id].kind !== 'food') return false;
+    if (food >= MAX_FOOD) { showTip('还不饿，留着待会儿吃'); return true; }
+    var 名 = itemName(slot.id);
+    var gain = ITEMS[slot.id].food || 2;
+    food = Math.min(MAX_FOOD, food + gain);
+    slot.n--;
+    if (slot.n <= 0) inv[hotbarIndex] = null;
+    renderHotbar(); renderVitals();
+    showTip('吃了' + 名 + '，饥饿 +' + gain);
+    sfx(520, 0.08, 'sine', 0.07);
+    return true;
   }
 
   var placeCooldown = 0;
   function placeBlock() {
     if (placeCooldown > 0) return;
     var slot = inv[hotbarIndex];
-    if (!slot || slot.n <= 0) { showTip('快捷栏这一格没有方块'); return; }
+    if (!slot || slot.n <= 0) { showTip('快捷栏这一格是空的'); return; }
+    if (eatSelected()) return;
+    if (!BLOCKS[slot.id]) { showTip('这个是工具或材料，不能放置'); return; }
     var hit = currentHit();
     if (!hit) return;
     var tx = hit.x + hit.nx, ty = hit.y + hit.ny, tz = hit.z + hit.nz;
@@ -804,6 +1103,7 @@
     setBlock(tx, ty, tz, slot.id);
     slot.n--;
     if (slot.n <= 0) inv[hotbarIndex] = null;
+    placeCount++;
     saveDirty = true;
     renderHotbar();
     placeCooldown = 0.18;
@@ -820,45 +1120,59 @@
   var eyeGeo = new THREE.BoxGeometry(0.18, 0.18, 0.06);
   var eyeMat = new THREE.MeshBasicMaterial({ color: 0x101a10 });
 
-  function createMob(x, y, z) {
+  function createMob(x, y, z, kind) {
+    kind = kind === 'cave' ? 'cave' : 'slime';
+    var cave = kind === 'cave';
     var g = new THREE.Group();
-    var body = new THREE.Mesh(mobGeo, new THREE.MeshLambertMaterial({ color: 0x5fbf3e }));
-    body.scale.set(0.82, 0.72, 0.82);
-    body.position.y = 0.36;
+    var body = new THREE.Mesh(mobGeo, new THREE.MeshLambertMaterial({ color: cave ? 0x8a76b5 : 0x5fbf3e }));
+    body.scale.set(cave ? 0.92 : 0.82, cave ? 0.82 : 0.72, cave ? 0.92 : 0.82);
+    body.position.y = cave ? 0.41 : 0.36;
     g.add(body);
     var eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-    eyeL.position.set(-0.19, 0.46, 0.42);
+    eyeL.position.set(-0.19, cave ? 0.51 : 0.46, 0.42);
     g.add(eyeL);
     var eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-    eyeR.position.set(0.19, 0.46, 0.42);
+    eyeR.position.set(0.19, cave ? 0.51 : 0.46, 0.42);
     g.add(eyeR);
     var mouth = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.05), eyeMat);
-    mouth.position.set(0, 0.27, 0.42);
+    mouth.position.set(0, cave ? 0.30 : 0.27, 0.42);
     g.add(mouth);
     g.position.set(x, y, z);
     scene.add(g);
     return {
-      obj: g, pos: new THREE.Vector3(x, y, z), vy: 0, hp: 3, t: 0, dx: 0, dz: 0,
-      half: 0.42, h: 0.78, hurt: 0, onGround: false, stuck: 0, jumpCd: 0, boostT: 0
+      obj: g, pos: new THREE.Vector3(x, y, z), vy: 0,
+      hp: cave ? 4 : 3, t: 0, dx: 0, dz: 0,
+      half: cave ? 0.46 : 0.42, h: cave ? 0.86 : 0.78,
+      kind: kind, dmg: cave ? 3 : 2, speed: cave ? 2.3 : 1.35,
+      drop: cave ? 20 : 20,
+      hurt: 0, onGround: false, stuck: 0, jumpCd: 0, boostT: 0
     };
   }
 
   function trySpawnMob() {
-    if (mobs.length >= 6) return;
-    for (var attempt = 0; attempt < 6; attempt++) {
+    if (mobs.length >= (isNight ? 9 : 6)) return;
+    var 地下 = P.pos.y < surfaceH(Math.floor(P.pos.x), Math.floor(P.pos.z)) - 5;
+    for (var attempt = 0; attempt < 8; attempt++) {
       var a = Math.random() * Math.PI * 2;
-      var r = 9 + Math.random() * 14;
+      var r = 7 + Math.random() * (地下 ? 10 : 15);
       var x = Math.floor(P.pos.x + Math.cos(a) * r);
       var z = Math.floor(P.pos.z + Math.sin(a) * r);
       var cx = Math.floor(x / CH), cz = Math.floor(z / CH);
       if (!chunks.has(ckey(cx, cz))) continue;
       var gy = -1;
-      for (var y = WH - 2; y > 1; y--) {
-        if (getBlock(x, y, z)) { gy = y; break; }
+      if (地下) {
+        var 目标 = P.pos.y - 2 + Math.floor(Math.random() * 5);
+        for (var y2 = Math.min(WH - 2, Math.max(3, 目标)); y2 > 2; y2--) {
+          if (getBlock(x, y2, z) && !getBlock(x, y2 + 1, z) && !getBlock(x, y2 + 2, z)) { gy = y2; break; }
+        }
+      } else {
+        for (var y = WH - 2; y > 1; y--) {
+          if (getBlock(x, y, z)) { gy = y; break; }
+        }
       }
-      if (gy < 1) continue;
+      if (gy < 1 || gy >= WH - 3) continue;
       if (getBlock(x, gy + 1, z) || getBlock(x, gy + 2, z)) continue;
-      mobs.push(createMob(x + 0.5, gy + 1.02, z + 0.5));
+      mobs.push(createMob(x + 0.5, gy + 1.02, z + 0.5, 地下 ? 'cave' : 'slime'));
       return;
     }
   }
@@ -868,8 +1182,10 @@
     if (NET.on && !NET.host) { netUpdateMobs(dt); return; }
     mobTimer -= dt;
     if (mobTimer <= 0) {
-      mobTimer = 5 + Math.random() * 5;
-      if (mobs.length < 6) trySpawnMob();
+      // 夜里刷得更勤、上限更高，白天相对安宁
+      var night = isNight;
+      mobTimer = night ? (2.5 + Math.random() * 3) : (6 + Math.random() * 6);
+      if (mobs.length < (night ? 9 : 5)) trySpawnMob();
     }
     for (var i = mobs.length - 1; i >= 0; i--) {
       var m = mobs[i];
@@ -885,16 +1201,16 @@
         if (Math.random() < 0.28) { m.dx = 0; m.dz = 0; }
         else {
           var ang = Math.random() * Math.PI * 2;
-          m.dx = Math.cos(ang) * 1.35;
-          m.dz = Math.sin(ang) * 1.35;
+          m.dx = Math.cos(ang) * m.speed;
+          m.dz = Math.sin(ang) * m.speed;
         }
       }
       // 靠近玩家时追过来
       var dpx = P.pos.x - m.pos.x, dpz = P.pos.z - m.pos.z;
       var dp = Math.hypot(dpx, dpz);
       if (dp < 9 && dp > 0.85) {
-        m.dx = (dpx / dp) * 2.05;
-        m.dz = (dpz / dp) * 2.05;
+        m.dx = (dpx / dp) * (m.speed * 1.5);
+        m.dz = (dpz / dp) * (m.speed * 1.5);
       }
       // 贴到身上就撞一下
       if (dp < 1.05 && Math.abs(P.pos.y - m.pos.y) < 1.7) {
@@ -902,7 +1218,7 @@
         if (m.atkCd <= 0) {
           m.atkCd = 1.3;
           m.vy = 4.2;
-          damagePlayer(2, dpx, dpz);
+          damagePlayer(m.dmg, dpx, dpz);
         }
       } else if (m.atkCd > 0) {
         m.atkCd -= dt;
@@ -983,7 +1299,7 @@
             if (m[ck] <= 0) {
               m[ck] = 1.35;
               m.vy = 4.2;
-              netSend({ t: 'hurt', to: +pk, n: 2, dx: gx, dz: gz });
+              netSend({ t: 'hurt', to: +pk, n: m.dmg, dx: gx, dz: gz });
             }
           } else if (m[ck] > 0) m[ck] -= dt;
         }
@@ -1029,7 +1345,11 @@
     sfx(150, 0.09, 'square', 0.12);
     vibrate(25);
     if (best.hp <= 0) {
-      spawnParticles(best.pos.x, best.pos.y + 0.4, best.pos.z, '#76cf4f', 16);
+      spawnParticles(best.pos.x, best.pos.y + 0.4, best.pos.z, best.kind === 'cave' ? '#a98be0' : '#76cf4f', 16);
+      addItem(best.drop || 20, 1);
+      killCount++;
+      renderHotbar();
+      showTip('掉落：' + itemName(best.drop || 20));
       scene.remove(best.obj);
       mobs.splice(mobs.indexOf(best), 1);
       sfx(90, 0.16, 'sawtooth', 0.1);
@@ -1550,7 +1870,7 @@
     renderHotbar();
     if (!bagEl.classList.contains('hide')) renderBag();
     var it = inv[i];
-    hotnameEl.textContent = it ? BLOCKS[it.id].name + ' ×' + it.n : '空格子';
+    hotnameEl.textContent = it ? itemName(it.id) + ' ×' + it.n : '空格子';
     hotnameEl.style.opacity = 1;
     clearTimeout(hotnameTimer);
     hotnameTimer = setTimeout(function () { hotnameEl.style.opacity = 0; }, 1200);
@@ -1594,13 +1914,66 @@
     renderHotbar();
     var it = inv[hotbarIndex];
     if (!bagEl.classList.contains('hide')) {
-      hotnameEl.textContent = it ? BLOCKS[it.id].name + ' ×' + it.n : '空格子';
+      hotnameEl.textContent = it ? itemName(it.id) + ' ×' + it.n : '空格子';
     }
   }
 
+  /* ===================== 12.5 合成 ===================== */
+  // 目标循环：砍树→木板/木棍→工作台/石镐→下洞穴挖矿→铁镐/钻石镐；
+  // 生肉 + 木板做成烤肉补饥饿。配方只查背包，不需要把材料摆成格子。
+  var RECIPES = [
+    { out: [7, 4],  need: [[5, 1]],                    desc: '原木拆成木板，建造和合成的基础' },
+    { out: [16, 4], need: [[7, 2]],                    desc: '木板削成木棍，工具把手' },
+    { out: [15, 1], need: [[7, 4]],                    desc: '随身工作台，摆下后能继续扩建营地' },
+    { out: [17, 1], need: [[9, 3], [16, 2]],           desc: '石镐：挖石头和矿石明显加速' },
+    { out: [21, 1], need: [[20, 1], [7, 1]],           desc: '生肉烤熟，恢复 8 点饥饿' },
+    { out: [18, 1], need: [[22, 3], [16, 2]],          desc: '铁镐：下洞穴挖矿的主力工具' },
+    { out: [25, 1], need: [[23, 3], [22, 2], [16, 2]], desc: '钻石镐：毕业工具，挖矿飞快' }
+  ];
+
+  function recipeReady(r) {
+    for (var i = 0; i < r.need.length; i++) if (!hasItem(r.need[i][0], r.need[i][1])) return false;
+    return true;
+  }
+  function craftRecipe(i) {
+    var r = RECIPES[i];
+    if (!r) return;
+    if (!recipeReady(r)) { showTip('材料不够，先去收集吧'); return; }
+    for (var j = 0; j < r.need.length; j++) takeItems(r.need[j][0], r.need[j][1]);
+    addItem(r.out[0], r.out[1]);
+    saveDirty = true;
+    renderHotbar();
+    if (!bagEl.classList.contains('hide')) renderBag();
+    renderCraft();
+    showTip('合成：' + itemName(r.out[0]) + ' ×' + r.out[1]);
+    sfx(620, 0.08, 'triangle', 0.08);
+  }
+  function renderCraft() {
+    var box = document.getElementById('recipeList');
+    if (!box) return;
+    var h = '';
+    for (var i = 0; i < RECIPES.length; i++) {
+      var r = RECIPES[i], ok = recipeReady(r);
+      var need = r.need.map(function (p) {
+        return '<span class="mat' + (hasItem(p[0], p[1]) ? '' : ' lack') + '">' +
+          itemName(p[0]) + ' ×' + p[1] + '</span>';
+      }).join('');
+      h += '<div class="recipe' + (ok ? '' : ' dim') + '">' +
+        '<div class="ricon"><img src="' + iconURL(r.out[0]) + '"><b>' + r.out[1] + '</b></div>' +
+        '<div class="rinfo"><b>' + itemName(r.out[0]) + '</b><small>' + r.desc + '</small><div class="rmats">' + need + '</div></div>' +
+        '<button data-r="' + i + '"' + (ok ? '' : ' disabled') + '>' + (ok ? '合成' : '缺材料') + '</button></div>';
+    }
+    box.innerHTML = h;
+  }
+
   var statsEl = document.getElementById('stats');
+  function clockText() {
+    var mins = Math.floor((tod * 24 + 6) % 24 * 60);
+    var hh = Math.floor(mins / 60), mm = mins % 60;
+    return (isNight ? '☾ ' : '☀ ') + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+  }
   function updateStats(fps) {
-    statsEl.textContent = 'FPS ' + fps.toFixed(0) +
+    statsEl.textContent = 'FPS ' + fps.toFixed(0) + '  ' + clockText() +
       '  X ' + P.pos.x.toFixed(1) + '  Y ' + P.pos.y.toFixed(1) + '  Z ' + P.pos.z.toFixed(1) +
       (P.fly ? '  ✈' : '') + (sprinting ? '  ⚡' : '') + (input.sneak && !P.fly ? '  潜行' : '');
   }
@@ -1611,6 +1984,92 @@
     el.style.opacity = 1;
     clearTimeout(el._t);
     el._t = setTimeout(function () { el.style.opacity = 0; }, 1600);
+  }
+
+  /* ===================== 12.7 目标 / 成就 ===================== */
+  var ACH = [
+    { id: 'dig',   name: '第一铲',   desc: '挖掉第一个方块',     goal: 1,   unit: '块' },
+    { id: 'wood',  name: '第一次砍树', desc: '挖到原木',         goal: 1,   unit: '个' },
+    { id: 'stone', name: '石器时代', desc: '合成一把石镐',       goal: 1,   unit: '把' },
+    { id: 'coal',  name: '见煤了',   desc: '挖到煤炭',           goal: 1,   unit: '块' },
+    { id: 'iron',  name: '铁器时代', desc: '攒到铁锭',           goal: 1,   unit: '块' },
+    { id: 'dia',   name: '闪瞎了',   desc: '挖到钻石',           goal: 1,   unit: '颗' },
+    { id: 'cave',  name: '深入地下', desc: '下到地表以下 12 格', goal: 12,  unit: '格' },
+    { id: 'kill',  name: '守夜人',   desc: '打掉 3 只怪物',      goal: 3,   unit: '只' },
+    { id: 'night', name: '熬过黑夜', desc: '完整活过一个夜晚',   goal: 1,   unit: '晚' },
+    { id: 'build', name: '建筑师',   desc: '放下 50 个方块',     goal: 50,  unit: '个' },
+    { id: 'walk',  name: '远行者',   desc: '累计走 500 格',      goal: 500, unit: '格' }
+  ];
+  var achGot = {};
+  var mineCount = 0, placeCount = 0, killCount = 0, walkDist = 0, maxDepth = 0, woodMined = 0;
+  var sawNight = false, achTimer = 0, achPanelOpen = false, lastPX = 0, lastPZ = 0;
+
+  function achDef(id) {
+    for (var i = 0; i < ACH.length; i++) if (ACH[i].id === id) return ACH[i];
+    return null;
+  }
+  function achSet(id, val) {
+    var a = achDef(id);
+    if (!a) return;
+    if (val > a.goal) val = a.goal;
+    var old = achGot[id] || 0;
+    if (val <= old) return;
+    achGot[id] = val;
+    if (val >= a.goal) {
+      showTip('🏆 达成：' + a.name);
+      sfx(900, 0.09, 'triangle', 0.07);
+      sfx(1240, 0.14, 'triangle', 0.05);
+      vibrate([18, 40, 18]);
+      saveDirty = true;
+    }
+    if (achPanelOpen) renderAch();
+  }
+  function achDone() {
+    var n = 0;
+    for (var i = 0; i < ACH.length; i++) if ((achGot[ACH[i].id] || 0) >= ACH[i].goal) n++;
+    return n;
+  }
+  function invCount(id) {
+    var n = 0;
+    for (var i = 0; i < INV_SIZE; i++) if (inv[i] && inv[i].id === id) n += inv[i].n;
+    return n;
+  }
+  function tickAch(dt) {
+    achTimer -= dt;
+    if (achTimer > 0) return;
+    achTimer = 0.4;
+    achSet('dig', mineCount > 0 ? 1 : 0);
+    achSet('wood', woodMined);
+    achSet('stone', invCount(17) > 0 ? 1 : 0);
+    achSet('coal', invCount(24));
+    achSet('iron', invCount(22));
+    achSet('dia', invCount(23));
+    // 用真实地形算深度：surfaceH 只是噪声基准，出生台地和树都会让它对不上
+    var gx = Math.floor(P.pos.x), gz = Math.floor(P.pos.z), gy = 0;
+    for (var yy = WH - 2; yy > 0; yy--) { if (getBlock(gx, yy, gz)) { gy = yy; break; } }
+    var depth = gy - Math.floor(P.pos.y);
+    if (depth > maxDepth) maxDepth = depth;
+    achSet('cave', maxDepth);
+    achSet('kill', killCount);
+    if (isNight) sawNight = true;
+    else if (sawNight) achSet('night', 1);
+    achSet('build', placeCount);
+    achSet('walk', Math.floor(walkDist));
+  }
+  function renderAch() {
+    var box = document.getElementById('achList');
+    if (!box) return;
+    var h = '', done = achDone();
+    for (var i = 0; i < ACH.length; i++) {
+      var a = ACH[i], v = achGot[a.id] || 0, ok = v >= a.goal;
+      h += '<div class="achrow' + (ok ? ' ok' : '') + '">' +
+        '<span class="achmark">' + (ok ? '✓' : '·') + '</span>' +
+        '<div class="achtxt"><b>' + a.name + '</b><small>' + a.desc + '</small></div>' +
+        '<span class="achnum">' + (ok ? '完成' : Math.min(v, a.goal) + '/' + a.goal) + '</span></div>';
+    }
+    var sum = document.getElementById('achSum');
+    if (sum) sum.textContent = done + ' / ' + ACH.length;
+    box.innerHTML = h;
   }
 
   // 顶部：保存
@@ -1646,6 +2105,10 @@
   document.getElementById('mClose').addEventListener('click', function () {
     menuEl.classList.add('hide');
   });
+  document.getElementById('mHome').addEventListener('click', function () {
+    saveGame();
+    location.href = '/';
+  });
   var mFlyBtn = document.getElementById('mFly');
   mFlyBtn.addEventListener('click', function () {
     P.fly = !P.fly;
@@ -1678,6 +2141,131 @@
     showTip('新的世界已生成');
   });
 
+  /* ===================== 12.6 合成 / 皮肤 / 世界 / 聊天 UI ===================== */
+  function 停止操作() {
+    input.mine = false; input.jump = false; input.sneak = false; input.run = false;
+    input.mx = 0; input.mz = 0;
+  }
+  function 显示面板(id) {
+    停止操作();
+    ['bag', 'menu', 'craft', 'skin', 'worldPanel', 'ach'].forEach(function (k) {
+      var el = document.getElementById(k);
+      if (el) el.classList.toggle('hide', k !== id);
+    });
+    achPanelOpen = (id === 'ach');
+    if (achPanelOpen) renderAch();
+  }
+  function 关闭面板() {
+    ['bag', 'menu', 'craft', 'skin', 'worldPanel', 'ach'].forEach(function (k) {
+      var el = document.getElementById(k);
+      if (el) el.classList.add('hide');
+    });
+    achPanelOpen = false;
+  }
+
+  // 点遮罩空白处、按 Esc 都能退出面板，和常见游戏一致
+  ['bag', 'menu', 'craft', 'skin', 'worldPanel', 'ach'].forEach(function (k) {
+    var el = document.getElementById(k);
+    if (el) el.addEventListener('click', function (e) { if (e.target === el) 关闭面板(); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    关闭面板();
+    var cb = document.getElementById('chatBox');
+    if (cb && cb.classList.contains('on')) cb.classList.remove('on');
+  });
+
+  document.getElementById('btnCraft').addEventListener('click', function (e) {
+    e.stopPropagation(); renderCraft(); 显示面板('craft');
+  });
+  document.getElementById('craftClose').addEventListener('click', 关闭面板);
+  var recipeListEl = document.getElementById('recipeList');
+  recipeListEl.addEventListener('click', function (e) {
+    var b = e.target;
+    while (b && b !== recipeListEl && b.getAttribute('data-r') === null) b = b.parentNode;
+    if (b && b.getAttribute && b.getAttribute('data-r') !== null) craftRecipe(+b.getAttribute('data-r'));
+  });
+
+  function renderSkinGrid() {
+    var grid = document.getElementById('skinGrid');
+    if (!grid) return;
+    var h = '';
+    for (var i = 0; i < SKINS.length; i++) {
+      h += '<div class="skin-card' + (i === skinId ? ' sel' : '') + '" data-s="' + i + '">' +
+        '<span class="skin-dot" style="background:' + SKINS[i].css + '"></span>' + SKINS[i].name + '</div>';
+    }
+    grid.innerHTML = h;
+  }
+  document.getElementById('btnSkin').addEventListener('click', function (e) {
+    e.stopPropagation(); renderSkinGrid(); 显示面板('skin');
+  });
+  document.getElementById('skinClose').addEventListener('click', 关闭面板);
+  var skinGridEl = document.getElementById('skinGrid');
+  skinGridEl.addEventListener('click', function (e) {
+    var card = e.target;
+    while (card && card !== skinGridEl && card.getAttribute('data-s') === null) card = card.parentNode;
+    if (card && card.getAttribute && card.getAttribute('data-s') !== null) setSkin(+card.getAttribute('data-s'));
+  });
+
+  document.getElementById('mWorld').addEventListener('click', function () {
+    var inp = document.getElementById('seedInput');
+    if (inp) inp.value = WORLD.seedText;
+    var ta = document.getElementById('saveText');
+    if (ta) ta.value = '';
+    显示面板('worldPanel');
+  });
+  document.getElementById('worldClose').addEventListener('click', 关闭面板);
+  document.getElementById('mAch').addEventListener('click', function () { 显示面板('ach'); });
+  document.getElementById('achClose').addEventListener('click', 关闭面板);
+  document.getElementById('seedApply').addEventListener('click', function () {
+    var inp = document.getElementById('seedInput');
+    applySeed(inp ? inp.value : 'FESUI', true);
+    关闭面板();
+  });
+  document.getElementById('saveExport').addEventListener('click', exportSave);
+  document.getElementById('saveImport').addEventListener('click', function () {
+    var ta = document.getElementById('saveText');
+    importSave(ta ? ta.value : '');
+  });
+
+  var chatBox = document.getElementById('chatBox');
+  var chatInput = document.getElementById('chatInput');
+  var chatLogEl = document.getElementById('chatLog');
+  function addChatLog(who, text) {
+    if (!chatLogEl) return;
+    var d = document.createElement('div');
+    var b = document.createElement('b');
+    b.textContent = String(who || '玩家') + '：';
+    d.appendChild(b);
+    d.appendChild(document.createTextNode(String(text || '')));
+    chatLogEl.appendChild(d);
+    while (chatLogEl.children.length > 30) chatLogEl.removeChild(chatLogEl.firstChild);
+    chatLogEl.scrollTop = chatLogEl.scrollHeight;
+    if (chatBox && !chatBox.classList.contains('on')) chatBox.classList.add('on');
+  }
+  function sendChat() {
+    if (!chatInput) return;
+    var text = chatInput.value.trim().slice(0, 80);
+    if (!text) return;
+    if (!NET.on) { addChatLog('系统', '还没联机，先创建或加入房间才能聊天'); chatInput.value = ''; return; }
+    netSend({ t: 'chat', s: NET.myName, m: text });
+    addChatLog('我', text);
+    chatInput.value = '';
+  }
+  document.getElementById('btnChat').addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (!chatBox) return;
+    var on = chatBox.classList.toggle('on');
+    if (on && chatInput) chatInput.focus();
+  });
+  document.getElementById('chatSend').addEventListener('click', sendChat);
+  document.getElementById('chatClose').addEventListener('click', function () {
+    if (chatBox) chatBox.classList.remove('on');
+  });
+  if (chatInput) chatInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+  });
+
   /* ===================== 13. 存档 ===================== */
   var SAVE_KEY = 'mcblocks_save_v1';
 
@@ -1692,13 +2280,17 @@
       var invData = [];
       for (var i = 0; i < INV_SIZE; i++) invData.push(inv[i] ? [inv[i].id, inv[i].n] : 0);
       var obj = {
-        v: 3,
+        v: 5,
         player: { x: P.pos.x, y: P.pos.y, z: P.pos.z, yaw: P.yaw, pitch: P.pitch },
         edits: ed,
         inv: invData,
         hot: hotbarIndex,
         hp: Math.round(hp * 2) / 2,
-        food: Math.round(food * 2) / 2
+        food: Math.round(food * 2) / 2,
+        seedText: WORLD.seedText,
+        skin: skinId,
+        tod: Math.round(tod * 10000) / 10000,
+        ach: achGot
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(obj));
       saveDirty = false;
@@ -1712,6 +2304,10 @@
       var obj = JSON.parse(raw);
       if (!obj || !obj.edits) return null;
       edits.clear();
+      if (obj.seedText) 世界种子(obj.seedText);
+      skinId = (typeof obj.skin === 'number' && obj.skin >= 0 && obj.skin < SKINS.length) ? obj.skin : 0;
+      if (typeof obj.tod === 'number' && obj.tod >= 0 && obj.tod < 1) tod = obj.tod;
+      if (obj.ach && typeof obj.ach === 'object') achGot = obj.ach;
       if (typeof obj.hp === 'number' && obj.hp > 0) hp = Math.min(MAX_HP, obj.hp);
       if (typeof obj.food === 'number') food = Math.max(0, Math.min(MAX_FOOD, obj.food));
       if (obj.inv && obj.inv.length === INV_SIZE) {
@@ -1748,6 +2344,70 @@
     renderVitals();
     for (var i = 0; i < 40; i++) streamChunks(P.pos.x, P.pos.z);
     dropPlayerToGround();
+  }
+
+  function setSkin(i) {
+    skinId = (i >= 0 && i < SKINS.length) ? i : 0;
+    if (sleeve && sleeve.material) sleeve.material.color.setHex(SKINS[skinId].color);
+    saveDirty = true;
+    var grid = document.getElementById('skinGrid');
+    if (grid) {
+      var cards = grid.querySelectorAll('.skin-card');
+      for (var k = 0; k < cards.length; k++) cards[k].classList.toggle('sel', +cards[k].getAttribute('data-s') === skinId);
+    }
+    showTip('皮肤已换成：' + SKINS[skinId].name);
+  }
+
+  function applySeed(text, regen) {
+    var t = String(text || '').trim().slice(0, 32) || 'FESUI';
+    世界种子(t);
+    var inp = document.getElementById('seedInput');
+    if (inp) inp.value = WORLD.seedText;
+    var badge = document.getElementById('seedBadge');
+    if (badge) badge.textContent = '种子：' + WORLD.seedText;
+    saveDirty = true;
+    if (regen !== false) {
+      resetWorld();
+      showTip('新种子世界已生成：' + WORLD.seedText);
+    }
+  }
+
+  // 联机时访客可能用默认种子进了世界；收到房主种子后重生成地形，
+  // 但保留中继发来的方块改动，避免把别人刚挖过的方块吞掉。
+  function applyRemoteSeed(text) {
+    var t = String(text || '').trim().slice(0, 32);
+    if (!t || t === WORLD.seedText) return;
+    世界种子(t);
+    chunks.forEach(function (c) { disposeChunk(c); });
+    chunks.clear();
+    for (var i = 0; i < 50; i++) streamChunks(P.pos.x, P.pos.z);
+    var badge = document.getElementById('seedBadge');
+    if (badge) badge.textContent = '种子：' + WORLD.seedText + '（房主）';
+    showTip('已同步房主世界种子：' + WORLD.seedText);
+  }
+
+  function exportSave() {
+    saveGame();
+    var raw = '';
+    try { raw = localStorage.getItem(SAVE_KEY) || ''; } catch (e) { }
+    var ta = document.getElementById('saveText');
+    if (ta) { ta.value = raw; ta.select(); }
+    return raw;
+  }
+
+  function importSave(text) {
+    var raw = String(text || '').trim();
+    if (!raw) { showTip('先粘贴存档文本'); return false; }
+    try {
+      var obj = JSON.parse(raw);
+      if (!obj || !obj.edits || !obj.inv) throw new Error('存档格式不对');
+      localStorage.setItem(SAVE_KEY, raw);
+      location.reload();
+      return true;
+    } catch (e) {
+      showTip('导入失败：' + e.message);
+      return false;
+    }
   }
 
   function dropPlayerToGround() {
@@ -1817,9 +2477,9 @@
     return sp;
   }
 
-  function makeAvatar(id, name) {
+  function makeAvatar(id, name, skin) {
     var g = new THREE.Group();
-    var c = AV_COLORS[(id - 1) % AV_COLORS.length];
+    var c = (typeof skin === 'number' && SKINS[skin]) ? SKINS[skin].color : AV_COLORS[(id - 1) % AV_COLORS.length];
     var mCloth = new THREE.MeshLambertMaterial({ color: c });
     var mSkin = new THREE.MeshLambertMaterial({ color: 0xdcae86 });
     var mPants = new THREE.MeshLambertMaterial({ color: 0x37455c });
@@ -1857,14 +2517,14 @@
     scene.add(g);
 
     return {
-      id: id, name: name, g: g, tag: tag,
+      id: id, name: name, g: g, tag: tag, cloth: mCloth, skin: skin,
       armL: armL, armR: armR, legL: legL, legR: legR,
       pos: new THREE.Vector3(), tgt: new THREE.Vector3(),
       yaw: 0, tyaw: 0, ph: 0, mv: 0, last: performance.now()
     };
   }
 
-  function netAddPeer(id, name) {
+  function netAddPeer(id, name, skin) {
     if (!id || id === NET.myId) return;
     var a = NET.peers[id];
     if (a) {
@@ -1876,7 +2536,7 @@
       }
       return;
     }
-    NET.peers[id] = makeAvatar(id, name || ('玩家' + id));
+    NET.peers[id] = makeAvatar(id, name || ('玩家' + id), skin);
     netHudPlayers();
   }
 
@@ -1958,7 +2618,7 @@
       var m = mobs[i];
       if (m.remote) continue;
       if (!m.nid) m.nid = ++NET.mobSeq;
-      arr.push([m.nid, +m.pos.x.toFixed(2), +m.pos.y.toFixed(2), +m.pos.z.toFixed(2), m.hp]);
+      arr.push([m.nid, +m.pos.x.toFixed(2), +m.pos.y.toFixed(2), +m.pos.z.toFixed(2), m.hp, m.kind || 'slime']);
     }
     netSend({ t: 'mb', m: arr });
   }
@@ -1970,7 +2630,7 @@
       seen[nid] = 1;
       var m = NET.mobNet.get(nid);
       if (!m) {
-        m = createMob(e[1], e[2], e[3]);
+        m = createMob(e[1], e[2], e[3], e[5]);
         m.remote = true; m.nid = nid; m.hp = e[4];
         m.tgt = new THREE.Vector3(e[1], e[2], e[3]);
         NET.mobNet.set(nid, m);
@@ -2015,8 +2675,9 @@
         NET.host = (m.host === m.id);
         NET.on = true;
         if (m.room) NET.room = m.room;
+        if (!NET.host && m.seed) applyRemoteSeed(m.seed);
         (m.players || []).forEach(function (p) {
-          if (p.id !== NET.myId) netAddPeer(p.id, p.name);
+          if (p.id !== NET.myId) netAddPeer(p.id, p.name, p.skin);
         });
         (m.edits || []).forEach(function (e) { netApplyBlock(e[0], e[1], e[2], e[3]); });
         netHudPlayers();
@@ -2051,8 +2712,12 @@
       case 'pong':
         break;
       case 'j':
-        netAddPeer(m.id, m.name);
+        netAddPeer(m.id, m.name, m.skin);
         showTip((m.name || '玩家') + ' 加入了游戏');
+        break;
+      case 'chat':
+        if (m.from === NET.myId) break;
+        addChatLog(m.s || ('玩家' + m.from), m.m || '');
         break;
       case 'l':
         if (NET.peers[m.id]) {
@@ -2062,8 +2727,13 @@
         break;
       case 'st':
         if (m.from === NET.myId) break;
-        var a = NET.peers[m.from] || (netAddPeer(m.from, m.name), NET.peers[m.from]);
+        if (!NET.host && m.seed) applyRemoteSeed(m.seed);
+        var a = NET.peers[m.from] || (netAddPeer(m.from, m.name, m.skin), NET.peers[m.from]);
         if (!a) break;
+        if (typeof m.skin === 'number' && SKINS[m.skin] && a.skin !== m.skin) {
+          a.skin = m.skin;
+          if (a.cloth) a.cloth.color.setHex(SKINS[m.skin].color);
+        }
         a.tgt.set(m.x, m.y, m.z);
         if (a.tgt.lengthSq() === 0) a.pos.copy(a.tgt);
         a.tyaw = m.yaw;
@@ -2104,14 +2774,15 @@
     try { NET.ws = new WebSocket(url); } catch (e) { showTip('连接失败：' + e.message); netLeave(true); return; }
     NET.ws.onopen = function () {
       NET.retry = 0;
-      netSend({ t: 'hi', name: name, host: asHost ? 1 : 0, key: NET.key || '' });
+      netSend({ t: 'hi', name: name, host: asHost ? 1 : 0, key: NET.key || '', skin: skinId, seed: WORLD.seedText });
       if (NET.connT) clearInterval(NET.connT);
       NET.connT = setInterval(function () {
         if (!NET.ws || NET.ws.readyState !== 1) return;
         netSend({
           t: 'st', x: +P.pos.x.toFixed(2), y: +P.pos.y.toFixed(2), z: +P.pos.z.toFixed(2),
           yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3),
-          mv: (Math.hypot(P.vel.x, P.vel.z) > 0.6 || !P.onGround) ? 1 : 0
+          mv: (Math.hypot(P.vel.x, P.vel.z) > 0.6 || !P.onGround) ? 1 : 0,
+          skin: skinId, seed: WORLD.seedText
         });
       }, 100);
     };
@@ -2233,7 +2904,8 @@
     if (NET.mode !== 'wan' || !NET.room) { box.style.display = 'none'; return; }
     box.style.display = 'block';
     var 链 = location.origin + location.pathname + '?room=' + NET.room +
-      (NET.relay ? '&relay=' + encodeURIComponent(NET.relay) : '');
+      (NET.relay ? '&relay=' + encodeURIComponent(NET.relay) : '') +
+      '&seed=' + encodeURIComponent(WORLD.seedText);
     var 码 = document.getElementById('netRoomCode');
     var 址 = document.getElementById('netRoomLink');
     if (码) 码.textContent = NET.room;
@@ -2317,6 +2989,9 @@
       updateVitals(dt);
     }
     updateParticles(dt);
+    // 昼夜：死亡时时间也继续走，重生后不会停在原地
+    tod = (tod + dt / DAY_LEN) % 1;
+    applyTime();
     if (NET.on) {
       netUpdateAvatars(dt);
       NET.stT -= dt;
@@ -2354,11 +3029,18 @@
     armPivot.position.x = nx * vT * camera.aspect + Math.cos(walkPhase * 0.5) * 0.008;
     armPivot.position.y = ny * vT + Math.sin(walkPhase) * (sp > 0.4 ? 0.018 : 0.005) + sw * 0.05;
 
-    // 太阳跟随相机（保持远景）
-    sun.position.set(camera.position.x - 150, camera.position.y + 190, camera.position.z - 260);
-    sun.lookAt(camera.position);
+    // 太阳 / 月亮的位置由 applyTime 按时刻算，这里不再固定
 
     streamChunks(P.pos.x, P.pos.z);
+
+    // 步行里程：跨度太大多半是传送或重生，不计入
+    if (!dead) {
+      var ddx = P.pos.x - lastPX, ddz = P.pos.z - lastPZ, ddm = Math.sqrt(ddx * ddx + ddz * ddz);
+      if (ddm < 3) walkDist += ddm;
+      lastPX = P.pos.x; lastPZ = P.pos.z;
+    }
+    tickAch(dt);
+
     renderer.render(scene, camera);
 
     fpsAcc += dt; fpsFrames++;
@@ -2377,6 +3059,11 @@
   /* ===================== 15. 初始化 ===================== */
   function boot() {
     var saved = loadGame();
+    if (sleeve && sleeve.material) sleeve.material.color.setHex(SKINS[skinId].color);
+    var badge = document.getElementById('seedBadge');
+    if (badge) badge.textContent = '种子：' + WORLD.seedText;
+    var seedIn = document.getElementById('seedInput');
+    if (seedIn) seedIn.value = WORLD.seedText;
     if (saved && saved.player) {
       P.pos.set(saved.player.x, saved.player.y, saved.player.z);
       P.yaw = saved.player.yaw || 0;
@@ -2431,8 +3118,16 @@
       };
     },
     inv: function () { return inv.map(function (x) { return x ? [x.id, x.n] : 0; }); },
+    setTod: function (v) { tod = Math.max(0, Math.min(0.999, v)); applyTime(); return tod; },
+    time: function () {
+      return { tod: tod, night: isNight, light: Math.round(blockMat.color.r * 100) / 100, sky: '#' + scene.background.getHexString(), cloud: '#' + clouds.children[0].material.color.getHexString() };
+    },
+    ach: function () { return { got: achGot, done: achDone(), total: ACH.length, counters: { mine: mineCount, place: placeCount, kill: killCount, walk: Math.round(walkDist), depth: maxDepth } }; },
+    openAch: function () { 显示面板('ach'); },
+    closeAll: function () { 关闭面板(); },
     hotbar: function (i) { hotbarIndex = i; renderHotbar(); },
     give: function (id, n) { addItem(id, n || 1); renderHotbar(); },
+    place: function () { placeBlock(); },
     look: function (yaw, pitch) { P.yaw = yaw; P.pitch = pitch; clampPitch(); },
     teleport: function (x, y, z) { P.pos.set(x, y, z); P.vel.set(0, 0, 0); },
     mobs: function () { return mobs.map(function (m) { return [m.pos.x, m.pos.y, m.pos.z, m.hp]; }); },
@@ -2452,6 +3147,15 @@
     setHp: function (v) { hp = Math.max(1, Math.min(MAX_HP, v)); hurtTimer = 0; renderVitals(); },
     setFood: function (v) { food = Math.max(0, Math.min(MAX_FOOD, v)); renderVitals(); },
     vitals: function () { return [hp, food, dead]; },
+    seed: function () { return WORLD.seedText; },
+    setSeed: function (t, regen) { applySeed(t, regen !== false); return WORLD.seedText; },
+    craft: function (i) { craftRecipe(i); return inv.map(function (x) { return x ? [x.id, x.n] : 0; }); },
+    recipes: function () { return RECIPES; },
+    skin: function (i) { if (i !== undefined) setSkin(i); return skinId; },
+    eat: eatSelected,
+    chat: function (t) { if (chatInput) chatInput.value = t || ''; sendChat(); },
+    chatLog: function () { return chatLogEl ? chatLogEl.textContent : ''; },
+    exportSave: exportSave,
     spawnMob: trySpawnMob,
     arm: armPivot,
     attack: attack
@@ -2675,7 +3379,7 @@
     },
     peers: function () {
       var r = [];
-      for (var k in NET.peers) r.push([+k, NET.peers[k].name, NET.peers[k].pos.toArray()]);
+      for (var k in NET.peers) r.push([+k, NET.peers[k].name, NET.peers[k].pos.toArray(), NET.peers[k].skin]);
       return r;
     },
     state: function () {
