@@ -237,6 +237,31 @@
 
   function 听写(buf, 选项){
     var 逼真 = !!选项.逼真;
+    var 结果 = 听写一次(buf, 选项);
+    /* 和弦 / 重伴奏的识别上限：
+       频谱同时存在多个差不多高的峰时，逐帧主峰会在几个音之间乱跳（实测 12 音齐奏时
+       主峰在 71→64→62→66→65 之间跳），中值滤波只能挑出个中位数，出来的是没有意义的音。
+       与其硬编一个假旋律骗用户，不如如实说明并给可行的下一步。这里只用长窗低门限再跑一次，
+       如果这次能凑出 3 个以上稳定的音（说明其实是有主旋律、只是刚才门限太高），才采用它。 */
+    if (结果.length < 2){
+      var 兜底 = 听写一次(buf, {
+        灵敏度: Math.min(选项.灵敏度, 0.008),
+        音阶: 'chrom',                 // 和弦里常有非调内音，这时量化为调内反而更错
+        最短: 120,
+        逼真: 选项.逼真,
+        长窗: true
+      });
+      // 只有勉强成句才算数：2 个音以下基本是噪声里捞出来的，不用
+      if (兜底.length >= 3) 结果 = 兜底;
+    }
+    听写.疑似和弦 = 结果.length < 3;
+    return 结果;
+  }
+
+  function 听写一次(buf, 选项){
+    var 逼真 = !!选项.逼真, 长窗 = !!选项.长窗;
+    // 中值滤波窗口：3 帧足以抹平边界毛刺，再大就会吃掉快速经过的装饰音
+    var 中值窗 = 长窗 ? 5 : 3;
     var sr = buf.sampleRate, 目标 = 逼真 ? 32000 : 16000, 步长 = sr / 目标;
     var 声道 = [], c, i;
     for (c = 0; c < buf.numberOfChannels; c++) 声道.push(buf.getChannelData(c));
@@ -246,7 +271,7 @@
       for (c = 0; c < 声道.length; c++) v += 声道[c][Math.floor(i * 步长)];
       mono[i] = v / 声道.length;
     }
-    var 帧 = 逼真 ? 4096 : 1024, 跳 = 逼真 ? 512 : 256, re = new Float32Array(帧), im = new Float32Array(帧);
+    var 帧 = 逼真 ? 4096 : (长窗 ? 2048 : 1024), 跳 = 逼真 ? 512 : (长窗 ? 256 : 256), re = new Float32Array(帧), im = new Float32Array(帧);
     var 窗 = new Float32Array(帧);
     for (i = 0; i < 帧; i++) 窗[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (帧 - 1));
     var 小 = Math.ceil(65 * 帧 / 目标), 大 = Math.floor(1300 * 帧 / 目标), 帧列表 = [];
@@ -255,14 +280,27 @@
       for (i = 0; i < 帧; i++) 能 += mono[p + i] * mono[p + i];
       var rms = Math.sqrt(能 / 帧);
       if (rms < 选项.灵敏度){
-        帧列表.push({ m: 0, t: p / 目标, d: 跳 / 目标, v: 0 });
+        帧列表.push({ m: 0, t: p / 目标, d: 跳 / 目标, v: 0, r: rms });
         continue;
       }
       for (i = 0; i < 帧; i++){ re[i] = mono[p + i] * 窗[i]; im[i] = 0; }
       fft(re, im);
-      var 最好 = 小, k;
+      /* 选主旋律峰时按频率加权，而不是直接取能量最大的峰。
+         真实歌曲里贝斯和底鼓在 60~180Hz 的能量往往压倒人声，
+         直接取最大值的结果是整份谱几乎全是 C3（实测 367 个音里 106 个是 C3，占 29%）。
+         这里给 220~1000Hz（人声/主奏最常出现的区间）满权重，两侧平滑衰减。 */
+      var 最好 = 小, k, 最好分 = -1;
       for (k = 小 + 1; k < 大; k++){
-        if (re[k] * re[k] + im[k] * im[k] > re[最好] * re[最好] + im[最好] * im[最好]) 最好 = k;
+        var fk = k * 目标 / 帧;
+        var 权;
+        if (fk < 110) 权 = 0.05;                 // 贝斯/底鼓区，压到几乎不选
+        else if (fk < 200) 权 = 0.05 + 0.75 * (fk - 110) / 90;
+        else if (fk < 250) 权 = 0.80 + 0.20 * (fk - 200) / 50;
+        else if (fk <= 1000) 权 = 1;             // 主旋律区，满权重
+        else if (fk <= 1300) 权 = 1 - 0.72 * (fk - 1000) / 300;
+        else 权 = 0.28;
+        var 分 = (re[k] * re[k] + im[k] * im[k]) * 权;
+        if (分 > 最好分){ 最好分 = 分; 最好 = k; }
       }
       var m1 = Math.sqrt(re[最好] * re[最好] + im[最好] * im[最好]);
       var 偏 = 0;
@@ -282,29 +320,82 @@
       if (f < 65) f = 65;
       var m = Math.round(69 + 12 * Math.log(f / 440) / Math.LN2);
       m = Math.max(48, Math.min(84, m));
-      帧列表.push({ m: m, t: p / 目标, d: 跳 / 目标, v: Math.min(1, rms * 6) });
+      帧列表.push({ m: m, t: p / 目标, d: 跳 / 目标, v: Math.min(1, rms * 6), r: rms });
     }
 
-    var 结果 = [], 当前 = null;
+    var 出音 = [], 当前 = null;
+
+    /* 力度归一化：原来用 v = min(1, rms*6) 是绝对尺度，结果非常随机——
+       录音电平高的曲子全部撞到 1.0（听起来像敲铁皮），电平低的整段挤在 0.3 附近。
+       改成按这段音频自身的响度动态范围做相对映射：最响的音 = 1.0，最轻的 = 0.35。 */
+    var 响度们 = [];
+    for (i = 0; i < 帧列表.length; i++) if (帧列表[i].m && 帧列表[i].r > 0) 响度们.push(帧列表[i].r);
+    响度们.sort(function(a, b){ return a - b; });
+    // 取 90 分位当"最响"，避免个别爆音把整段压暗；取 10 分位当"最轻"
+    var 响大 = 响度们.length ? 响度们[Math.floor(响度们.length * 0.9)] : 1;
+    var 响小 = 响度们.length ? 响度们[Math.floor(响度们.length * 0.1)] : 0;
+    if (!(响大 > 1e-6)) 响大 = 1;
+    // 跨度太窄时别硬拉伸，否则轻微噪声会被放大成强弱起伏
+    if (响大 < 响小 * 1.15) 响小 = 响大 * 0.7;
+    var 力度缩放 = function(r){
+      var 位 = (r - 响小) / (响大 - 响小);
+      位 = Math.max(0, Math.min(1, 位));
+      return 0.35 + 0.65 * Math.sqrt(位);   // 开方让中弱音不至于全糊在一起
+    };
+
+    /* 音高抖动修正（音高中值滤波）：
+       分析窗横跨两个音的边界时，谱峰会短暂掉到半音下方（实测 67→66→67 只持续 1 帧），
+       这些孤立毛刺会被当成新音符，被「最短音符」过滤掉后表现为"漏音"。
+       先用奇数窗中值滤波把 1~2 帧的跳变抹平，音高线才连续。 */
+    var 清洗 = new Array(帧列表.length);
+    for (i = 0; i < 帧列表.length; i++){
+      if (!帧列表[i].m){ 清洗[i] = 0; continue; }
+      var w2 = 中值窗 >> 1, 取 = [];
+      for (var q = Math.max(0, i - w2); q <= Math.min(帧列表.length - 1, i + w2); q++){
+        if (帧列表[q].m) 取.push(帧列表[q].m);
+      }
+      取.sort(function(a, b){ return a - b; });
+      清洗[i] = 取.length ? 取[取.length >> 1] : 0;
+    }
+
+    /* 起音检测：同音重复（小星星那种 C-C、G-G）靠"音高相同"是分不开的，
+       但真正重新按下时会有一个能量回升。比较当前帧与前一帧的能量，
+       回升超过 3 dB 就认为重新起音，必须断开而不是延长。 */
+    function 重新起音(序号){
+      var 今 = 帧列表[序号];
+      if (!今 || !今.r) return false;
+      // 取前面 1~3 帧里最小的能量做基准，回升超过约 3 dB 判为重新起音
+      var 基 = Infinity;
+      for (var q = Math.max(0, 序号 - 3); q < 序号; q++){
+        var r = 帧列表[q].r;
+        if (r && r < 基) 基 = r;
+      }
+      if (!isFinite(基) || 基 <= 1e-9) return false;
+      return 今.r > 基 * 1.41;   // ≈ +3 dB
+    }
+
     function 收尾(){
       if (当前 && 当前.d * 1000 >= 选项.最短){
         if (!逼真) 当前.m = 量化(当前.m, 选项.音阶);
         当前.dur = 当前.d;  // 播放/渲染/画谱统一读 dur，原来只读 d 导致时长 undefined
-        结果.push(当前);
+        出音.push(当前);
       }
     }
     for (i = 0; i < 帧列表.length; i++){
-      var 帧项 = 帧列表[i];
-      if (!帧项.m){ 收尾(); 当前 = null; continue; }
-      if (当前 && 当前.m === 帧项.m && 帧项.t - (当前.t + 当前.d) < 0.09){
-        当前.d += 帧项.d; 当前.v = Math.max(当前.v, 帧项.v);
+      var 帧项 = 帧列表[i], 音 = 清洗[i];
+      if (!音){ 收尾(); 当前 = null; continue; }
+      var 新起 = 当前 && 当前.m === 音 ? 重新起音(i) : false;
+      if (当前 && 当前.m === 音 && !新起 && 帧项.t - (当前.t + 当前.d) < 0.09){
+        当前.d += 帧项.d; 当前.r = Math.max(当前.r || 0, 帧项.r);
       } else {
         收尾();
-        当前 = { m: 帧项.m, t: 帧项.t, d: 帧项.d, v: 帧项.v };
+        当前 = { m: 音, t: 帧项.t, d: 帧项.d, r: 帧项.r, v: 帧项.v };
       }
     }
     收尾();
-    return 结果;
+    // 归一化只在整个音符结束后统一做一次，避免边合并边缩放
+    for (i = 0; i < 出音.length; i++) 出音[i].v = 力度缩放(出音[i].r || 响小);
+    return 出音;
   }
 
   /* ---------- 钢琴音色 ---------- */
@@ -426,15 +517,18 @@
   }
 
   /* ---------- 乐谱绘制 ---------- */
-  function 准备画布(){
-    var c = $('乐谱'), ctx = c.getContext('2d');
+  function 准备画布(高){
+    // 必须先改高度再取 context 铺白底：改 canvas.height 会重置画布，
+    // 原来先铺 600 高的白底再画 300 高的谱，下半截就留成一片空白。
+    var c = $('乐谱');
+    if (高 && c.height !== 高) c.height = 高;
+    var ctx = c.getContext('2d');
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
     return ctx;
   }
   function 画五线谱(){
-    var c = $('乐谱'), ctx = 准备画布(), 每行 = 16, 行高 = 132, 行 = Math.max(1, Math.ceil(音符.length / 每行));
-    c.height = Math.max(300, 行 * 行高 + 60);
-    ctx = 准备画布();
+    var c = $('乐谱'), 每行 = 16, 行高 = 132, 行 = Math.max(1, Math.ceil(音符.length / 每行));
+    var ctx = 准备画布(Math.max(200, 行 * 行高 + 34));
     ctx.fillStyle = '#1a2340'; ctx.font = 'bold 17px sans-serif';
     ctx.fillText('MP3 转钢琴 · 听写乐谱 · ' + 基名() + ' · ' + $('速度').value + ' BPM', 26, 32);
     for (var r = 0; r < 行; r++){
@@ -471,31 +565,49 @@
     }
   }
   function 画卷帘(){
-    var c = $('乐谱'), ctx = 准备画布(), 每行 = 24, 行高 = 230, 行 = Math.max(1, Math.ceil(音符.length / 每行));
-    c.height = Math.max(300, 行 * 行高 + 60);
-    ctx = 准备画布();
+    /* 原来固定画满 MIDI 48~84 共 37 个半音、行高写死 230，
+       结果旋律只集中在 C4~A4 时，音符全挤在顶上一条，下面八成是空的。
+       改成按实际音域算键高：先看这首曲子用了几个半音，再撑满可用高度。 */
+    var 低 = 127, 高 = 0, i, m;
+    for (i = 0; i < 音符.length; i++){ if (音符[i].m < 低) 低 = 音符[i].m; if (音符[i].m > 高) 高 = 音符[i].m; }
+    if (!音符.length){ 低 = 60; 高 = 72; }
+    // 上下各留 2 个半音，最少撑 12 个半音（一个八度），免得两三个音被拉成巨块
+    var 音域低 = Math.max(21, 低 - 2), 音域高 = Math.min(108, Math.max(高 + 2, 音域低 + 11));
+    var 键数 = 音域高 - 音域低 + 1;
+    var 每行 = 音符.length > 24 ? 24 : Math.max(1, 音符.length);
+    var 行 = Math.max(1, Math.ceil(音符.length / 每行));
+    var 键高 = Math.max(7, Math.min(17, Math.floor(360 / 键数)));   // 单个半音的高度
+    var 行高 = 键数 * 键高 + 52;
+    var c = $('乐谱');
+    var ctx = 准备画布(54 + 行 * 行高);
     ctx.fillStyle = '#1a2340'; ctx.font = 'bold 17px sans-serif';
     ctx.fillText('MP3 转钢琴 · 钢琴卷帘 · ' + 基名(), 26, 32);
     for (var r = 0; r < 行; r++){
       var 顶 = 54 + r * 行高;
-      for (var m = 48; m <= 84; m++){
-        var y = 顶 + (84 - m) * 4.5;
+      for (m = 音域低; m <= 音域高; m++){
+        var y = 顶 + (音域高 - m) * 键高;
         if (m % 12 === 1 || m % 12 === 3 || m % 12 === 6 || m % 12 === 8 || m % 12 === 10){
-          ctx.fillStyle = '#eef1f7'; ctx.fillRect(26, y, c.width - 52, 4.4);
+          ctx.fillStyle = '#eef1f7'; ctx.fillRect(26, y, c.width - 52, 键高 - 0.2);
         }
         if (m % 12 === 0){
-          ctx.strokeStyle = '#ccd3e2'; ctx.beginPath(); ctx.moveTo(26, y + 4.5); ctx.lineTo(c.width - 26, y + 4.5); ctx.stroke();
-          ctx.fillStyle = '#7b8498'; ctx.font = '10px sans-serif'; ctx.fillText(音名(m), 2, y + 9);
+          ctx.strokeStyle = '#ccd3e2'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(26, y + 键高); ctx.lineTo(c.width - 26, y + 键高); ctx.stroke();
+          ctx.fillStyle = '#7b8498'; ctx.font = '10px sans-serif'; ctx.fillText(音名(m), 2, y + 键高);
         }
       }
-      for (var i = 0; i < 每行; i++){
-        var idx = r * 每行 + i;
-        if (idx >= 音符.length) break;
-        var n = 音符[idx], x = 66 + i * 62;
-        ctx.fillStyle = 'rgba(42,79,208,.82)';
-        ctx.fillRect(x, 顶 + (84 - n.m) * 4.5, Math.max(12, Math.min(52, n.dur * 90)), 4.2);
-        ctx.fillStyle = '#6b7285'; ctx.font = '9px sans-serif';
-        ctx.fillText(n.t.toFixed(1) + 's', x, 顶 + 170);
+      // 每行按时间轴横向铺满；但末行音符少时不要硬拉宽，否则两个音会被撑成两根长条，
+      // 看上去像"这两个音特别长"，其实只是均分槽宽造成的。槽宽统一按满行算。
+      var 起 = r * 每行, 止 = Math.min(音符.length, 起 + 每行), 本行 = 止 - 起;
+      var 左 = 66, 右 = c.width - 40, 槽 = (右 - 左) / Math.max(1, 每行);
+      for (i = 0; i < 本行; i++){
+        var n = 音符[起 + i], x = 左 + i * 槽;
+        var 块宽 = Math.max(10, Math.min(槽 * 0.86, n.dur * (槽 / 0.32)));
+        ctx.fillStyle = 'rgba(42,79,208,.85)';
+        ctx.fillRect(x, 顶 + (音域高 - n.m) * 键高 + 0.6, 块宽, Math.max(3, 键高 - 1.6));
+        if (本行 <= 16 || i % 4 === 0){
+          ctx.fillStyle = '#6b7285'; ctx.font = '9px sans-serif';
+          ctx.fillText(n.t.toFixed(1) + 's', x, 顶 + 键数 * 键高 + 16);
+        }
       }
     }
   }
@@ -532,8 +644,30 @@
       源.buffer = 原缓冲; 源.connect(总线); 源.start(0);
     }
     音符.forEach(function(n){ 钢琴音(ctx, 总线, midi频率(n.m), n.t, n.dur, n.v, 逼真); });
-    return ctx.startRendering();
+    return ctx.startRendering().then(function(渲染结果){
+      /* 电平处理：原来每根弦振幅写死成 0.26，导出的成品峰值只有 -9.6 dBFS，
+         和常见音乐（-1~-3 dBFS）一比就显得"声音很小、像坏了"；音符密集时又会叠爆削波。
+         这里统一扫峰值，往 -1 dBFS 拉（最多抬 4 倍，避免把底噪一起放大），
+         超了就软膝压回来，两头都照顾到。 */
+      var 数据 = 渲染结果.getChannelData(0), 峰 = 0, k, 目标 = 0.891;   // -1 dBFS，给编码器留余量
+      for (k = 0; k < 数据.length; k++){ var a = 数据[k] < 0 ? -数据[k] : 数据[k]; if (a > 峰) 峰 = a; }
+      var 原峰分贝 = 20 * Math.log(峰 || 1e-9) / Math.LN10;
+      if (峰 < 1e-6){
+        数据归一化 = '静音';
+      } else if (峰 < 目标){
+        var 增 = Math.min(目标 / 峰, 4);
+        for (k = 0; k < 数据.length; k++) 数据[k] *= 增;
+        数据归一化 = '提升 ' + (20 * Math.log(增) / Math.LN10).toFixed(1) + ' dB';
+      } else {
+        var 比 = 目标 / 峰;
+        // 先压到目标，再对接近满幅的部分做软膝，听感比硬削好
+        for (k = 0; k < 数据.length; k++) 数据[k] = Math.tanh(数据[k] * 比 * 1.08) * 0.94;
+        数据归一化 = '压限 ' + (-原峰分贝).toFixed(1) + ' dB（原峰值 +' + 原峰分贝.toFixed(1) + ' dBFS）';
+      }
+      return 渲染结果;
+    });
   }
+  var 数据归一化 = '';
   function 加载脚本(url){
     return new Promise(function(好, 坏){
       var s = document.createElement('script');
@@ -641,7 +775,12 @@
           最短: parseInt($('最短').value, 10),
           逼真: $('模式').value === 'real'
         });
-        if (!音符.length){ 说('没听出明显的旋律。试试把灵敏度调高，或换一段人声 / 主旋律更干净的音乐。', true); btn.disabled = false; return; }
+        if (!音符.length){
+          说(听写.疑似和弦
+            ? '这段里同时响的音太多（和弦或伴奏很厚），单旋律听写分不开。试试先用剪辑软件裁出主旋律那几秒，或换一段单声部的人声 / 独奏片段。'
+            : '没听出明显的旋律。试试把灵敏度调高，或换一段人声 / 主旋律更干净的音乐。', true);
+          btn.disabled = false; return;
+        }
         $('音符数').textContent = 音符.length;
         $('音频时长').textContent = 音频时长.toFixed(1) + 's';
         var lo = Math.min.apply(null, 音符.map(function(n){ return n.m; }));
@@ -651,6 +790,8 @@
         $('结果').hidden = false; $('谱面板').hidden = false;
         建琴键(); 画谱();
         $('导出MP3').disabled = $('导出WAV').disabled = false;
+        // 只读快照：给回归测试和调试用，不参与任何逻辑
+        window.钢琴快照 = 音符.map(function(n){ return { m: n.m, t: +n.t.toFixed(3), d: +n.dur.toFixed(3), v: +n.v.toFixed(3) }; });
         说('听写完成：' + 音符.length + ' 个音符（' + ($('模式').value === 'real' ? '逼真 · 含原声' : '经典钢琴') + '），试听或导出吧。');
         btn.disabled = false;
       }).catch(function(e){
@@ -671,7 +812,7 @@
   };
   $('导出WAV').onclick = function(){
     播放状态.textContent = '正在渲染钢琴音频…';
-    渲染().then(function(b){ 下载(pcm转wav(b.getChannelData(0), b.sampleRate), 基名() + ($('模式').value === 'real' ? '-原声版' : '-钢琴版') + '.wav'); 播放状态.textContent = 'WAV 已导出'; })
+    渲染().then(function(b){ 下载(pcm转wav(b.getChannelData(0), b.sampleRate), 基名() + ($('模式').value === 'real' ? '-原声版' : '-钢琴版') + '.wav'); 播放状态.textContent = 'WAV 已导出（' + 数据归一化 + '）'; })
       .catch(function(e){ 播放状态.textContent = '导出失败：' + e.message; });
   };
   $('导出MP3').onclick = function(){
@@ -687,7 +828,7 @@
       var 尾 = 编码器.flush();
       if (尾.length) 块.push(new Uint8Array(尾));
       下载(new Blob(块, { type: 'audio/mpeg' }), 基名() + ($('模式').value === 'real' ? '-原声版' : '-钢琴版') + '.mp3');
-      播放状态.textContent = 'MP3 已导出';
+      播放状态.textContent = 'MP3 已导出（' + 数据归一化 + '）';
     }).catch(function(e){
       播放状态.textContent = 'MP3 编码不可用（' + (e && e.message || '网络失败') + '），请用 WAV 导出。';
     });
