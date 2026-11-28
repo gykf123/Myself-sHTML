@@ -1,0 +1,19 @@
+name = "fesui-block-world-relay"
+main = "src/index.js"
+compatibility_date = "2026-11-28"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[[routes]]
+pattern = "game.fesui.xn--0iv.gay"
+custom_domain = true

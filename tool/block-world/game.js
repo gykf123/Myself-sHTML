@@ -2475,14 +2475,16 @@
   var netCodeEl = document.getElementById('netCode');
   var netModeEl = document.getElementById('netMode');
 
+  /* 默认中继：Cloudflare Workers 上跑的同一份中继代码，玩家不用手填 */
+  var 默认中继 = 'wss://game.fesui.xn--0iv.gay';
+  if (netRelayEl) netRelayEl.value = 默认中继;
+
   try {
     var savedName = localStorage.getItem('mcblocks_name');
     if (savedName) {
       if (netNameEl) netNameEl.value = savedName;
       if (netNameLanEl) netNameLanEl.value = savedName;
     }
-    var savedRelay = localStorage.getItem('mcblocks_relay');
-    if (savedRelay && netRelayEl) netRelayEl.value = savedRelay;
   } catch (e) { }
 
   /* 两个昵称输入框互通，改哪边都算数 */
@@ -2500,7 +2502,8 @@
 
   function netRelayValue() {
     var v = netTrimRelay(netRelayEl ? netRelayEl.value : '');
-    if (v) { try { localStorage.setItem('mcblocks_relay', v); } catch (e) { } }
+    if (!v) v = 默认中继;
+    try { localStorage.setItem('mcblocks_relay', v); } catch (e) { }
     return v;
   }
 

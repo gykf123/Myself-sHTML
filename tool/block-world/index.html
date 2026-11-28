@@ -357,7 +357,7 @@
     <!-- 公网中继 -->
     <div id="netWanPane" style="display:block">
       <div class="netrow"><span>昵称</span><input id="netName" maxlength="10" placeholder="玩家"></div>
-      <div class="netrow"><span>中继</span><input id="netRelay" placeholder="wss://你的中继域名" spellcheck="false"></div>
+      <div class="netrow"><span>中继</span><input id="netRelay" placeholder="wss://game.fesui.是.gay" spellcheck="false" value="wss://game.fesui.xn--0iv.gay"></div>
       <button class="netgo" id="netWanHost">创建房间</button>
       <div class="nethr"><span>加入别人的房间</span></div>
       <div class="netrow">
@@ -377,8 +377,8 @@
         <div class="role" id="netRoomRole"></div>
       </div>
 
-      <div class="nettip">公网中继是「一台服务器转发消息」，谁都不用开端口。中继只转发、不记日志，
-        方块改动只存在中继内存里，服务器重启就清空。房间码就是通行证，别随便发到公开地方。</div>
+      <div class="nettip">公网中继是「一台服务器转发消息」，谁都不用开端口。默认中继跑在 Cloudflare Workers 上，
+        只转发不记日志，方块改动只存在中继内存里，房间空掉就清空。房间码就是通行证，别随便发到公开地方。</div>
     </div>
 
     <!-- 同一 Wi-Fi -->
