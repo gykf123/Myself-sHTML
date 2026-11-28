@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>方块世界 · 浏览器沙盒 · 支持多人联机 · FeSui</title>
-<meta name="description" content="浏览器里的小小方块沙盒：挖方块、打怪、造房子，进度自动存在本机。支持公网中继联机——生成 6 位房间码就能和朋友跨网一起玩，也可以同一 Wi-Fi 局域网联机。无需登录，不接数据库。">
-<meta property="og:title" content="方块世界 · 浏览器沙盒 · 支持多人联机" />
-<meta property="og:description" content="挖方块、打怪、造房子，生成 6 位房间码就能和朋友跨网一起玩。纯前端渲染，中继零依赖，不接数据库。" />
+<title>小小沙盒在线版 · 浏览器方块沙盒 · FeSui</title>
+<meta name="description" content="浏览器里的小小方块沙盒：挖方块、打怪、造房子，进度自动存在本机。单人免登录直接玩；联机需登录并用 1 积分解锁，解锁后生成房间码即可跨网一起玩。">
+<meta property="og:title" content="小小沙盒在线版 · 浏览器方块沙盒" />
+<meta property="og:description" content="挖方块、打怪、造房子。单人免登录直接玩，联机需登录并用 1 积分解锁。" />
 <meta property="og:type" content="website" />
-<link rel="icon" href="../../favicon.png">
-<link rel="canonical" href="https://fesui.xn--0iv.gay/tool/block-world/">
+<link rel="icon" href="../favicon.png">
+<link rel="canonical" href="https://fesui.xn--0iv.gay/sandbox/">
 <style>
   :root{
     --ui:rgba(16,20,26,.55);
@@ -164,6 +164,7 @@
   .netpanel .netgo{padding:12px;border-radius:10px;border:none;font-size:14px;font-weight:700;color:#08210c;
     background:linear-gradient(180deg,#9ee87a,#5cb43c);letter-spacing:1px;width:100%}
   .netpanel .netgo:active{background:linear-gradient(180deg,#8dd96c,#4fa32f)}
+  .netpanel .netgo:disabled{background:rgba(255,255,255,.12);color:#7f93a6;cursor:default;border:1px solid rgba(255,255,255,.1)}
   .netrooms{display:flex;flex-direction:column;gap:6px;max-height:168px;overflow:auto;scrollbar-width:none}
   .netrooms::-webkit-scrollbar{display:none}
   .netroom{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 13px;border-radius:10px;
@@ -213,6 +214,19 @@
   #netNote{z-index:60}
 
   /* ---------- 公网联机面板 ---------- */
+  .netgate{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:9px 11px;border-radius:10px;text-align:left;font-size:12px;line-height:1.5;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#b9c9d8}
+  .netgate.locked{background:rgba(255,190,90,.08);border-color:rgba(255,190,90,.3);color:#f0d8a8}
+  .netgate.ready{background:rgba(142,224,106,.09);border-color:rgba(142,224,106,.32);color:#c8f0a8}
+  .netgate .gt{flex:1;min-width:0}
+  .netgate .gt b{display:block;font-size:12.5px;margin-bottom:1px}
+  .netgate .gt small{font-size:11px;opacity:.82}
+  .netgate button{flex:none;padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.18);
+    background:rgba(255,255,255,.09);color:#cfe0ee;font-size:12px;font-family:inherit;white-space:nowrap}
+  .netgate .go{border:none;background:linear-gradient(180deg,#9ee87a,#5cb43c);color:#08210c;font-weight:700}
+  .netgate button:disabled{opacity:.55;cursor:default}
+  .netgate a{color:#9ee06d}
   .nettabs{display:flex;gap:6px;margin:2px 0 4px}
   .nettabs button{flex:1;padding:9px 8px;border-radius:9px;border:1px solid rgba(255,255,255,.14);
     background:rgba(255,255,255,.05);color:#9fb3c8;font-size:12.5px;font-family:inherit;letter-spacing:.5px}
@@ -340,7 +354,7 @@
   <button class="start" id="btnStart">开 始 游 戏</button>
   <button id="btnNet">联机玩</button>
   <div class="site-note">存档保存在这台设备的浏览器里 · 不上传 · 不用登录<br>
-    <a href="../index.html">← 返回工具箱</a></div>
+    <a href="/">← 返回首页</a> · <a href="/tool/">工具箱</a></div>
 </div>
 
 <div class="overlay hide" id="net">
@@ -352,6 +366,12 @@
     <div class="nettabs">
       <button id="tabWan" class="on">公网中继</button>
       <button id="tabLan">同一 Wi-Fi</button>
+    </div>
+
+    <!-- 联机门禁：单人免登录，联机需登录 + 1 积分解锁 -->
+    <div class="netgate" id="netGate">
+      <div class="gt"><b id="gateTitle">正在检查联机权限…</b><small id="gateSub">单人模式不受影响</small></div>
+      <button id="gateBtn" disabled>请稍候</button>
     </div>
 
     <!-- 公网中继 -->
@@ -377,7 +397,7 @@
         <div class="role" id="netRoomRole"></div>
       </div>
 
-      <div class="nettip">公网中继是「一台服务器转发消息」，谁都不用开端口。默认中继跑在 Cloudflare Workers 上，
+      <div class="nettip">公网中继是「一台服务器转发消息」，谁都不用开端口。默认中继跑在 Cloudflare 上，
         只转发不记日志，方块改动只存在中继内存里，房间空掉就清空。房间码就是通行证，别随便发到公开地方。</div>
     </div>
 
@@ -402,8 +422,13 @@
 
 <div id="loading">正在生成世界…</div>
 
+<script src="/net-guard.js?v=20261122a"></script>
+<script src="/site-nav.js?v=20261128"></script>
+<script src="/visit.js?v=20261107"></script>
+<script src="/auth-ticket.js?v=20261107"></script>
 <script src="three.min.js"></script>
 <script src="game.js"></script>
+<script src="sandbox-gate.js?v=20261128"></script>
 <script>
 /* 联机面板：独立绑定，不依赖游戏初始化。
    目的是两件事：① 邀请链接 ?room=XXXXXX 进来时自动填好房间码；② WebGL 坏掉时点按钮也有反馈。 */

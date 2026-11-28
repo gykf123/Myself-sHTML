@@ -47,7 +47,7 @@ ul{padding-left:20px;color:#b8c8d8;font-size:13px}li{margin:5px 0}
   <p style="margin-bottom:0">房间和方块改动只存在对应 Durable Object 的内存里，长时间没人会自动回收；没有接任何外部数据库。</p>
 </div>
 <ul>
-  <li>游戏本体不在这里，仍在 GitHub Pages 的 <code>/tool/block-world/</code></li>
+  <li>游戏本体不在这里，仍在 GitHub Pages 的 <code>/sandbox/</code></li>
   <li>中继只转发消息，不跑游戏逻辑</li>
   <li>房间码就是通行证，别公开分享</li>
   <li>每房最多 12 人，全服不设固定房间数上限，按实际用量计费</li>

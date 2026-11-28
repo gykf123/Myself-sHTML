@@ -144,7 +144,7 @@ cloudflared tunnel --url http://127.0.0.1:8787
 | `GET /` | 状态页，列出房间、人数、方块改动数 |
 | `GET /healthz` | JSON 健康检查，给监控用 |
 | `GET /status.json` | 同上，换个名字 |
-| `GET /game/` | 游戏本体（就是 `tool/block-world/` 的静态站） |
+| `GET /game/` | 游戏本体（就是 `sandbox/` 的静态站） |
 | `WS /room/<房间码>` | 游戏连接，房间码 4~12 位字母数字 |
 
 进房后第一条消息必须是握手包：

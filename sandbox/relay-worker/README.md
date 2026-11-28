@@ -38,7 +38,7 @@ custom_domain = true
 ## 部署
 
 ```bash
-cd tool/block-world/relay-worker
+cd sandbox/relay-worker
 
 # 一次性配好凭证
 export CLOUDFLARE_API_TOKEN=你的token

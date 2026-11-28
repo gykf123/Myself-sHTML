@@ -32,6 +32,7 @@
     pulse:   'M3 12h4l2.5-6 4 12 2.5-6H21',
     bot:     'M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM12 4v4M9 14h.01M15 14h.01M9 17h6',
     news:    'M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM18 8h1a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2M8 8h7M8 12h7M8 16h4',
+    cube:    'M12 2.8 20.5 7v10L12 21.2 3.5 17V7zM3.5 7 12 11.3 20.5 7M12 11.3v9.9',
     extern:  'M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6'
   };
 
@@ -56,6 +57,7 @@
     { name: '个人主页',   icon: 'person',  href: '/home/',     match: '/home' },
     { name: '项目档案',   icon: 'open',    href: '/projects/', match: '/projects' },
     { name: '工具箱大厅', icon: 'tools',   href: '/tool/',     match: '/tool' },
+    { name: '小小沙盒',   icon: 'cube',    href: '/sandbox/',  match: '/sandbox' },
     { name: '聊天室',     icon: 'chat',    href: '/chat/',     match: '/chat' },
     { name: '个人中心',   icon: 'profile', href: '/user/',     match: '/user' },
     { name: '访问统计',   icon: 'chart',   href: '/stats/',    match: '/stats' },

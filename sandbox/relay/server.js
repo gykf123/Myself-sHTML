@@ -22,7 +22,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-/* 静态站点目录：本文件在 tool/block-world/relay/ 下，站点根在再上一级。
+/* 静态站点目录：本文件在 sandbox/relay/ 下，站点根在再上一级。
    有它就顺带把游戏本身也发出去，方便一个进程搞定「开服 + 开网页」。 */
 const 站点根 = path.resolve(__dirname, '..');
 const MIME = {
@@ -431,7 +431,7 @@ const server = http.createServer((req, res) => {
     res.end(页面());
     return;
   }
-  // 顺手把游戏本体也发出去：/game/ 就是 tool/block-world/ 静态站
+  // 顺手把游戏本体也发出去：/game/ 就是 sandbox/ 静态站
   if (url.startsWith('/game/')) {
     const 相对 = url.slice('/game/'.length) || 'index.html';
     if (发静态(req, res, 相对)) return;

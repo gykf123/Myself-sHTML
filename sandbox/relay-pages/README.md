@@ -27,7 +27,7 @@ Durable Object 类仍定义在 `relay-worker/src/index.js`，由 Worker
 ## 部署
 
 ```bash
-cd tool/block-world/relay-pages
+cd sandbox/relay-pages
 export CLOUDFLARE_API_TOKEN=...
 export CLOUDFLARE_ACCOUNT_ID=...
 npx wrangler pages deploy public --project-name=block-world-relay-pages

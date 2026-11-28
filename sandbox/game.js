@@ -2552,9 +2552,21 @@
     if (netScanTimer) { clearInterval(netScanTimer); netScanTimer = null; }
   });
 
+  /* 联机门禁：单人免登录，任何联机都要先通过积分解锁校验 */
+  function netGatePass() {
+    var g = window.__sandboxGate;
+    if (g && typeof g.ok === 'function' && !g.ok()) {
+      showTip(typeof g.tip === 'function' ? g.tip() : '联机需要先登录并用 1 积分解锁');
+      if (typeof g.openPanel === 'function') g.openPanel();
+      return false;
+    }
+    return true;
+  }
+
   /* 公网：开房 */
   var netWanHost = document.getElementById('netWanHost');
   if (netWanHost) netWanHost.addEventListener('click', function () {
+    if (!netGatePass()) return;
     var 址 = netRelayValue();
     if (!址) { showTip('请先填中继地址'); return; }
     netEnterWorld();
@@ -2565,6 +2577,7 @@
   /* 公网：加入 */
   var netWanJoin = document.getElementById('netWanJoin');
   if (netWanJoin) netWanJoin.addEventListener('click', function () {
+    if (!netGatePass()) return;
     var 址 = netRelayValue();
     var 码 = netCodeEl ? netCodeEl.value : '';
     if (!址) { showTip('请先填中继地址'); return; }
@@ -2621,6 +2634,7 @@
 
   /* 局域网：开房 */
   document.getElementById('netHost').addEventListener('click', function () {
+    if (!netGatePass()) return;
     if (netScanTimer) { clearInterval(netScanTimer); netScanTimer = null; }
     netEnterWorld();
     netStartHost(netNameValue());
@@ -2629,6 +2643,7 @@
 
   /* 局域网：按 IP 加入 */
   document.getElementById('netJoinBtn').addEventListener('click', function () {
+    if (!netGatePass()) return;
     var ip = netIpEl.value.trim();
     if (!ip) { showTip('请输入房主的 IP'); return; }
     if (netScanTimer) { clearInterval(netScanTimer); netScanTimer = null; }

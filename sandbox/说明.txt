@@ -1,4 +1,4 @@
-方块世界 · 网页版（FeSui）
+小小沙盒在线版 · 网页版（FeSui）
 ==================================
 
 一、直接玩
@@ -19,14 +19,14 @@
        - 中继只转发消息，不跑游戏逻辑，也不记日志
        - 房间和方块改动只在内存里，房间空了就清空
        - 房主掉线留宽限时间，凭密钥能认回来；长期不回会自动换房主
-       - 本项目不接 supabase，也不接任何外部数据库
+       - 联机权限走 supabase 积分；游戏进度仍只存本机 localStorage
 
   ①-2 想自己搭一套中继（可选）
      代码有两份，协议完全一致，挑一份用：
        relay/         零依赖 Node，node server.js 就能跑，顺手托管游戏本体
-       relay-worker/  Cloudflare Workers + Durable Objects，wrangler deploy
-     用 Cloudflare 时，在 wrangler.toml 里把 routes 的 pattern 改成你自己的域名，
-     再把面板里的「中继」改成 wss://你的域名 即可。
+       relay-worker/  Cloudflare Workers + Durable Objects（DO 本体）
+       relay-pages/   线上这份：Pages Function 路由 + 外部 CNAME 签证书
+     线上中继是 Pages 项目，域名 game.fesui.是.gay；换域名见 relay-pages/README.md。
 
   ② 同一 Wi-Fi（局域网，不经过公网）
      原理：房主自己跑 local-server/，其他人连房主的 IP。
@@ -40,7 +40,8 @@
 
 三、文件说明
   index.html     页面与界面（含联机面板）
-  game.js        游戏逻辑（联机模块已同时支持局域网与公网中继）
+  game.js            游戏逻辑（四个联机入口都过了 netGatePass 门禁）
+  sandbox-gate.js    联机门禁：登录态 + 积分解锁状态 + UI
   three.min.js   Three.js 库，本地引用，离线可用
   relay/         公网中继服务（Node 版），部署在服务器上，浏览器不需要下载
                  （server.js 本体、自测.mjs 自测脚本、README.md 部署说明）
